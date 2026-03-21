@@ -19,10 +19,11 @@ function sanitizeId(name: string): string {
   );
 }
 
-/**
- * Modal form for creating or editing a profile.
- * Call show() to open; onSaved() to register a post-save callback.
- */
+/** Returns true if the given auth type requires a key path */
+function requiresKeyPath(authType: AuthType): boolean {
+  return authType === "key";
+}
+
 export class ProfileForm {
   private overlay: HTMLElement | null = null;
   private editingId: string | null = null;
@@ -35,6 +36,28 @@ export class ProfileForm {
   show(profile?: Profile): void {
     this.editingId = profile?.id ?? null;
     this.mount(profile);
+  }
+
+  private renderSavedCredentialSection(profile?: Profile): string {
+    const mode = profile?.credential_storage_mode;
+    // Only password auth profiles can have a stored credential. SSH key passphrases
+    // are never saved, so there is nothing to show or clear for key/agent auth.
+    if (!mode || mode === "never" || profile?.auth_type !== "password") return "";
+
+    const modeLabel =
+      mode === "local_machine"
+        ? "Saved on this PC (local machine file)"
+        : "Saved in profile file — <strong>less secure / portable</strong>";
+
+    return `
+      <div class="form-field saved-credential-section">
+        <label>Saved Credential</label>
+        <div class="saved-credential-info">
+          <span>${modeLabel}</span>
+          <button type="button" class="btn-secondary btn-small" id="pf-clear-cred">Clear</button>
+        </div>
+      </div>
+    `;
   }
 
   private mount(profile?: Profile): void {
@@ -72,9 +95,10 @@ export class ProfileForm {
             <select id="pf-auth-type">
               <option value="key" ${authType === "key" ? "selected" : ""}>SSH Key</option>
               <option value="agent" ${authType === "agent" ? "selected" : ""}>SSH Agent</option>
+              <option value="password" ${authType === "password" ? "selected" : ""}>Password</option>
             </select>
           </div>
-          <div class="form-field" id="pf-key-row"${authType !== "key" ? ' style="display:none"' : ""}>
+          <div class="form-field" id="pf-key-row"${!requiresKeyPath(authType) ? ' style="display:none"' : ""}>
             <label for="pf-key-path">Private Key Path *</label>
             <div class="form-field__row">
               <input id="pf-key-path" type="text" value="${escHtml(profile?.key_path ?? "")}"
@@ -103,6 +127,7 @@ export class ProfileForm {
               </option>
             </select>
           </div>
+          ${isEdit ? this.renderSavedCredentialSection(profile) : ""}
           <div class="form-error" id="pf-error" style="display:none"></div>
           <div class="modal__actions">
             <button type="button" class="btn-secondary" id="pf-cancel">Cancel</button>
@@ -116,9 +141,9 @@ export class ProfileForm {
 
     // Auth type toggle — show/hide key path row
     this.overlay.querySelector("#pf-auth-type")?.addEventListener("change", (e) => {
-      const val = (e.target as HTMLSelectElement).value;
+      const val = (e.target as HTMLSelectElement).value as AuthType;
       const row = this.overlay?.querySelector<HTMLElement>("#pf-key-row");
-      if (row) row.style.display = val === "key" ? "" : "none";
+      if (row) row.style.display = requiresKeyPath(val) ? "" : "none";
     });
 
     // File picker for private key
@@ -127,6 +152,20 @@ export class ProfileForm {
       if (typeof result === "string") {
         const input = this.overlay?.querySelector<HTMLInputElement>("#pf-key-path");
         if (input) input.value = result;
+      }
+    });
+
+    // Clear saved credential button (edit mode only, shown when a credential is stored)
+    this.overlay.querySelector("#pf-clear-cred")?.addEventListener("click", async () => {
+      if (!this.editingId) return;
+      try {
+        await api.clearCredential(this.editingId);
+        // Re-render the form with the updated (credential-cleared) profile
+        const updated = await api.getProfile(this.editingId);
+        this.close();
+        this.mount(updated);
+      } catch (err) {
+        this.showError(`Failed to clear credential: ${err}`);
       }
     });
 
@@ -186,6 +225,23 @@ export class ProfileForm {
       }
     }
 
+    // When editing, preserve existing credential storage fields so they aren't wiped.
+    // These are managed via the Clear button and at connect time.
+    const existingProfile = isEdit ? await api.getProfile(id).catch(() => null) : null;
+
+    // If auth type is switching away from password, clear any stored password credential.
+    // Passphrases are never saved, so a switch in the other direction needs no cleanup.
+    const isAuthSwitchAwayFromPassword =
+      existingProfile?.auth_type === "password" && authType !== "password";
+
+    if (isAuthSwitchAwayFromPassword && this.editingId) {
+      try {
+        await api.clearCredential(this.editingId);
+      } catch {
+        // Non-fatal — backend also does this cleanup in save_profile
+      }
+    }
+
     const profile: Profile = {
       id,
       name,
@@ -197,6 +253,14 @@ export class ProfileForm {
       default_remote_path: remotePath || null,
       editor_command: editorCommand || null,
       upload_mode: uploadMode,
+      // Carry forward credential fields only when NOT switching away from password auth.
+      // When switching away, these fields must be cleared so the saved profile is clean.
+      credential_storage_mode: isAuthSwitchAwayFromPassword
+        ? undefined
+        : existingProfile?.credential_storage_mode,
+      stored_secret_portable: isAuthSwitchAwayFromPassword
+        ? undefined
+        : existingProfile?.stored_secret_portable,
     };
 
     try {

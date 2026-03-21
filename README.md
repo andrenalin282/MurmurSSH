@@ -1,26 +1,41 @@
 # MurmurSSH
 
-A minimal, open-source Linux desktop client for SSH and SFTP.
+**A minimal, open-source SSH and SFTP client for Linux.**
 
-Built with [Tauri](https://tauri.app) and Rust. Designed for Ubuntu. Distributed as a `.deb` package.
+MurmurSSH is a lightweight desktop application for managing SSH connections and browsing remote files over SFTP. It is designed for Linux users who want a simple, profile-based tool without cloud accounts, telemetry, or unnecessary complexity.
 
-## Features
+Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, free to contribute to.
 
-- Local profile management — no cloud, no account, no telemetry
-- SSH session launch via the system terminal (`x-terminal-emulator`)
-- SFTP file browser — browse, upload, download, delete files
-- Remote file editing — open a remote text file locally, save changes, upload back automatically or after confirmation
-- Last-used profile restored on startup
+---
 
-## Requirements
+## What it does
 
-- Ubuntu 22.04 or later (or compatible Debian-based Linux)
-- [Rust](https://rustup.rs) (stable toolchain via rustup)
-- Node.js 18+
-- `x-terminal-emulator` (installed by default on most Ubuntu systems)
-- `xdg-utils` (for opening files with system default editor; usually pre-installed)
-- `libssh2-1` (runtime) and `libssh2-dev` (build time) for SFTP support
-- Tauri system dependencies:
+- **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
+- **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
+- **SFTP file browser** — browse remote directories, upload files, download files, delete and rename files, create directories.
+- **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
+- **Multiple auth methods** — SSH key, SSH agent, or password authentication.
+- **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
+- **Host key verification** — unknown host keys are shown with their fingerprint before you accept them. Trusted keys are stored locally.
+- **Fully local** — all profiles, settings, and credentials stay on your machine. No cloud, no sync, no telemetry.
+
+---
+
+## Screenshots
+
+*Coming soon.*
+
+---
+
+## Installation
+
+### Requirements
+
+- Ubuntu 22.04 or later, or any compatible Debian-based Linux
+- `x-terminal-emulator` (pre-installed on most Ubuntu systems)
+- `xdg-utils` (pre-installed on most Ubuntu systems)
+
+### Install system dependencies (build only)
 
 ```bash
 sudo apt install \
@@ -31,144 +46,172 @@ sudo apt install \
   libssh2-1-dev
 ```
 
-## Development
+### Install from .deb
+
+Download the latest `.deb` release from the [Releases](../../releases) page and install it:
 
 ```bash
+sudo dpkg -i murmurssh_*.deb
+```
+
+---
+
+## Building from source
+
+You need [Rust](https://rustup.rs) (stable toolchain) and Node.js 18 or later.
+
+```bash
+# Clone the repository
+git clone https://github.com/your-username/murmurssh.git
+cd murmurssh
+
 # Install Node dependencies
 npm install
 
-# Start development build with hot reload
+# Start in development mode with hot reload
 npm run tauri dev
 ```
 
-## Building a .deb Package
-
-Before building, generate icons from a 1024×1024 PNG source image:
+To build a release `.deb` package:
 
 ```bash
+# Generate icons from a 1024×1024 PNG
 npm run tauri icon path/to/icon.png
-```
 
-Then build the release package:
-
-```bash
+# Build
 npm run tauri build
 ```
 
 The `.deb` package is written to `src-tauri/target/release/bundle/deb/`.
 
-## Managing Profiles
+---
 
-Profiles are managed through the sidebar UI. No JSON editing required.
+## Usage
 
-**Create a profile:**
+### Profiles
+
+Create a profile for each server you connect to:
+
 1. Click **New** in the sidebar
-2. Fill in the required fields (name, host, port, username)
+2. Enter the display name, host, port, and username
 3. Choose an authentication method:
-   - **SSH Key** — select a private key file using the Browse button
-   - **SSH Agent** — connects via your running `ssh-agent`
-4. Optionally set a default remote path, editor command, and upload mode
+   - **SSH Key** — pick your private key file with the Browse button
+   - **SSH Agent** — delegates to your running `ssh-agent`
+   - **Password** — entered at connection time; you can choose whether to save it
+4. Optionally set a default remote path, a custom editor command, and the upload mode for edited files
 5. Click **Save**
 
-**Edit a profile:** select it in the dropdown, click **Edit**.
+The last used profile is restored automatically on startup.
 
-**Delete a profile:** select it, click **Delete**, then confirm. Only the profile entry is removed — workspace files are not affected.
+### Connecting
 
-Profiles are stored as JSON files in `~/.config/murmurssh/profiles/` and can also be edited manually if needed.
+Select a profile and click **Connect**. MurmurSSH will:
 
-### Authentication
+1. Verify the host key (or ask you to trust it on first connect)
+2. Authenticate (prompt for password or passphrase if needed)
+3. Open an SSH session in your system terminal
+4. Load the SFTP file browser
 
-Only two methods are supported:
+### SFTP file browser
 
-- **SSH Key** (`auth_type: "key"`) — the path to an unencrypted private key is stored in the profile. The key file must exist at connect time.
-- **SSH Agent** (`auth_type: "agent"`) — delegates to a running `ssh-agent`. No key path is stored.
+| Action | How |
+|---|---|
+| Navigate | Click a directory row |
+| Go up | Click `..` |
+| Upload | Click **Upload**, pick a local file |
+| Download | Select a file → **Download** → saved to `~/Downloads/` |
+| Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
+| Delete | Select a file → **Delete** → confirm |
+| Rename | Select a file → **Rename** |
+| New directory | Click **New Dir** |
 
-Password authentication is not supported. Key generation is not included — generate keys with `ssh-keygen` beforehand.
+### Credential storage
 
-### Limitations
+When connecting with password authentication, you choose how to handle the password:
 
-- Encrypted private keys (passphrase-protected) are not supported
-- Only one profile can be active at a time
+| Option | What happens |
+|---|---|
+| **Don't save** (default) | Prompted every time. Nothing written to disk. |
+| **Save on this PC only** | Plaintext file at `~/.config/murmurssh/secrets/` with `0600` permissions. Does not travel with the profile. |
+| **Save in profile file** | Plaintext inside the profile JSON. Portable to other PCs, but anyone with access to the file can read it. |
+
+SSH key passphrases are **never saved**. They are prompted at connection time and discarded immediately after.
+
+To clear a saved password: open the profile in **Edit** → **Clear Saved Credential**.
+
+---
 
 ## Configuration
 
-All data is stored locally in `~/.config/murmurssh/`.
+All data is stored locally in `~/.config/murmurssh/`:
 
 ```
 ~/.config/murmurssh/
-  profiles/      # One JSON file per saved profile
-  settings.json  # App settings (last used profile, etc.)
-  workspace/     # Temporary cache for files opened for editing
-  logs/          # Application logs
+  profiles/        # One JSON file per saved profile
+  settings.json    # App settings (last used profile, etc.)
+  secrets/         # Machine-local saved passwords (0600, never synced)
+  workspace/       # Local cache of files opened for editing
+  known_hosts      # Accepted SSH host key fingerprints
+  logs/            # Application logs
 ```
 
-### Profile Format
+Profiles are plain JSON and can be edited manually or copied between machines.
 
-Profiles are plain JSON files in `~/.config/murmurssh/profiles/`.
+---
 
-Example (`~/.config/murmurssh/profiles/my-server.json`):
-
-```json
-{
-  "id": "my-server",
-  "name": "My Server",
-  "host": "192.168.1.100",
-  "port": 22,
-  "username": "kai",
-  "auth_type": "key",
-  "key_path": "/home/kai/.ssh/id_ed25519",
-  "default_remote_path": "/home/kai",
-  "editor_command": null,
-  "upload_mode": "confirm"
-}
-```
-
-- `auth_type`: `"key"` (SSH private key) or `"agent"` (SSH agent)
-- `key_path`: path to private key; required when `auth_type` is `"key"`, otherwise `null`
-- `upload_mode`: `"auto"` (upload immediately on save) or `"confirm"` (prompt before upload)
-- `editor_command`: optional command to open files, e.g. `"code"`, `"gedit"`, `"vim"`. If `null`, uses `xdg-open` (system default)
-
-## SFTP File Browser
-
-After connecting to a profile:
-
-- **Browse**: Click on directory rows to navigate. Double-click a directory to enter it. Click `..` to go up.
-- **Upload**: Click **Upload** to pick a local file. It is uploaded to the current remote directory.
-- **Download**: Select a file, click **Download**. File is saved to `~/Downloads/<filename>`.
-- **Edit**: Select a text file, click **Edit**. The file opens in your configured editor. When you save, it uploads back to the server automatically (auto mode) or after confirmation (confirm mode).
-- **Delete**: Select a file, click **Delete**. Confirmation is required.
-
-### Limitations
-
-- Upload uses the browser's file picker; for large files, consider direct `scp` instead
-- Downloads always go to `~/Downloads/`. A naming conflict will overwrite the existing file.
-- Directory delete is not implemented (remove contents first, then delete via SSH)
-- Binary files and files > 1 MB cannot be opened for editing; use Download instead
-- Each SFTP operation opens a fresh connection. This is simple and correct but not optimised for rapid sequential operations.
-- The file watcher (for edit flow) runs one background thread per opened file and lives until the app exits or the file is deleted
-
-## Project Structure
+## Project structure
 
 ```
-src/                        # TypeScript frontend (vanilla, no framework)
-  api/index.ts              # Typed wrappers around Tauri IPC invoke calls
-  components/               # UI components (plain DOM manipulation)
-  types.ts                  # Shared TypeScript types
-  main.ts                   # App entry point and event listeners
-src-tauri/
-  src/
-    models/                 # Rust data types (Profile, Settings, FileEntry)
-    services/               # Business logic (profile I/O, SSH launch, SFTP, workspace)
-    commands/               # Tauri IPC command handlers
-    lib.rs                  # Command registration
-    main.rs                 # Binary entry point
+src/                    # Vanilla TypeScript frontend (no framework)
+  api/index.ts          # Typed wrappers for all Tauri IPC commands
+  components/           # DOM-based UI components
+  types.ts              # Shared TypeScript types
+  main.ts               # App entry point
+src-tauri/src/
+  models/               # Rust data types (Profile, Settings, FileEntry)
+  services/             # Business logic (SSH, SFTP, profiles, secrets, workspace)
+  commands/             # Tauri IPC handlers
+  lib.rs                # Command registration
 ```
+
+---
 
 ## Contributing
 
-Read `PRD.md` before adding anything. The project is intentionally small.
+MurmurSSH is free and open source. Contributions are very welcome.
 
-- Scope rules: `.claude/skills/product-scope.md`
-- Architecture rules: `.claude/skills/architecture-rules.md`
+Whether it's a bug report, a small fix, a usability improvement, or documentation — all contributions are appreciated.
 
-Keep it simple. Stay within MVP scope. Prefer less code over more code.
+**Before opening a pull request:**
+
+- Read `PRD.md` — it defines what this project is and is not
+- Keep changes focused and minimal
+- Prefer simple solutions over clever ones
+- Stay within the existing architecture
+
+**Good first areas to contribute:**
+
+- Bug reports and reproducible test cases
+- UI polish and accessibility improvements
+- Documentation improvements
+- Platform testing on Debian, Fedora, or other distributions
+- Translations (if the project eventually supports them)
+
+Please open an issue first for larger changes so we can discuss the approach before you invest time in it.
+
+---
+
+## License
+
+MurmurSSH is released under the [MIT License](LICENSE).
+
+---
+
+## Known limitations
+
+- Only one profile can be active at a time
+- Downloads always go to `~/Downloads/` — naming conflicts overwrite without warning
+- Directory deletion is not implemented (delete contents via SSH first)
+- Binary files and files larger than 1 MB cannot be opened for editing
+- Each SFTP operation opens a fresh connection — not optimised for rapid sequential use
+- No Windows or macOS support — Linux only, by design

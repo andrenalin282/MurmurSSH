@@ -1,6 +1,13 @@
-export type AuthType = "key" | "agent";
+export type AuthType = "key" | "agent" | "password";
 
 export type UploadMode = "auto" | "confirm";
+
+/**
+ * How a credential (password or key passphrase) is persisted between app sessions.
+ *
+ * Security tiers, highest to lowest: never > local_machine > portable_profile.
+ */
+export type CredentialStorageMode = "never" | "local_machine" | "portable_profile";
 
 export interface Profile {
   id: string;
@@ -14,6 +21,13 @@ export interface Profile {
   default_remote_path: string | null;
   editor_command: string | null;
   upload_mode: UploadMode;
+  /** How the credential is retained between sessions. Absent/undefined means "never". */
+  credential_storage_mode?: CredentialStorageMode;
+  /**
+   * Credential stored inside the profile JSON (portable_profile mode only).
+   * SECURITY WARNING: plaintext — anyone with access to the file can read it.
+   */
+  stored_secret_portable?: string;
 }
 
 export interface Settings {

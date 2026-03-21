@@ -6,6 +6,11 @@ import { ProfileForm } from "./components/profile-form";
 import { ProfileSelector } from "./components/profile-selector";
 import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
+import {
+  showHostKeyDialog,
+  showPasswordPrompt,
+  showPassphrasePrompt,
+} from "./components/credential-dialog";
 import type { UploadReadyPayload } from "./types";
 
 const profileSelector = new ProfileSelector("profile-selector");
@@ -48,6 +53,89 @@ profileSelector.onDelete(async (profileId) => {
   }
 });
 
+/**
+ * Attempt to verify the SFTP connection for the given profile.
+ * Handles host key verification and credential prompts through in-app dialogs.
+ * Returns true on success, false if the user cancelled or connection failed.
+ *
+ * Note: SSH terminal sessions are launched separately and handle their own auth
+ * interactively in the terminal window.
+ */
+async function verifyConnection(
+  profileId: string,
+  password?: string,
+  passphrase?: string
+): Promise<boolean> {
+  try {
+    await api.connectSftp(profileId, password, passphrase);
+    return true;
+  } catch (rawErr) {
+    const err = String(rawErr);
+
+    if (err.startsWith("UNKNOWN_HOST:")) {
+      const fingerprint = err.slice("UNKNOWN_HOST:".length);
+      const profile = profileSelector.getSelectedProfile();
+      const host = profile?.host ?? profileId;
+
+      statusBar.set("connecting", "Verifying host key…");
+      const accepted = await showHostKeyDialog(host, fingerprint);
+      if (!accepted) {
+        statusBar.set("error", "Connection cancelled: host key not trusted.");
+        return false;
+      }
+
+      try {
+        await api.acceptHostKey(profileId, fingerprint);
+      } catch (saveErr) {
+        statusBar.set("error", `Failed to save host key: ${saveErr}`);
+        return false;
+      }
+
+      // Retry after trusting the host
+      return verifyConnection(profileId, password, passphrase);
+    }
+
+    if (err === "NEED_PASSWORD") {
+      const profile = profileSelector.getSelectedProfile();
+      statusBar.set("connecting", "Awaiting password…");
+      const result = await showPasswordPrompt(
+        profile?.username ?? "",
+        profile?.host ?? profileId
+      );
+      if (result === null) {
+        statusBar.set("disconnected");
+        return false;
+      }
+      const ok = await verifyConnection(profileId, result.secret, passphrase);
+      if (ok && result.saveMode !== "never") {
+        try {
+          await api.saveCredential(profileId, result.secret, result.saveMode);
+        } catch {
+          // Non-fatal — credential save failure doesn't break the connection
+        }
+      }
+      return ok;
+    }
+
+    if (err === "NEED_PASSPHRASE") {
+      const profile = profileSelector.getSelectedProfile();
+      statusBar.set("connecting", "Awaiting passphrase…");
+      // showPassphrasePrompt returns string | null — no save mode, passphrases are runtime-only
+      const pp = await showPassphrasePrompt(profile?.key_path ?? "SSH key");
+      if (pp === null) {
+        statusBar.set("disconnected");
+        return false;
+      }
+      // Passphrases are never saved — pass to connect and discard after use
+      return verifyConnection(profileId, password, pp);
+    }
+
+    // All other errors — display and stop
+    statusBar.set("error", err);
+    return false;
+  }
+}
+
 // Handle confirm-mode upload: backend detected a save, ask the user
 listen<UploadReadyPayload>("upload-ready", async (event) => {
   const { profile_id, local_path, remote_path } = event.payload;
@@ -81,26 +169,24 @@ profileSelector.onConnect(async (profileId: string) => {
   const profile = profileSelector.getSelectedProfile();
   if (!profile) return;
 
-  // Validate key path exists before attempting connection
-  if (profile.auth_type === "key" && profile.key_path) {
-    const exists = await api.checkPathExists(profile.key_path);
-    if (!exists) {
-      statusBar.set("error", `SSH key not found: ${profile.key_path}`);
-      return;
-    }
-  }
+  statusBar.set("connecting", "Connecting…");
 
-  statusBar.set("connecting");
+  // Verify SFTP connection (host key + auth) before launching terminal or browsing
+  const ok = await verifyConnection(profileId);
+  if (!ok) return;
 
+  // Launch SSH terminal session (handles its own auth interactively)
   try {
     await api.launchSsh(profileId);
-    await api.saveSettings({ last_used_profile_id: profileId });
-    statusBar.set("connected", `Connected to ${profile.host}`);
-    fileBrowser.setProfile(profileId, profile.default_remote_path ?? "/");
-    await fileBrowser.refresh();
   } catch (err) {
-    statusBar.set("error", String(err));
+    // Terminal launch failure is non-fatal — SFTP still works
+    statusBar.set("connected", `Warning: terminal launch failed: ${err}`);
   }
+
+  await api.saveSettings({ last_used_profile_id: profileId });
+  statusBar.set("connected", `Connected to ${profile.host}`);
+  fileBrowser.setProfile(profileId, profile.default_remote_path ?? "/");
+  await fileBrowser.refresh();
 });
 
 profileSelector.init().then((lastUsedId) => {

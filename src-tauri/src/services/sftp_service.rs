@@ -5,9 +5,27 @@ use std::path::Path;
 use ssh2::Session;
 
 use crate::models::{AuthType, FileEntry, Profile};
+use crate::services::{credentials_store, known_hosts_service};
 
-/// Opens an authenticated SSH session to the remote host in the given profile.
-/// Each SFTP operation calls this to get a fresh connection — simple and stateless.
+/// Compute a SHA-256 fingerprint of the server host key as colon-separated hex.
+fn host_fingerprint(session: &Session) -> String {
+    match session.host_key_hash(ssh2::HashType::Sha256) {
+        Some(bytes) => bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<Vec<_>>()
+            .join(":"),
+        None => "unknown".to_string(),
+    }
+}
+
+/// Opens an authenticated SSH session to the remote host described by `profile`.
+///
+/// Error strings prefixed with known tokens are handled by the frontend:
+/// - "UNKNOWN_HOST:<fp>"   — host not in known_hosts, user must accept/reject
+/// - "HOST_MISMATCH:…"    — stored fingerprint differs (possible MITM)
+/// - "NEED_PASSWORD"      — password auth selected but no password in session store
+/// - "NEED_PASSPHRASE"    — encrypted key, no passphrase in session store
 fn connect(profile: &Profile) -> Result<Session, String> {
     let addr = format!("{}:{}", profile.host, profile.port);
 
@@ -17,10 +35,31 @@ fn connect(profile: &Profile) -> Result<Session, String> {
     let mut session =
         Session::new().map_err(|e| format!("Failed to create SSH session: {}", e))?;
 
+    // Timeout covers handshake and all subsequent channel operations
+    session.set_timeout(15_000);
     session.set_tcp_stream(tcp);
     session
         .handshake()
         .map_err(|e| format!("SSH handshake failed: {}", e))?;
+
+    // ── Host key verification ──────────────────────────────────────────────
+    let fingerprint = host_fingerprint(&session);
+    match known_hosts_service::check(&profile.host, profile.port, &fingerprint) {
+        known_hosts_service::HostStatus::Trusted => {}
+        known_hosts_service::HostStatus::Unknown => {
+            return Err(format!("UNKNOWN_HOST:{}", fingerprint));
+        }
+        known_hosts_service::HostStatus::Mismatch { stored } => {
+            return Err(format!(
+                "HOST_MISMATCH: stored key {} does not match server key {}. \
+                 Connection aborted to protect against possible man-in-the-middle attack.",
+                stored, fingerprint
+            ));
+        }
+    }
+
+    // ── Authentication ─────────────────────────────────────────────────────
+    let creds = credentials_store::get(&profile.id);
 
     match &profile.auth_type {
         AuthType::Key => {
@@ -29,15 +68,48 @@ fn connect(profile: &Profile) -> Result<Session, String> {
                 .as_deref()
                 .ok_or("Key path is required for key authentication")?;
 
+            let passphrase = creds.passphrase.as_deref();
+
             session
                 .userauth_pubkey_file(
                     &profile.username,
-                    None, // ssh2 derives the public key from the private key
+                    None,
                     Path::new(key_path),
-                    None, // no passphrase
+                    passphrase,
                 )
-                .map_err(|e| format!("Key authentication failed ({}): {}", key_path, e))?;
+                .map_err(|e| {
+                    // libssh2 returns error code -16 (LIBSSH2_ERROR_FILE) when the key
+                    // is passphrase-protected and decryption fails.
+                    if let ssh2::ErrorCode::Session(code) = e.code() {
+                        if code == -16 {
+                            if passphrase.is_none() {
+                                return "NEED_PASSPHRASE".to_string();
+                            } else {
+                                // Wrong passphrase — clear it so the user can retry
+                                credentials_store::clear(&profile.id);
+                                return "Incorrect passphrase for SSH key.".to_string();
+                            }
+                        }
+                    }
+                    format!("Key authentication failed ({}): {}", key_path, e)
+                })?;
         }
+
+        AuthType::Password => {
+            let password = creds
+                .password
+                .as_deref()
+                .ok_or_else(|| "NEED_PASSWORD".to_string())?;
+
+            session
+                .userauth_password(&profile.username, password)
+                .map_err(|e| {
+                    // Clear bad password so the user must re-enter it
+                    credentials_store::clear(&profile.id);
+                    format!("Password authentication failed: {}", e)
+                })?;
+        }
+
         AuthType::Agent => {
             let mut agent = session
                 .agent()
@@ -75,6 +147,12 @@ fn connect(profile: &Profile) -> Result<Session, String> {
     }
 
     Ok(session)
+}
+
+/// Test the connection without performing any file operations.
+/// Called by the `connect_sftp` IPC command before the file browser is shown.
+pub fn test_connection(profile: &Profile) -> Result<(), String> {
+    connect(profile).map(|_| ())
 }
 
 pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, String> {

@@ -354,3 +354,97 @@ button:disabled {
   background: #f9e2af;
   animation: pulse 1.2s ease-in-out infinite;
 }
+
+/* ── Host key fingerprint display ────────────────────────── */
+
+.host-fingerprint {
+  display: block;
+  margin-top: 8px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #f9e2af;
+  word-break: break-all;
+}
+
+/* ── Modal body text ──────────────────────────────────────── */
+
+.modal__body p {
+  margin: 0 0 8px 0;
+}
+
+.modal__body p:last-child {
+  margin-bottom: 0;
+}
+
+/* ── Credential save mode options ─────────────────────────── */
+
+.save-mode-options {
+  margin-bottom: 12px;
+  border: 1px solid #313244;
+  border-radius: 4px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.save-mode-option label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #cdd6f4;
+}
+
+.save-mode-option input[type="radio"] {
+  width: auto;
+  flex-shrink: 0;
+}
+
+.save-mode-tag {
+  font-size: 11px;
+  color: #a6adc8;
+  font-weight: 400;
+}
+
+.save-mode-tag--safe {
+  color: #a6e3a1;
+}
+
+.save-mode-tag--warn {
+  color: #f9e2af;
+}
+
+.save-mode-warning {
+  font-size: 12px;
+  color: #f9e2af;
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: rgba(249, 226, 175, 0.08);
+  border-radius: 4px;
+  border-left: 3px solid #f9e2af;
+}
+
+/* ── Saved credential section in profile form ─────────────── */
+
+.saved-credential-section {
+  border: 1px solid #313244;
+  border-radius: 4px;
+  padding: 8px 10px;
+}
+
+.saved-credential-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: #a6adc8;
+}
+
+.btn-small {
+  font-size: 11px;
+  padding: 4px 8px;
+  flex-shrink: 0;
+}

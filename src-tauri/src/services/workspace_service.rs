@@ -1,5 +1,7 @@
+use std::collections::HashSet;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -32,7 +34,6 @@ fn workspace_base() -> PathBuf {
 }
 
 /// Returns the local cache path for a given profile + remote file.
-/// Example: ~/.config/murmurssh/workspace/my-server/config.yaml
 fn local_cache_path(profile_id: &str, remote_path: &str) -> PathBuf {
     let filename = Path::new(remote_path)
         .file_name()
@@ -42,13 +43,34 @@ fn local_cache_path(profile_id: &str, remote_path: &str) -> PathBuf {
     workspace_base().join(profile_id).join(filename)
 }
 
+/// Registry of paths currently being watched. Prevents duplicate watchers.
+fn active_watchers() -> &'static Mutex<HashSet<PathBuf>> {
+    static WATCHERS: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+    WATCHERS.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn register_watcher(path: &PathBuf) -> bool {
+    if let Ok(mut set) = active_watchers().lock() {
+        set.insert(path.clone())
+    } else {
+        true // proceed on lock failure
+    }
+}
+
+fn unregister_watcher(path: &PathBuf) {
+    if let Ok(mut set) = active_watchers().lock() {
+        set.remove(path);
+    }
+}
+
+fn is_watched(path: &PathBuf) -> bool {
+    active_watchers()
+        .lock()
+        .map(|set| set.contains(path))
+        .unwrap_or(false)
+}
+
 /// Opens a remote text file for editing.
-///
-/// Flow:
-/// 1. Download to local workspace cache
-/// 2. Validate (size + binary check)
-/// 3. Open in configured editor or via xdg-open
-/// 4. Spawn a background thread that watches for saves and triggers upload
 pub fn open_for_edit(
     app: tauri::AppHandle,
     profile: &Profile,
@@ -91,7 +113,17 @@ pub fn open_for_edit(
     // Open in editor
     open_in_editor(profile, &local_path)?;
 
-    // Spawn background watcher thread
+    // If already being watched, just re-open the editor without spawning a second watcher
+    if is_watched(&local_path) {
+        return Ok(());
+    }
+
+    // Register this path before spawning so concurrent calls don't both pass the check
+    if !register_watcher(&local_path) {
+        // Another thread just registered it — skip spawning
+        return Ok(());
+    }
+
     let profile_clone = profile.clone();
     let remote_path_owned = remote_path.to_string();
     let local_path_clone = local_path.clone();
@@ -103,15 +135,10 @@ pub fn open_for_edit(
     Ok(())
 }
 
-/// Launches the editor for the given local file.
-///
-/// Uses profile.editor_command if set, otherwise falls back to xdg-open
-/// which opens the file with the system default application.
 fn open_in_editor(profile: &Profile, local_path: &Path) -> Result<(), String> {
     let path_str = local_path.to_string_lossy();
 
     if let Some(editor) = &profile.editor_command {
-        // editor_command may include flags, e.g. "code --wait" or "gedit"
         let mut parts = editor.split_whitespace();
         let cmd = parts.next().ok_or("editor_command is empty")?;
         let extra_args: Vec<&str> = parts.collect();
@@ -131,10 +158,6 @@ fn open_in_editor(profile: &Profile, local_path: &Path) -> Result<(), String> {
     }
 }
 
-/// Watches the local cached file and triggers upload on save.
-///
-/// Runs on a background thread for the lifetime of the file.
-/// Stops when the file is deleted or the channel closes (app exits).
 fn watch_and_upload(
     app: tauri::AppHandle,
     profile: Profile,
@@ -147,6 +170,7 @@ fn watch_and_upload(
         Ok(w) => w,
         Err(e) => {
             eprintln!("[murmurssh] Failed to create file watcher: {}", e);
+            unregister_watcher(&local_path);
             return;
         }
     };
@@ -157,10 +181,10 @@ fn watch_and_upload(
             local_path.display(),
             e
         );
+        unregister_watcher(&local_path);
         return;
     }
 
-    // Record initial mtime so we only act on actual changes
     let mut last_mtime = std::fs::metadata(&local_path)
         .and_then(|m| m.modified())
         .ok();
@@ -176,14 +200,11 @@ fn watch_and_upload(
 
         match event.kind {
             EventKind::Remove(_) => {
-                // File deleted; stop watching
                 break;
             }
             EventKind::Modify(_) | EventKind::Create(_) => {
-                // Brief pause to let the editor finish writing
                 std::thread::sleep(DEBOUNCE_DELAY);
 
-                // Confirm the mtime changed (deduplicates rapid events)
                 let current_mtime = std::fs::metadata(&local_path)
                     .and_then(|m| m.modified())
                     .ok();
@@ -222,4 +243,7 @@ fn watch_and_upload(
             _ => {}
         }
     }
+
+    // Cleanup: remove from active watchers registry
+    unregister_watcher(&local_path);
 }

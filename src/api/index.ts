@@ -29,6 +29,43 @@ export async function launchSsh(profileId: string): Promise<void> {
   return invoke("launch_ssh", { profileId });
 }
 
+/**
+ * Verify the connection to a profile, optionally supplying runtime credentials.
+ * Credentials are held in session memory only — never written to disk.
+ *
+ * The backend returns structured error strings the caller must handle:
+ * - "UNKNOWN_HOST:<fingerprint>" — call acceptHostKey() then retry
+ * - "NEED_PASSWORD"              — call again with password supplied
+ * - "NEED_PASSPHRASE"            — call again with passphrase supplied
+ * - other strings                — connection or auth failure
+ */
+export async function connectSftp(
+  profileId: string,
+  password?: string,
+  passphrase?: string
+): Promise<void> {
+  return invoke("connect_sftp", {
+    profileId,
+    password: password ?? null,
+    passphrase: passphrase ?? null,
+  });
+}
+
+/**
+ * Save an accepted host key fingerprint to the local known_hosts file.
+ * Must be called after the user confirms the host key in showHostKeyDialog().
+ */
+export async function acceptHostKey(
+  profileId: string,
+  fingerprint: string
+): Promise<void> {
+  return invoke("accept_host_key", { profileId, fingerprint });
+}
+
+export async function checkPathExists(path: string): Promise<boolean> {
+  return invoke("check_path_exists", { path });
+}
+
 export async function listDirectory(
   profileId: string,
   path: string
@@ -100,6 +137,27 @@ export async function openForEdit(
   return invoke("open_for_edit", { profileId, remotePath });
 }
 
-export async function checkPathExists(path: string): Promise<boolean> {
-  return invoke("check_path_exists", { path });
+/**
+ * Persist a credential for a profile with the given storage mode.
+ *
+ * mode "local_machine"   — plaintext file at ~/.config/murmurssh/secrets/<id>, 0600 permissions.
+ *                          Does not travel with the profile. Machine-local only.
+ * mode "portable_profile" — stored inside the profile JSON. Portable but LESS SECURE.
+ *                           Anyone with access to the profile file can read the credential.
+ * mode "never"           — no-op.
+ */
+export async function saveCredential(
+  profileId: string,
+  secret: string,
+  mode: string
+): Promise<void> {
+  return invoke("save_credential", { profileId, secret, mode });
+}
+
+/**
+ * Remove any stored credential for a profile (both local machine file and portable field).
+ * The next connection will prompt for credentials again.
+ */
+export async function clearCredential(profileId: string): Promise<void> {
+  return invoke("clear_credential", { profileId });
 }
