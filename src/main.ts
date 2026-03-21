@@ -23,9 +23,9 @@ fileBrowser.setStatusCallback((msg, isError) => {
   statusBar.set(isError ? "error" : "connected", msg);
 });
 
-// After a profile is saved, reload the selector
-profileForm.onSaved(async () => {
-  await profileSelector.reload();
+// After a profile is saved, reload the selector and select the saved profile
+profileForm.onSaved(async (savedId: string) => {
+  await profileSelector.reload(savedId);
 });
 
 // Wire profile management buttons

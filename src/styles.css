@@ -51,6 +51,14 @@ select {
   border-radius: 4px;
   padding: 6px 8px;
   font-size: 13px;
+  /* Prevent OS-native light-theme dropdown appearance on some Linux setups */
+  color-scheme: dark;
+}
+
+/* Dropdown option items — explicit dark styling so the popup list matches */
+option {
+  background: #313244;
+  color: #cdd6f4;
 }
 
 button {

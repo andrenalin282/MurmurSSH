@@ -27,9 +27,9 @@ function requiresKeyPath(authType: AuthType): boolean {
 export class ProfileForm {
   private overlay: HTMLElement | null = null;
   private editingId: string | null = null;
-  private onSavedCallback: (() => Promise<void>) | null = null;
+  private onSavedCallback: ((savedId: string) => Promise<void>) | null = null;
 
-  onSaved(cb: () => Promise<void>): void {
+  onSaved(cb: (savedId: string) => Promise<void>): void {
     this.onSavedCallback = cb;
   }
 
@@ -139,11 +139,15 @@ export class ProfileForm {
 
     document.body.appendChild(this.overlay);
 
-    // Auth type toggle — show/hide key path row
+    // Auth type toggle — show/hide key path row; hide saved credential section when
+    // switching away from password (the actual cleanup happens on save, but hiding
+    // it immediately prevents confusing UX while the form is open).
     this.overlay.querySelector("#pf-auth-type")?.addEventListener("change", (e) => {
       const val = (e.target as HTMLSelectElement).value as AuthType;
       const row = this.overlay?.querySelector<HTMLElement>("#pf-key-row");
       if (row) row.style.display = requiresKeyPath(val) ? "" : "none";
+      const credSection = this.overlay?.querySelector<HTMLElement>(".saved-credential-section");
+      if (credSection) credSection.style.display = val === "password" ? "" : "none";
     });
 
     // File picker for private key
@@ -266,7 +270,7 @@ export class ProfileForm {
     try {
       await api.saveProfile(profile);
       this.close();
-      await this.onSavedCallback?.();
+      await this.onSavedCallback?.(id);
     } catch (err) {
       this.showError(String(err));
     }

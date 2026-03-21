@@ -25,18 +25,6 @@ pub fn ensure_dirs() -> Result<(), String> {
     Ok(())
 }
 
-/// Converts a profile display name into a safe file-system identifier.
-/// Example: "My Server" -> "my-server"
-pub fn sanitize_id(name: &str) -> String {
-    name.to_lowercase()
-        .chars()
-        .map(|c| if c.is_alphanumeric() || c == '-' { c } else { '-' })
-        .collect::<String>()
-        .split('-')
-        .filter(|s| !s.is_empty())
-        .collect::<Vec<_>>()
-        .join("-")
-}
 
 pub fn list_profiles() -> Result<Vec<Profile>, String> {
     ensure_dirs()?;

@@ -29,24 +29,36 @@ export class ProfileSelector {
     const settings: Settings = await api.getSettings();
     this.selectedId = settings.last_used_profile_id;
 
-    if (this.selectedId === null && this.profiles.length > 0) {
-      this.selectedId = this.profiles[0].id;
+    // Fall back to first profile if last-used is absent or no longer valid
+    if (!this.selectedId || !this.profiles.find((p) => p.id === this.selectedId)) {
+      this.selectedId = this.profiles[0]?.id ?? null;
     }
 
     this.render();
     return this.selectedId;
   }
 
-  /** Reload profiles from backend and re-render. Preserves current selection if still valid. */
+  /**
+   * Reload profiles from backend and re-render.
+   * If selectId is given, selects that profile.
+   * If selectId is omitted and the current selection is still valid, it is preserved.
+   * If the current selection no longer exists (e.g. after delete), falls back to first profile.
+   * If no selection is active but profiles exist (e.g. after first-ever create), selects first.
+   */
   async reload(selectId?: string): Promise<void> {
     this.profiles = await api.listProfiles();
+
     if (selectId !== undefined) {
+      // Explicit selection requested (e.g. after create/edit)
       this.selectedId = selectId;
-    }
-    // If current selection no longer exists, fall back to first profile
-    if (this.selectedId && !this.profiles.find((p) => p.id === this.selectedId)) {
+    } else if (this.selectedId && !this.profiles.find((p) => p.id === this.selectedId)) {
+      // Current selection was deleted — fall back to first
       this.selectedId = this.profiles[0]?.id ?? null;
+    } else if (!this.selectedId && this.profiles.length > 0) {
+      // No selection active but profiles now exist — pick first
+      this.selectedId = this.profiles[0].id;
     }
+
     this.render();
   }
 
@@ -68,6 +80,21 @@ export class ProfileSelector {
 
   getSelectedProfile(): Profile | null {
     return this.profiles.find((p) => p.id === this.selectedId) ?? null;
+  }
+
+  /**
+   * Update the disabled state of Edit / Delete / Connect buttons to match the
+   * current selectedId without triggering a full re-render. Called after the
+   * user changes the dropdown selection.
+   */
+  private updateButtonStates(): void {
+    const hasSelection = this.selectedId !== null && this.profiles.length > 0;
+    const editBtn = document.getElementById("edit-profile-btn") as HTMLButtonElement | null;
+    const deleteBtn = document.getElementById("delete-profile-btn") as HTMLButtonElement | null;
+    const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
+    if (editBtn) editBtn.disabled = !hasSelection;
+    if (deleteBtn) deleteBtn.disabled = !hasSelection;
+    if (connectBtn) connectBtn.disabled = !hasSelection;
   }
 
   private render(): void {
@@ -98,6 +125,8 @@ export class ProfileSelector {
 
     document.getElementById("profile-select")?.addEventListener("change", (e) => {
       this.selectedId = (e.target as HTMLSelectElement).value || null;
+      // Update button states immediately — no full re-render needed
+      this.updateButtonStates();
     });
 
     document.getElementById("new-profile-btn")?.addEventListener("click", () => {
