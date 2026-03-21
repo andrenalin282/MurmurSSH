@@ -1,0 +1,105 @@
+import { invoke } from "@tauri-apps/api/core";
+import type { FileEntry, Profile, Settings } from "../types";
+
+export async function listProfiles(): Promise<Profile[]> {
+  return invoke("list_profiles");
+}
+
+export async function getProfile(id: string): Promise<Profile> {
+  return invoke("get_profile", { id });
+}
+
+export async function saveProfile(profile: Profile): Promise<void> {
+  return invoke("save_profile", { profile });
+}
+
+export async function deleteProfile(id: string): Promise<void> {
+  return invoke("delete_profile", { id });
+}
+
+export async function getSettings(): Promise<Settings> {
+  return invoke("get_settings");
+}
+
+export async function saveSettings(settings: Settings): Promise<void> {
+  return invoke("save_settings", { settings });
+}
+
+export async function launchSsh(profileId: string): Promise<void> {
+  return invoke("launch_ssh", { profileId });
+}
+
+export async function listDirectory(
+  profileId: string,
+  path: string
+): Promise<FileEntry[]> {
+  return invoke("list_directory", { profileId, path });
+}
+
+/**
+ * Upload raw bytes to a remote path.
+ * Read the file in JS with FileReader, then pass the bytes here.
+ */
+export async function uploadFileBytes(
+  profileId: string,
+  remotePath: string,
+  content: number[]
+): Promise<void> {
+  return invoke("upload_file_bytes", { profileId, remotePath, content });
+}
+
+/**
+ * Upload a local file path to a remote path.
+ * Used by the workspace confirm flow after the user approves.
+ */
+export async function uploadFile(
+  profileId: string,
+  localPath: string,
+  remotePath: string
+): Promise<void> {
+  return invoke("upload_file", { profileId, localPath, remotePath });
+}
+
+/**
+ * Download a remote file to ~/Downloads/<filename>.
+ * Returns the local path where the file was saved.
+ */
+export async function downloadFile(
+  profileId: string,
+  remotePath: string
+): Promise<string> {
+  return invoke("download_file", { profileId, remotePath });
+}
+
+export async function deleteFile(
+  profileId: string,
+  remotePath: string
+): Promise<void> {
+  return invoke("delete_file", { profileId, remotePath });
+}
+
+export async function renameFile(
+  profileId: string,
+  fromPath: string,
+  toPath: string
+): Promise<void> {
+  return invoke("rename_file", { profileId, fromPath, toPath });
+}
+
+export async function createDirectory(
+  profileId: string,
+  path: string
+): Promise<void> {
+  return invoke("create_directory", { profileId, path });
+}
+
+export async function openForEdit(
+  profileId: string,
+  remotePath: string
+): Promise<void> {
+  return invoke("open_for_edit", { profileId, remotePath });
+}
+
+export async function checkPathExists(path: string): Promise<boolean> {
+  return invoke("check_path_exists", { path });
+}

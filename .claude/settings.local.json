@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -v \"^\\\\.$\")",
+      "Bash(grep -v \"^\\\\.\\\\.$\")",
+      "Bash(tree -La /home/kai/Coding/MurmurSSH)",
+      "Bash(find /home/kai/Coding/MurmurSSH -type f -exec wc -c {} +)",
+      "Bash(git -C /home/kai/Coding/MurmurSSH log --oneline -20)"
+    ]
+  }
+}

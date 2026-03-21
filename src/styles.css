@@ -1,0 +1,356 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  font-size: 14px;
+  background: #1e1e2e;
+  color: #cdd6f4;
+  height: 100vh;
+  overflow: hidden;
+}
+
+#app {
+  display: flex;
+  height: 100vh;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────── */
+
+#sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #181825;
+  border-right: 1px solid #313244;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 12px;
+}
+
+/* ── Main area ───────────────────────────────────────────── */
+
+#main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Shared controls ─────────────────────────────────────── */
+
+select {
+  width: 100%;
+  background: #313244;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+}
+
+button {
+  background: #89b4fa;
+  color: #1e1e2e;
+  border: none;
+  border-radius: 4px;
+  padding: 7px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #b4befe;
+}
+
+button:disabled {
+  background: #45475a;
+  color: #6c7086;
+  cursor: not-allowed;
+}
+
+/* ── Profile selector ────────────────────────────────────── */
+
+.profile-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-selector label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a6adc8;
+}
+
+/* ── Status bar ──────────────────────────────────────────── */
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #313244;
+  font-size: 12px;
+  background: #181825;
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-disconnected .status-indicator { background: #6c7086; }
+.status-connecting   .status-indicator { background: #f9e2af; }
+.status-connected    .status-indicator { background: #a6e3a1; }
+.status-error        .status-indicator { background: #f38ba8; }
+
+/* ── File browser ────────────────────────────────────────── */
+
+.file-browser {
+  flex: 1;
+  overflow: auto;
+  padding: 16px;
+}
+
+.file-browser--empty,
+.file-browser--error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6c7086;
+  height: 100%;
+}
+
+.file-browser__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.file-browser__path {
+  flex: 1;
+  font-family: monospace;
+  font-size: 13px;
+  color: #a6adc8;
+}
+
+.file-browser__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.file-browser__table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: #a6adc8;
+  border-bottom: 1px solid #313244;
+  font-weight: 500;
+}
+
+.file-browser__table td {
+  padding: 5px 8px;
+}
+
+.empty-dir {
+  color: #6c7086;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.file-entry:hover {
+  background: #313244;
+  cursor: default;
+}
+
+.file-entry--selected {
+  background: #45475a;
+}
+
+.file-entry--selected:hover {
+  background: #45475a;
+}
+
+.file-entry--up {
+  color: #a6adc8;
+  font-style: italic;
+}
+
+.file-entry--dir {
+  color: #89b4fa;
+}
+
+.file-browser__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.file-browser__actions button {
+  background: #313244;
+  color: #cdd6f4;
+  font-weight: 400;
+}
+
+.file-browser__actions button:hover:not(:disabled) {
+  background: #45475a;
+}
+
+/* ── Secondary / danger buttons ──────────────────────────── */
+
+.btn-secondary {
+  background: #313244;
+  color: #cdd6f4;
+  font-weight: 400;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #45475a;
+}
+
+.btn-danger {
+  color: #f38ba8;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #45475a;
+}
+
+/* ── Profile management buttons ──────────────────────────── */
+
+.profile-mgmt-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.profile-mgmt-btns button {
+  flex: 1;
+  font-size: 12px;
+  padding: 5px 4px;
+}
+
+/* ── Modal overlay ────────────────────────────────────────── */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal {
+  background: #1e1e2e;
+  border: 1px solid #45475a;
+  border-radius: 6px;
+  padding: 20px 24px;
+  min-width: 320px;
+  max-width: 480px;
+  width: 100%;
+}
+
+.modal--form {
+  max-width: 520px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #cdd6f4;
+  margin-bottom: 12px;
+}
+
+.modal__body {
+  font-size: 13px;
+  color: #a6adc8;
+  margin-bottom: 20px;
+  white-space: pre-wrap;
+}
+
+.modal__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── Profile form ─────────────────────────────────────────── */
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.form-field label {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #a6adc8;
+}
+
+.form-field input,
+.form-field select {
+  background: #313244;
+  color: #cdd6f4;
+  border: 1px solid #45475a;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 13px;
+  width: 100%;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+  outline: none;
+  border-color: #89b4fa;
+}
+
+.form-field__row {
+  display: flex;
+  gap: 6px;
+}
+
+.form-field__row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.form-field__row button {
+  flex-shrink: 0;
+  font-size: 12px;
+  padding: 6px 10px;
+}
+
+.form-error {
+  font-size: 12px;
+  color: #f38ba8;
+  margin-top: 4px;
+}
+
+/* ── Connecting indicator pulse ───────────────────────────── */
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.status-connecting .status-indicator {
+  background: #f9e2af;
+  animation: pulse 1.2s ease-in-out infinite;
+}
