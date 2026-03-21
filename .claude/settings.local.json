@@ -7,7 +7,8 @@
       "Bash(find /home/kai/Coding/MurmurSSH -type f -exec wc -c {} +)",
       "Bash(git -C /home/kai/Coding/MurmurSSH log --oneline -20)",
       "Bash(cargo check:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

@@ -10,6 +10,7 @@ import {
   showHostKeyDialog,
   showPasswordPrompt,
   showPassphrasePrompt,
+  type HostKeyDecision,
 } from "./components/credential-dialog";
 import type { UploadReadyPayload } from "./types";
 
@@ -21,6 +22,19 @@ const profileForm = new ProfileForm();
 // Surface file browser messages in the status bar
 fileBrowser.setStatusCallback((msg, isError) => {
   statusBar.set(isError ? "error" : "connected", msg);
+});
+
+// Disconnect: clear session credentials, reset status bar and file browser
+fileBrowser.onDisconnect(async () => {
+  const profile = profileSelector.getSelectedProfile();
+  if (profile) {
+    try {
+      await api.clearSessionCredentials(profile.id);
+    } catch {
+      // Non-fatal — session cache cleanup is best-effort
+    }
+  }
+  statusBar.set("disconnected");
 });
 
 // After a profile is saved, reload the selector and select the saved profile
@@ -78,20 +92,27 @@ async function verifyConnection(
       const host = profile?.host ?? profileId;
 
       statusBar.set("connecting", "Verifying host key…");
-      const accepted = await showHostKeyDialog(host, fingerprint);
-      if (!accepted) {
+      const decision: HostKeyDecision = await showHostKeyDialog(host, fingerprint);
+
+      if (decision === "cancel") {
         statusBar.set("error", "Connection cancelled: host key not trusted.");
         return false;
       }
 
+      // Record trust — either session-only or persistently in known_hosts
       try {
-        await api.acceptHostKey(profileId, fingerprint);
-      } catch (saveErr) {
-        statusBar.set("error", `Failed to save host key: ${saveErr}`);
+        if (decision === "accept_save") {
+          await api.acceptHostKey(profileId, fingerprint);
+        } else {
+          // accept_once: in-memory only, no disk write
+          await api.acceptHostKeyOnce(profileId, fingerprint);
+        }
+      } catch (trustErr) {
+        statusBar.set("error", `Failed to trust host key: ${trustErr}`);
         return false;
       }
 
-      // Retry after trusting the host
+      // Retry the same connection with the same credentials — no re-prompt.
       return verifyConnection(profileId, password, passphrase);
     }
 

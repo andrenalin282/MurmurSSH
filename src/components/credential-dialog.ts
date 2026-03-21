@@ -156,13 +156,27 @@ export function showPassphrasePrompt(keyPath: string): Promise<string | null> {
 }
 
 /**
- * Show a host key verification dialog.
- * Returns true if the user accepts the key, false if they reject it.
+ * The three possible outcomes of the host key dialog.
+ *
+ * - "accept_save"  — trust permanently, write to known_hosts
+ * - "accept_once"  — trust for this session only, do NOT write to disk
+ * - "cancel"       — abort the connection
+ */
+export type HostKeyDecision = "accept_save" | "accept_once" | "cancel";
+
+/**
+ * Show a host key verification dialog with three explicit options.
+ *
+ * "Accept once" trusts the key for this session in memory only — the user will
+ * be prompted again next time the app starts.
+ *
+ * "Accept and save" writes the key to known_hosts and the host is trusted from
+ * now on without prompting.
  */
 export function showHostKeyDialog(
   host: string,
   fingerprint: string
-): Promise<boolean> {
+): Promise<HostKeyDecision> {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
@@ -173,23 +187,25 @@ export function showHostKeyDialog(
           <p>The authenticity of host <strong>${escHtml(host)}</strong> could not be established.</p>
           <p>SHA-256 fingerprint:</p>
           <code class="host-fingerprint">${escHtml(fingerprint)}</code>
-          <p>Do you want to trust this host? Accepting saves the key to your local known_hosts file.</p>
+          <p>Verify this fingerprint out-of-band before accepting.</p>
         </div>
-        <div class="modal__actions">
-          <button class="btn-secondary" id="hk-reject">Reject</button>
-          <button id="hk-accept">Accept</button>
+        <div class="modal__actions modal__actions--hostkey">
+          <button class="btn-secondary" id="hk-cancel">Cancel</button>
+          <button class="btn-secondary" id="hk-once">Accept once</button>
+          <button id="hk-save">Accept and save</button>
         </div>
       </div>
     `;
 
     document.body.appendChild(overlay);
 
-    const cleanup = (result: boolean) => {
+    const cleanup = (result: HostKeyDecision) => {
       overlay.remove();
       resolve(result);
     };
 
-    overlay.querySelector("#hk-reject")?.addEventListener("click", () => cleanup(false));
-    overlay.querySelector("#hk-accept")?.addEventListener("click", () => cleanup(true));
+    overlay.querySelector("#hk-cancel")?.addEventListener("click", () => cleanup("cancel"));
+    overlay.querySelector("#hk-once")?.addEventListener("click", () => cleanup("accept_once"));
+    overlay.querySelector("#hk-save")?.addEventListener("click", () => cleanup("accept_save"));
   });
 }

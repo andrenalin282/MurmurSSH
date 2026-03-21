@@ -8,6 +8,8 @@ use std::fs;
 use std::io::{BufRead, Write};
 use std::path::PathBuf;
 
+use crate::services::session_trust_store;
+
 fn known_hosts_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home)
@@ -52,7 +54,14 @@ pub enum HostStatus {
 }
 
 /// Check whether the given host+port fingerprint is trusted.
+///
+/// Trust is established either via the persistent known_hosts file OR via a
+/// session-only "Accept once" decision (see `session_trust_store`).
 pub fn check(host: &str, port: u16, fingerprint: &str) -> HostStatus {
+    // Session-only trust takes precedence and bypasses disk lookup.
+    if session_trust_store::is_trusted(host, port, fingerprint) {
+        return HostStatus::Trusted;
+    }
     let key = host_key(host, port);
     let entries = load();
     match entries.into_iter().find(|(k, _)| k == &key) {

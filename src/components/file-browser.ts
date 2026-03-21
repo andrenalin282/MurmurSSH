@@ -26,11 +26,14 @@ export class FileBrowser {
 
   private profileId: string | null = null;
   private currentPath: string = "/";
+  private homePath: string = "/";
   private entries: FileEntry[] = [];
   private selectedName: string | null = null;
   private busy: boolean = false;
+  private inlineError: string | null = null;
 
   private onStatusMessage: ((msg: string, isError: boolean) => void) | null = null;
+  private onDisconnectCallback: (() => void) | null = null;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -50,6 +53,7 @@ export class FileBrowser {
   setProfile(profileId: string, defaultPath: string = "/"): void {
     this.profileId = profileId;
     this.currentPath = defaultPath;
+    this.homePath = defaultPath;
     this.selectedName = null;
   }
 
@@ -58,12 +62,18 @@ export class FileBrowser {
     this.onStatusMessage = cb;
   }
 
+  /** Provide a callback invoked when the user clicks Disconnect. */
+  onDisconnect(callback: () => void): void {
+    this.onDisconnectCallback = callback;
+  }
+
   async refresh(): Promise<void> {
     if (!this.profileId) return;
     this.setBusy(true);
     try {
       this.entries = await api.listDirectory(this.profileId, this.currentPath);
       this.selectedName = null;
+      this.inlineError = null;
       this.render();
     } catch (err) {
       this.renderError(String(err));
@@ -89,6 +99,12 @@ export class FileBrowser {
   private renderEmpty(): void {
     this.container.innerHTML = `
       <div class="file-browser file-browser--empty">
+        <div class="file-browser__toolbar">
+          <button id="disconnect-btn" disabled>Disconnect</button>
+          <button id="home-btn" disabled>Home</button>
+          <button id="up-btn" disabled>Up</button>
+          <button id="refresh-btn" disabled>Refresh</button>
+        </div>
         <p>Connect to a profile to browse files.</p>
       </div>
     `;
@@ -97,13 +113,50 @@ export class FileBrowser {
   private renderError(message: string): void {
     this.container.innerHTML = `
       <div class="file-browser file-browser--error">
+        <div class="file-browser__toolbar">
+          <button id="disconnect-btn" disabled>Disconnect</button>
+          <button id="home-btn" disabled>Home</button>
+          <button id="up-btn" disabled>Up</button>
+          <button id="refresh-btn" disabled>Refresh</button>
+        </div>
         <p>${message}</p>
       </div>
     `;
   }
 
+  /** Build clickable breadcrumb HTML for currentPath. */
+  private renderBreadcrumbs(): string {
+    const parts = this.currentPath.split("/").filter((p) => p.length > 0);
+
+    // Root crumb
+    if (parts.length === 0) {
+      // We are at root — root is the current (non-clickable) segment
+      return `<nav class="file-browser__breadcrumbs"><span class="breadcrumb__current">/</span></nav>`;
+    }
+
+    const crumbs: string[] = [];
+
+    // Root is always a clickable link (unless it's the last segment, handled above)
+    crumbs.push(`<span class="breadcrumb__link" data-path="/">/</span>`);
+
+    parts.forEach((segment, index) => {
+      crumbs.push(`<span class="breadcrumb__sep">›</span>`);
+
+      const isLast = index === parts.length - 1;
+      if (isLast) {
+        crumbs.push(`<span class="breadcrumb__current">${segment}</span>`);
+      } else {
+        const segPath = "/" + parts.slice(0, index + 1).join("/");
+        crumbs.push(`<span class="breadcrumb__link" data-path="${segPath}">${segment}</span>`);
+      }
+    });
+
+    return `<nav class="file-browser__breadcrumbs">${crumbs.join("")}</nav>`;
+  }
+
   private render(): void {
     const isAtRoot = this.currentPath === "/";
+    const hasProfile = this.profileId !== null;
 
     const upRow = isAtRoot
       ? ""
@@ -112,7 +165,7 @@ export class FileBrowser {
          </tr>`;
 
     const rows =
-      this.entries.length === 0 && isAtRoot
+      this.entries.length === 0
         ? '<tr><td colspan="2" class="empty-dir">Empty directory</td></tr>'
         : this.entries
             .map(
@@ -128,12 +181,20 @@ export class FileBrowser {
     const hasFile = this.selectedEntry !== null && !this.selectedEntry.is_dir;
     const hasAny = this.selectedEntry !== null;
 
+    const inlineErrorHtml = this.inlineError
+      ? `<div class="file-browser__inline-error">${this.inlineError}</div>`
+      : "";
+
     this.container.innerHTML = `
       <div class="file-browser">
         <div class="file-browser__toolbar">
-          <span class="file-browser__path">${this.currentPath}</span>
-          <button id="refresh-btn" ${this.busy ? "disabled" : ""}>Refresh</button>
+          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""}>Disconnect</button>
+          <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""}>Home</button>
+          <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""}>Up</button>
+          <button id="refresh-btn"    ${this.busy ? "disabled" : ""}>Refresh</button>
         </div>
+        ${this.renderBreadcrumbs()}
+        ${inlineErrorHtml}
         <table class="file-browser__table">
           <thead>
             <tr><th>Name</th><th>Size</th></tr>
@@ -141,13 +202,21 @@ export class FileBrowser {
           <tbody>${upRow}${rows}</tbody>
         </table>
         <div class="file-browser__actions">
-          <button id="upload-btn" ${this.busy ? "disabled" : ""}>Upload</button>
+          <button id="upload-btn"   ${this.busy ? "disabled" : ""}>Upload</button>
           <button id="download-btn" ${!hasFile || this.busy ? "disabled" : ""}>Download</button>
           <button id="edit-btn"     ${!hasFile || this.busy ? "disabled" : ""}>Edit</button>
           <button id="delete-btn"   ${!hasAny  || this.busy ? "disabled" : ""}>Delete</button>
         </div>
       </div>
     `;
+
+    // Breadcrumb navigation
+    this.container.querySelectorAll<HTMLElement>(".breadcrumb__link").forEach((el) => {
+      el.addEventListener("click", () => {
+        const path = el.dataset.path;
+        if (path) this.navigateTo(path);
+      });
+    });
 
     // Event delegation on the table body
     this.container.querySelector("tbody")?.addEventListener("click", (e) => {
@@ -175,6 +244,18 @@ export class FileBrowser {
     });
 
     document
+      .getElementById("disconnect-btn")
+      ?.addEventListener("click", () => this.handleDisconnect());
+
+    document
+      .getElementById("home-btn")
+      ?.addEventListener("click", () => this.navigateTo(this.homePath));
+
+    document
+      .getElementById("up-btn")
+      ?.addEventListener("click", () => this.navigateUp());
+
+    document
       .getElementById("refresh-btn")
       ?.addEventListener("click", () => this.refresh());
 
@@ -195,16 +276,69 @@ export class FileBrowser {
       ?.addEventListener("click", () => this.handleDelete());
   }
 
-  private navigateInto(dirName: string): void {
-    this.currentPath = joinPath(this.currentPath, dirName);
-    this.selectedName = null;
-    this.refresh();
+  private async navigateInto(dirName: string): Promise<void> {
+    if (!this.profileId || this.busy) return;
+    const targetPath = joinPath(this.currentPath, dirName);
+    this.setBusy(true);
+    try {
+      const newEntries = await api.listDirectory(this.profileId, targetPath);
+      // Only commit path if the listing succeeded
+      this.currentPath = targetPath;
+      this.entries = newEntries;
+      this.selectedName = null;
+      this.inlineError = null;
+      this.render();
+    } catch (err) {
+      const msg = `Cannot open "${dirName}": ${String(err)}`;
+      this.onStatusMessage?.(msg, true);
+      this.inlineError = msg;
+      this.render(); // re-render with error banner, same path
+    } finally {
+      this.setBusy(false);
+    }
   }
 
   private navigateUp(): void {
-    this.currentPath = parentPath(this.currentPath);
+    if (this.currentPath === "/") return;
+    this.navigateTo(parentPath(this.currentPath));
+  }
+
+  private navigateTo(path: string): void {
+    if (!this.profileId || this.busy) return;
+    // Use navigateInto logic by temporarily treating it as a direct path navigate
+    this.navigateToPath(path);
+  }
+
+  private async navigateToPath(targetPath: string): Promise<void> {
+    if (!this.profileId || this.busy) return;
+    this.setBusy(true);
+    try {
+      const newEntries = await api.listDirectory(this.profileId, targetPath);
+      this.currentPath = targetPath;
+      this.entries = newEntries;
+      this.selectedName = null;
+      this.inlineError = null;
+      this.render();
+    } catch (err) {
+      const msg = `Cannot navigate to "${targetPath}": ${String(err)}`;
+      this.onStatusMessage?.(msg, true);
+      this.inlineError = msg;
+      this.render(); // re-render with error banner, same path
+    } finally {
+      this.setBusy(false);
+    }
+  }
+
+  private handleDisconnect(): void {
+    this.profileId = null;
+    this.currentPath = "/";
+    this.homePath = "/";
+    this.entries = [];
     this.selectedName = null;
-    this.refresh();
+    this.busy = false;
+    this.inlineError = null;
+    this.onDisconnectCallback?.();
+    this.renderEmpty();
   }
 
   // ── Action handlers ──────────────────────────────────────────────────────

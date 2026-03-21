@@ -53,13 +53,34 @@ export async function connectSftp(
 
 /**
  * Save an accepted host key fingerprint to the local known_hosts file.
- * Must be called after the user confirms the host key in showHostKeyDialog().
+ * Called after the user chooses "Accept and save" in the host key dialog.
  */
 export async function acceptHostKey(
   profileId: string,
   fingerprint: string
 ): Promise<void> {
   return invoke("accept_host_key", { profileId, fingerprint });
+}
+
+/**
+ * Trust a host key for this session only — does NOT write to known_hosts.
+ * Called after the user chooses "Accept once" in the host key dialog.
+ * On next app launch the host will appear unknown again.
+ */
+export async function acceptHostKeyOnce(
+  profileId: string,
+  fingerprint: string
+): Promise<void> {
+  return invoke("accept_host_key_once", { profileId, fingerprint });
+}
+
+/**
+ * Clear only the in-memory session credential cache for a profile.
+ * Does NOT touch any persistent storage (saved passwords or portable profile fields).
+ * Use on disconnect so the next connect reloads from persistent storage or re-prompts.
+ */
+export async function clearSessionCredentials(profileId: string): Promise<void> {
+  return invoke("clear_session_credentials", { profileId });
 }
 
 export async function checkPathExists(path: string): Promise<boolean> {

@@ -132,19 +132,106 @@ button:disabled {
 .file-browser--empty,
 .file-browser--error {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
   color: #6c7086;
   height: 100%;
 }
 
+.file-browser--empty p,
+.file-browser--error p {
+  align-self: center;
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
+/* ── File browser toolbar ─────────────────────────────────── */
+
 .file-browser__toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #313244;
 }
 
+/* Toolbar buttons are compact secondary style */
+.file-browser__toolbar button {
+  background: #313244;
+  color: #cdd6f4;
+  font-weight: 400;
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
+.file-browser__toolbar button:hover:not(:disabled) {
+  background: #45475a;
+}
+
+/* Disconnect is slightly more prominent (uses default blue style but compact) */
+#disconnect-btn {
+  background: #89b4fa;
+  color: #1e1e2e;
+  font-weight: 600;
+}
+
+#disconnect-btn:hover:not(:disabled) {
+  background: #b4befe;
+}
+
+/* ── Breadcrumbs ──────────────────────────────────────────── */
+
+.file-browser__breadcrumbs {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #a6adc8;
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.breadcrumb__link {
+  color: #89b4fa;
+  cursor: pointer;
+  padding: 1px 3px;
+  border-radius: 3px;
+}
+
+.breadcrumb__link:hover {
+  background: #313244;
+  color: #cdd6f4;
+}
+
+.breadcrumb__current {
+  color: #cdd6f4;
+  font-weight: 600;
+  padding: 1px 3px;
+}
+
+.breadcrumb__sep {
+  color: #45475a;
+  user-select: none;
+  padding: 0 1px;
+}
+
+/* ── Inline error banner (permission denied etc.) ─────────── */
+
+.file-browser__inline-error {
+  background: rgba(243, 139, 168, 0.1);
+  border-left: 3px solid #f38ba8;
+  color: #f38ba8;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 0 3px 3px 0;
+  margin-bottom: 8px;
+}
+
+/* Keep old path style in case it's referenced elsewhere */
 .file-browser__path {
   flex: 1;
   font-family: monospace;
@@ -294,6 +381,11 @@ button:disabled {
   justify-content: flex-end;
   gap: 8px;
   margin-top: 16px;
+}
+
+/* Host key dialog has three buttons — space them across the full width */
+.modal__actions--hostkey {
+  justify-content: space-between;
 }
 
 /* ── Profile form ─────────────────────────────────────────── */

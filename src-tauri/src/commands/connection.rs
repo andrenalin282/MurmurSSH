@@ -1,6 +1,7 @@
 use crate::models::{AuthType, CredentialStorageMode};
 use crate::services::{
-    credentials_store, known_hosts_service, profile_service, secrets_service, sftp_service,
+    credentials_store, known_hosts_service, profile_service, secrets_service,
+    session_trust_store, sftp_service,
 };
 
 /// Verify a connection to the given profile, optionally providing runtime credentials.
@@ -135,5 +136,30 @@ pub fn clear_credential(profile_id: String) -> Result<(), String> {
     // Clear session store so the next connect prompts for credentials
     credentials_store::clear(&profile_id);
 
+    Ok(())
+}
+
+/// Trust the host key for this session only — does NOT write to known_hosts.
+///
+/// The fingerprint is recorded in an in-memory store that lives until the app
+/// exits.  On next launch the host will appear unknown again.
+///
+/// This is the "Accept once" path in the host key dialog.
+#[tauri::command]
+pub fn accept_host_key_once(profile_id: String, fingerprint: String) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    session_trust_store::trust(&profile.host, profile.port, &fingerprint);
+    Ok(())
+}
+
+/// Clear only the session-memory credential cache for a profile.
+///
+/// Unlike `clear_credential`, this does NOT touch any persistent storage
+/// (local machine file, portable profile field, or storage mode metadata).
+/// It is used on disconnect so that the next connect re-prompts if the user
+/// is in "never save" mode, or transparently re-loads if they saved previously.
+#[tauri::command]
+pub fn clear_session_credentials(profile_id: String) -> Result<(), String> {
+    credentials_store::clear(&profile_id);
     Ok(())
 }

@@ -8,8 +8,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::connection::connect_sftp,
             commands::connection::accept_host_key,
+            commands::connection::accept_host_key_once,
             commands::connection::save_credential,
             commands::connection::clear_credential,
+            commands::connection::clear_session_credentials,
             commands::profile::list_profiles,
             commands::profile::get_profile,
             commands::profile::save_profile,
