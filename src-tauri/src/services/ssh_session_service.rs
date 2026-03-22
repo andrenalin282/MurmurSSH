@@ -27,7 +27,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Child;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
@@ -184,12 +184,12 @@ fn write_askpass_pair(secret: &str) -> Result<(PathBuf, PathBuf), String> {
     Ok((pw_file, ask_script))
 }
 
-fn cleanup_pair(pw: &PathBuf, ask: &PathBuf) {
+fn cleanup_pair(pw: &Path, ask: &Path) {
     let _ = fs::remove_file(pw);
     let _ = fs::remove_file(ask);
 }
 
-fn wait_for_socket(path: &PathBuf, timeout_secs: u64) -> bool {
+fn wait_for_socket(path: &Path, timeout_secs: u64) -> bool {
     let deadline = Instant::now() + Duration::from_secs(timeout_secs);
     while !path.exists() {
         if Instant::now() > deadline {

@@ -10,7 +10,19 @@
       "Bash(npx tsc:*)",
       "Bash(grep -v \"^$\")",
       "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''productName:'''', d.get\\(''''productName'''',''''?''''\\), ''''\\\\nidentifier:'''', d.get\\(''''identifier'''',''''?''''\\)\\)\")",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git stash:*)",
+      "Bash(cargo clippy:*)",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(npm audit:*)",
+      "Bash(npm outdated:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(npm --version)",
+      "Bash(npm ls:*)",
+      "Bash(npm show:*)",
+      "Bash(echo \"TS exit: $?\")",
+      "Bash(npm install:*)",
+      "Bash(ls:*)"
     ]
   }
 }

@@ -49,21 +49,21 @@ fn active_watchers() -> &'static Mutex<HashSet<PathBuf>> {
     WATCHERS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
-fn register_watcher(path: &PathBuf) -> bool {
+fn register_watcher(path: &Path) -> bool {
     if let Ok(mut set) = active_watchers().lock() {
-        set.insert(path.clone())
+        set.insert(path.to_path_buf())
     } else {
         true // proceed on lock failure
     }
 }
 
-fn unregister_watcher(path: &PathBuf) {
+fn unregister_watcher(path: &Path) {
     if let Ok(mut set) = active_watchers().lock() {
         set.remove(path);
     }
 }
 
-fn is_watched(path: &PathBuf) -> bool {
+fn is_watched(path: &Path) -> bool {
     active_watchers()
         .lock()
         .map(|set| set.contains(path))

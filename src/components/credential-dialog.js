@@ -1,19 +1,10 @@
-import type { CredentialStorageMode } from "../types";
-
-function escHtml(s: string): string {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+function escHtml(s) {
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
-
-/** A password credential and the user's chosen save preference. */
-export interface CredentialResult {
-  secret: string;
-  saveMode: CredentialStorageMode;
-}
-
 /**
  * Show a password prompt with a save-mode choice.
  *
@@ -21,14 +12,11 @@ export interface CredentialResult {
  * how the user wants it stored, or null if cancelled.
  * The caller is responsible for calling saveCredential() when saveMode != "never".
  */
-export function showPasswordPrompt(
-  username: string,
-  host: string
-): Promise<CredentialResult | null> {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+export function showPasswordPrompt(username, host) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal modal--form" role="dialog" aria-modal="true">
         <div class="modal__title">Password Required</div>
         <div class="modal__body">Enter password for ${escHtml(username)}@${escHtml(host)}</div>
@@ -68,40 +56,33 @@ export function showPasswordPrompt(
         </form>
       </div>
     `;
-
-    document.body.appendChild(overlay);
-
-    const cleanup = (result: CredentialResult | null) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    setTimeout(() => {
-      overlay.querySelector<HTMLInputElement>("#cred-input")?.focus();
-    }, 0);
-
-    overlay.querySelectorAll<HTMLInputElement>('input[name="save-mode"]').forEach((radio) => {
-      radio.addEventListener("change", () => {
-        const warning = overlay.querySelector<HTMLElement>("#save-mode-warning");
-        if (warning) {
-          warning.style.display = radio.value === "portable_profile" && radio.checked ? "" : "none";
-        }
-      });
+        document.body.appendChild(overlay);
+        const cleanup = (result) => {
+            overlay.remove();
+            resolve(result);
+        };
+        setTimeout(() => {
+            overlay.querySelector("#cred-input")?.focus();
+        }, 0);
+        overlay.querySelectorAll('input[name="save-mode"]').forEach((radio) => {
+            radio.addEventListener("change", () => {
+                const warning = overlay.querySelector("#save-mode-warning");
+                if (warning) {
+                    warning.style.display = radio.value === "portable_profile" && radio.checked ? "" : "none";
+                }
+            });
+        });
+        overlay.querySelector("#cred-cancel")?.addEventListener("click", () => cleanup(null));
+        overlay.querySelector("#cred-form")?.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const secret = overlay.querySelector("#cred-input")?.value ?? "";
+            if (!secret)
+                return;
+            const saveMode = (overlay.querySelector('input[name="save-mode"]:checked')?.value ?? "never");
+            cleanup({ secret, saveMode });
+        });
     });
-
-    overlay.querySelector("#cred-cancel")?.addEventListener("click", () => cleanup(null));
-    overlay.querySelector("#cred-form")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const secret = overlay.querySelector<HTMLInputElement>("#cred-input")?.value ?? "";
-      if (!secret) return;
-      const saveMode = (
-        overlay.querySelector<HTMLInputElement>('input[name="save-mode"]:checked')?.value ?? "never"
-      ) as CredentialStorageMode;
-      cleanup({ secret, saveMode });
-    });
-  });
 }
-
 /**
  * Prompt the user for an SSH key passphrase (masked input).
  *
@@ -111,11 +92,11 @@ export function showPasswordPrompt(
  * The passphrase is used only for the current connection and is discarded immediately.
  * It is never written to disk, the profile JSON, or any persistent storage.
  */
-export function showPassphrasePrompt(keyPath: string): Promise<string | null> {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+export function showPassphrasePrompt(keyPath) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal modal--form" role="dialog" aria-modal="true">
         <div class="modal__title">Key Passphrase Required</div>
         <div class="modal__body">Enter passphrase for: ${escHtml(keyPath)}</div>
@@ -134,36 +115,22 @@ export function showPassphrasePrompt(keyPath: string): Promise<string | null> {
         </form>
       </div>
     `;
-
-    document.body.appendChild(overlay);
-
-    const cleanup = (result: string | null) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    setTimeout(() => {
-      overlay.querySelector<HTMLInputElement>("#pp-input")?.focus();
-    }, 0);
-
-    overlay.querySelector("#pp-cancel")?.addEventListener("click", () => cleanup(null));
-    overlay.querySelector("#pp-form")?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const val = overlay.querySelector<HTMLInputElement>("#pp-input")?.value ?? "";
-      cleanup(val || null);
+        document.body.appendChild(overlay);
+        const cleanup = (result) => {
+            overlay.remove();
+            resolve(result);
+        };
+        setTimeout(() => {
+            overlay.querySelector("#pp-input")?.focus();
+        }, 0);
+        overlay.querySelector("#pp-cancel")?.addEventListener("click", () => cleanup(null));
+        overlay.querySelector("#pp-form")?.addEventListener("submit", (e) => {
+            e.preventDefault();
+            const val = overlay.querySelector("#pp-input")?.value ?? "";
+            cleanup(val || null);
+        });
     });
-  });
 }
-
-/**
- * The three possible outcomes of the host key dialog.
- *
- * - "accept_save"  — trust permanently, write to known_hosts
- * - "accept_once"  — trust for this session only, do NOT write to disk
- * - "cancel"       — abort the connection
- */
-export type HostKeyDecision = "accept_save" | "accept_once" | "cancel";
-
 /**
  * Show a host key verification dialog with three explicit options.
  *
@@ -173,14 +140,11 @@ export type HostKeyDecision = "accept_save" | "accept_once" | "cancel";
  * "Accept and save" writes the key to known_hosts and the host is trusted from
  * now on without prompting.
  */
-export function showHostKeyDialog(
-  host: string,
-  fingerprint: string
-): Promise<HostKeyDecision> {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+export function showHostKeyDialog(host, fingerprint) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal__title">Unknown Host Key</div>
         <div class="modal__body">
@@ -196,16 +160,13 @@ export function showHostKeyDialog(
         </div>
       </div>
     `;
-
-    document.body.appendChild(overlay);
-
-    const cleanup = (result: HostKeyDecision) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    overlay.querySelector("#hk-cancel")?.addEventListener("click", () => cleanup("cancel"));
-    overlay.querySelector("#hk-once")?.addEventListener("click", () => cleanup("accept_once"));
-    overlay.querySelector("#hk-save")?.addEventListener("click", () => cleanup("accept_save"));
-  });
+        document.body.appendChild(overlay);
+        const cleanup = (result) => {
+            overlay.remove();
+            resolve(result);
+        };
+        overlay.querySelector("#hk-cancel")?.addEventListener("click", () => cleanup("cancel"));
+        overlay.querySelector("#hk-once")?.addEventListener("click", () => cleanup("accept_once"));
+        overlay.querySelector("#hk-save")?.addEventListener("click", () => cleanup("accept_save"));
+    });
 }

@@ -76,14 +76,14 @@ export class FileBrowser {
       this.entries = await api.listDirectory(this.profileId, this.currentPath);
       this.selectedName = null;
       this.inlineError = null;
+      this.setBusy(false);
       this.render();
     } catch (err) {
       // Keep toolbar buttons active — connection is still live.
       // Show the error inline so Disconnect/Terminal/Refresh remain usable.
       this.inlineError = String(err);
-      this.render();
-    } finally {
       this.setBusy(false);
+      this.render();
     }
   }
 
@@ -312,14 +312,14 @@ export class FileBrowser {
       this.entries = newEntries;
       this.selectedName = null;
       this.inlineError = null;
+      this.setBusy(false);
       this.render();
     } catch (err) {
       const msg = `Cannot open "${dirName}": ${String(err)}`;
       this.onStatusMessage?.(msg, true);
       this.inlineError = msg;
-      this.render(); // re-render with error banner, same path
-    } finally {
       this.setBusy(false);
+      this.render(); // re-render with error banner, same path
     }
   }
 
@@ -343,14 +343,14 @@ export class FileBrowser {
       this.entries = newEntries;
       this.selectedName = null;
       this.inlineError = null;
+      this.setBusy(false);
       this.render();
     } catch (err) {
       const msg = `Cannot navigate to "${targetPath}": ${String(err)}`;
       this.onStatusMessage?.(msg, true);
       this.inlineError = msg;
-      this.render(); // re-render with error banner, same path
-    } finally {
       this.setBusy(false);
+      this.render(); // re-render with error banner, same path
     }
   }
 
