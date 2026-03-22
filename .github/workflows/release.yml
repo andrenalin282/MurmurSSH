@@ -1,0 +1,84 @@
+name: Release
+
+# Triggered when a version tag is pushed, e.g. v0.1.0
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-linux:
+    name: Build Linux (amd64)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libssh2-1-dev \
+            patchelf
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install Node dependencies
+        run: npm ci
+
+      # TODO: To also build an AppImage, add "appimage" to the bundle targets
+      # in src-tauri/tauri.conf.json:
+      #   "bundle": { "targets": ["deb", "appimage"], "active": true }
+      # The AppImage step below will then find and upload it automatically.
+      - name: Build Tauri app
+        run: npm run tauri build
+
+      - name: Find .deb artifact
+        id: find_deb
+        run: |
+          DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" | head -1)
+          echo "path=$DEB" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename $DEB)" >> "$GITHUB_OUTPUT"
+
+      # Uncomment once "appimage" is added to tauri.conf.json bundle targets:
+      # - name: Find .AppImage artifact
+      #   id: find_appimage
+      #   run: |
+      #     IMG=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
+      #     echo "path=$IMG" >> "$GITHUB_OUTPUT"
+      #     echo "name=$(basename $IMG)" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: MurmurSSH ${{ github.ref_name }}
+          draft: true
+          generate_release_notes: true
+          files: |
+            ${{ steps.find_deb.outputs.path }}
+            # ${{ steps.find_appimage.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
