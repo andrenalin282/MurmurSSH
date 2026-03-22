@@ -8,7 +8,9 @@
       "Bash(git -C /home/kai/Coding/MurmurSSH log --oneline -20)",
       "Bash(cargo check:*)",
       "Bash(npx tsc:*)",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(''''productName:'''', d.get\\(''''productName'''',''''?''''\\), ''''\\\\nidentifier:'''', d.get\\(''''identifier'''',''''?''''\\)\\)\")",
+      "Bash(python3:*)"
     ]
   }
 }
