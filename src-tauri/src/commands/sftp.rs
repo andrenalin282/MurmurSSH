@@ -85,6 +85,14 @@ pub fn create_directory(profile_id: String, path: String) -> Result<(), String> 
     sftp_service::create_directory(&profile, &path)
 }
 
+/// Recursively delete a remote directory and all of its contents.
+/// The frontend must confirm with the user before calling this command.
+#[tauri::command]
+pub fn delete_directory(profile_id: String, remote_path: String) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    sftp_service::delete_directory(&profile, &remote_path)
+}
+
 /// Returns ~/Downloads if it exists, otherwise ~/ as a fallback.
 fn downloads_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());

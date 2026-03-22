@@ -103,6 +103,13 @@ export async function downloadFileTo(profileId, remotePath, localPath) {
 export async function deleteFile(profileId, remotePath) {
     return invoke("delete_file", { profileId, remotePath });
 }
+/**
+ * Recursively delete a remote directory and all of its contents.
+ * The caller must confirm with the user before invoking this.
+ */
+export async function deleteDirectory(profileId, remotePath) {
+    return invoke("delete_directory", { profileId, remotePath });
+}
 export async function renameFile(profileId, fromPath, toPath) {
     return invoke("rename_file", { profileId, fromPath, toPath });
 }

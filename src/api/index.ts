@@ -156,6 +156,17 @@ export async function deleteFile(
   return invoke("delete_file", { profileId, remotePath });
 }
 
+/**
+ * Recursively delete a remote directory and all of its contents.
+ * The caller must confirm with the user before invoking this.
+ */
+export async function deleteDirectory(
+  profileId: string,
+  remotePath: string
+): Promise<void> {
+  return invoke("delete_directory", { profileId, remotePath });
+}
+
 export async function renameFile(
   profileId: string,
   fromPath: string,

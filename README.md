@@ -12,7 +12,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
-- **SFTP file browser** — browse remote directories, upload files, download files, delete and rename files, create directories.
+- **SFTP file browser** — browse remote directories, upload files, download files, delete files and folders (recursive), rename files, create directories and files.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
@@ -127,7 +127,8 @@ Select a profile and click **Connect**. MurmurSSH will:
 | Upload | Click **Upload** → file picker opens, starts in your configured local path if set |
 | Download | Select a file → **Download** → saves to your configured local path, or opens a save dialog |
 | Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
-| Delete | Select a file → **Delete** → confirm |
+| Delete file | Select a file → **Delete** → confirm |
+| Delete folder | Select a folder → **Delete** → confirm recursive deletion |
 | New file | Click **＋ File** → enter a name |
 | New folder | Click **＋ Folder** → enter a name |
 
@@ -216,7 +217,8 @@ MurmurSSH is released under the [MIT License](LICENSE).
 ## Known limitations
 
 - Only one profile can be active at a time
-- Directory deletion is not implemented — delete contents via SSH first, then the directory
+- Folder deletion is recursive and permanent — there is no undo or trash recovery
 - Binary files and files larger than 1 MB cannot be opened for editing
 - Each SFTP operation opens a fresh connection — not optimised for rapid sequential use
 - No Windows or macOS support — Linux only, by design
+- This is a beta release — please report bugs via the issue tracker

@@ -458,26 +458,42 @@ export class FileBrowser {
         if (!this.profileId || !this.selectedRemotePath || !this.selectedEntry)
             return;
         const entry = this.selectedEntry;
-        const confirmed = await showConfirm(`Delete "${entry.name}" on the remote server? This cannot be undone.`, "Delete File");
-        if (!confirmed)
-            return;
-        try {
-            this.setBusy(true);
-            if (entry.is_dir) {
-                // Phase 2 scope: directory delete not implemented (requires recursive delete or empty dir)
-                this.onStatusMessage?.("Directory delete not supported yet. Remove contents first, then delete via SSH.", true);
+        const remotePath = this.selectedRemotePath;
+        if (entry.is_dir) {
+            const confirmed = await showConfirm(`"${entry.name}" is a folder. This folder and all of its contents will be deleted recursively. Proceed?`, "Delete Folder");
+            if (!confirmed)
                 return;
+            try {
+                this.setBusy(true);
+                await api.deleteDirectory(this.profileId, remotePath);
+                this.onStatusMessage?.(`Deleted folder ${entry.name}`, false);
+                this.selectedName = null;
+                await this.refresh();
             }
-            await api.deleteFile(this.profileId, this.selectedRemotePath);
-            this.onStatusMessage?.(`Deleted ${entry.name}`, false);
-            this.selectedName = null;
-            await this.refresh();
+            catch (err) {
+                this.onStatusMessage?.(`Delete failed: ${err}`, true);
+            }
+            finally {
+                this.setBusy(false);
+            }
         }
-        catch (err) {
-            this.onStatusMessage?.(`Delete failed: ${err}`, true);
-        }
-        finally {
-            this.setBusy(false);
+        else {
+            const confirmed = await showConfirm(`Delete "${entry.name}" on the remote server? This cannot be undone.`, "Delete File");
+            if (!confirmed)
+                return;
+            try {
+                this.setBusy(true);
+                await api.deleteFile(this.profileId, remotePath);
+                this.onStatusMessage?.(`Deleted ${entry.name}`, false);
+                this.selectedName = null;
+                await this.refresh();
+            }
+            catch (err) {
+                this.onStatusMessage?.(`Delete failed: ${err}`, true);
+            }
+            finally {
+                this.setBusy(false);
+            }
         }
     }
 }
