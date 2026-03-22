@@ -146,6 +146,19 @@ SSH key passphrases are **never saved**. They are prompted at connection time an
 
 To clear a saved password: open the profile in **Edit** → **Clear Saved Credential**.
 
+### SSH key compatibility
+
+If your SSH private key is stored on a mounted or network filesystem, the system `ssh` client may reject it with "UNPROTECTED PRIVATE KEY FILE" because the filesystem does not honour UNIX file permissions as expected by OpenSSH.
+
+When this happens, MurmurSSH will prompt you to create a local runtime copy of the key:
+
+- The copy is stored in `~/.config/murmurssh/runtime-keys/` with `0600` permissions
+- The terminal session uses the copy instead of the original
+- The original key file is **never modified**
+- The copy is **temporary** — it is deleted when you disconnect or when the app starts up
+
+No passphrase is stored. If the key requires a passphrase, the terminal will still prompt you interactively.
+
 ---
 
 ## Configuration
@@ -159,6 +172,7 @@ All data is stored locally in `~/.config/murmurssh/`:
   secrets/         # Machine-local saved passwords (0600, never synced)
   workspace/       # Local cache of files opened for editing
   known_hosts      # Accepted SSH host key fingerprints
+  runtime-keys/    # Temporary key copies for terminal compatibility (0600, deleted on disconnect)
   logs/            # Application logs
 ```
 

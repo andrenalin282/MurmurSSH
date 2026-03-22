@@ -1,10 +1,8 @@
 /// SSH session management for terminal SSO.
 ///
-/// After a successful SFTP authentication, this service establishes a background
+/// After a successful SFTP authentication, this service may establish a background
 /// SSH connection so the terminal window can reuse the already-authenticated
 /// session without prompting the user again.
-///
-/// Two strategies:
 ///
 /// **Password auth → SSH ControlMaster**
 ///   An SSH process runs as a ControlMaster (`-M -N`) on a Unix socket in /tmp.
@@ -14,16 +12,14 @@
 ///   a short-lived temp file (0600) that is deleted immediately after the master
 ///   connects. The password is never passed as a command-line argument.
 ///
-/// **Key auth with passphrase → ssh-agent**
-///   A per-session ssh-agent is spawned on a private socket. The key is added via
-///   ssh-add using the same SSH_ASKPASS mechanism. The terminal is launched with
-///   SSH_AUTH_SOCK pointing at the session agent, so no passphrase is needed again.
-///
-/// **Key auth without passphrase / Agent auth**
-///   No session is needed; the terminal connects directly.
+/// **Key auth (with or without passphrase) / Agent auth**
+///   No background session is established. The terminal is launched with
+///   `ssh -i key_path` and the terminal handles passphrase prompting interactively.
+///   This is more reliable than ssh-agent injection, which depends on
+///   SSH_ASKPASS_REQUIRE (OpenSSH ≥ 8.4) and agent socket stability.
 ///
 /// **Disconnect**
-///   `stop_session()` kills the background process and removes the socket file.
+///   `stop_session()` kills the ControlMaster process and removes the socket file.
 use std::collections::HashMap;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -39,7 +35,6 @@ use crate::services::credentials_store;
 
 enum SessionKind {
     ControlMaster { socket_path: PathBuf },
-    Agent { socket_path: PathBuf },
 }
 
 struct SshSession {
@@ -59,20 +54,20 @@ fn ctrl_socket_path(profile_id: &str) -> PathBuf {
     std::env::temp_dir().join(format!(".murmurssh-ctrl-{}.sock", profile_id))
 }
 
-fn agent_socket_path(profile_id: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(".murmurssh-agent-{}.sock", profile_id))
-}
-
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Start an SSH session for terminal SSO based on the profile's auth type.
 ///
-/// - Password: establishes an SSH ControlMaster.
-/// - Key + passphrase: loads key into a per-session ssh-agent.
-/// - Key without passphrase / Agent auth: no-op (already works without SSO).
+/// - Password: establishes an SSH ControlMaster so the terminal reuses the
+///   already-authenticated connection without re-prompting.
+/// - Key auth (with or without passphrase): no-op. The terminal is launched
+///   with `ssh -i key_path` and handles passphrase prompting interactively.
+///   This is more reliable than the ssh-agent injection approach which depends
+///   on SSH_ASKPASS_REQUIRE (OpenSSH ≥ 8.4) and agent socket availability.
+/// - Agent auth: no-op (system SSH_AUTH_SOCK handles it).
 ///
-/// Returns Ok(()) even if the session is not needed (agent/key-no-passphrase).
-/// Returns Err only if an SSO session was attempted but failed.
+/// Returns Ok(()) even if no session is needed.
+/// Returns Err only if a ControlMaster session was attempted but failed.
 pub fn start_session(profile: &Profile) -> Result<(), String> {
     // Idempotent: if a session already exists, reuse it
     {
@@ -90,20 +85,9 @@ pub fn start_session(profile: &Profile) -> Result<(), String> {
                 .ok_or_else(|| "No password in session store for SSH SSO".to_string())?;
             start_control_master(profile, &password)
         }
-        AuthType::Key => {
-            let creds = credentials_store::get(&profile.id);
-            if let Some(passphrase) = creds.passphrase {
-                let key_path = profile
-                    .key_path
-                    .as_deref()
-                    .ok_or_else(|| "Key path not set in profile".to_string())?;
-                start_agent_session(profile, key_path, &passphrase)
-            } else {
-                // Key with no passphrase: terminal uses -i key_path directly
-                Ok(())
-            }
-        }
-        AuthType::Agent => Ok(()), // System SSH_AUTH_SOCK handles it
+        // Key auth: terminal handles passphrase interactively via -i key_path.
+        // Agent auth: system SSH_AUTH_SOCK is inherited by the terminal.
+        AuthType::Key | AuthType::Agent => Ok(()),
     }
 }
 
@@ -113,11 +97,8 @@ pub fn stop_session(profile_id: &str) {
     if let Some(mut session) = map.remove(profile_id) {
         let _ = session.child.kill();
         let _ = session.child.wait(); // reap to avoid zombies
-        let socket = match &session.kind {
-            SessionKind::ControlMaster { socket_path } => socket_path.clone(),
-            SessionKind::Agent { socket_path } => socket_path.clone(),
-        };
-        let _ = fs::remove_file(&socket);
+        let SessionKind::ControlMaster { socket_path } = &session.kind;
+        let _ = fs::remove_file(socket_path);
     }
 }
 
@@ -130,31 +111,20 @@ pub struct SessionExtras {
 
 /// Returns extra SSH args / env vars to inject into the terminal launch for SSO.
 /// Returns None if no session exists (user must authenticate manually).
+/// Only ControlMaster sessions (password auth) are tracked here.
 pub fn get_session_extras(profile_id: &str) -> Option<SessionExtras> {
     let map = sessions().lock().unwrap();
     let session = map.get(profile_id)?;
-    match &session.kind {
-        SessionKind::ControlMaster { socket_path } => Some(SessionExtras {
-            extra_args: vec![
-                "-o".to_string(),
-                format!("ControlPath={}", socket_path.to_string_lossy()),
-                "-o".to_string(),
-                "ControlMaster=no".to_string(),
-            ],
-            env: HashMap::new(),
-        }),
-        SessionKind::Agent { socket_path } => {
-            let mut env = HashMap::new();
-            env.insert(
-                "SSH_AUTH_SOCK".to_string(),
-                socket_path.to_string_lossy().to_string(),
-            );
-            Some(SessionExtras {
-                extra_args: vec![],
-                env,
-            })
-        }
-    }
+    let SessionKind::ControlMaster { socket_path } = &session.kind;
+    Some(SessionExtras {
+        extra_args: vec![
+            "-o".to_string(),
+            format!("ControlPath={}", socket_path.to_string_lossy()),
+            "-o".to_string(),
+            "ControlMaster=no".to_string(),
+        ],
+        env: HashMap::new(),
+    })
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
@@ -271,60 +241,3 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
     Ok(())
 }
 
-/// Spawn a per-session ssh-agent and add the key (with passphrase) to it.
-fn start_agent_session(profile: &Profile, key_path: &str, passphrase: &str) -> Result<(), String> {
-    use std::process::Command;
-
-    let socket_path = agent_socket_path(&profile.id);
-    if socket_path.exists() {
-        let _ = fs::remove_file(&socket_path);
-    }
-
-    // Spawn ssh-agent in foreground mode (-D) on our private socket.
-    // -D means "don't daemonize" — we hold the Child and kill it on disconnect.
-    let agent_child = Command::new("ssh-agent")
-        .arg("-D")
-        .arg("-a")
-        .arg(socket_path.to_string_lossy().as_ref())
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()
-        .map_err(|e| format!("Failed to start ssh-agent: {}", e))?;
-
-    // Wait for agent socket
-    if !wait_for_socket(&socket_path, 5) {
-        return Err("ssh-agent did not start in time".to_string());
-    }
-
-    // Add the key using SSH_ASKPASS
-    let (pw_file, ask_script) = write_askpass_pair(passphrase)?;
-
-    let add_status = Command::new("ssh-add")
-        .arg(key_path)
-        .env("SSH_AUTH_SOCK", socket_path.to_string_lossy().as_ref())
-        .env("SSH_ASKPASS", ask_script.to_string_lossy().as_ref())
-        .env("SSH_ASKPASS_REQUIRE", "force")
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .status();
-
-    cleanup_pair(&pw_file, &ask_script);
-
-    match add_status {
-        Ok(s) if s.success() => {}
-        Ok(_) => return Err("ssh-add failed — passphrase may be incorrect".to_string()),
-        Err(e) => return Err(format!("Failed to run ssh-add: {}", e)),
-    }
-
-    sessions().lock().unwrap().insert(
-        profile.id.clone(),
-        SshSession {
-            kind: SessionKind::Agent { socket_path },
-            child: agent_child,
-        },
-    );
-
-    Ok(())
-}

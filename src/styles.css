@@ -113,20 +113,42 @@ body {
 .sidebar-footer-btns {
   display: flex;
   gap: 4px;
+  margin-bottom: 4px;
 }
 
-.sidebar-footer-btns button {
+.sidebar-footer-btns:last-child {
+  margin-bottom: 0;
+}
+
+.sidebar-footer-btns button,
+.sidebar-footer-btns a.btn-secondary {
   flex: 1;
   font-size: 12px;
   padding: 5px 4px;
   background: var(--bg-overlay);
   color: var(--fg-subtle);
   font-weight: 400;
+  text-decoration: none;
+  text-align: center;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.sidebar-footer-btns button:hover {
+.sidebar-footer-btns button:hover,
+.sidebar-footer-btns a.btn-secondary:hover {
   background: var(--bg-hover);
   color: var(--fg-text);
+}
+
+.btn-quit {
+  color: var(--fg-faint) !important;
+}
+
+.btn-quit:hover {
+  color: var(--err) !important;
+  background: var(--bg-hover) !important;
 }
 
 /* ── Main area ───────────────────────────────────────────── */

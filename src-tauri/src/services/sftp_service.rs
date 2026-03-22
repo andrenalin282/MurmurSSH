@@ -29,8 +29,21 @@ fn host_fingerprint(session: &Session) -> String {
 fn connect(profile: &Profile) -> Result<Session, String> {
     let addr = format!("{}:{}", profile.host, profile.port);
 
-    let tcp = TcpStream::connect(&addr)
-        .map_err(|e| format!("Connection to {} failed: {}", addr, e))?;
+    // Use connect_timeout so an unreachable server fails quickly instead of
+    // blocking the UI thread for the OS TCP timeout (which can be 2+ minutes).
+    let socket_addr = addr.parse::<std::net::SocketAddr>()
+        .or_else(|_| {
+            // addr contains a hostname — resolve it first
+            use std::net::ToSocketAddrs;
+            addr.to_socket_addrs()
+                .map_err(|e| format!("Server not reachable. Please check the connection details. (resolve: {})", e))?
+                .next()
+                .ok_or_else(|| format!("Server not reachable. Please check the connection details. (no address for {})", addr))
+        })
+        .map_err(|e: String| e)?;
+
+    let tcp = TcpStream::connect_timeout(&socket_addr, std::time::Duration::from_secs(15))
+        .map_err(|_| "Server not reachable. Please check the connection details.".to_string())?;
 
     let mut session =
         Session::new().map_err(|e| format!("Failed to create SSH session: {}", e))?;
@@ -153,6 +166,29 @@ fn connect(profile: &Profile) -> Result<Session, String> {
 /// Called by the `connect_sftp` IPC command before the file browser is shown.
 pub fn test_connection(profile: &Profile) -> Result<(), String> {
     connect(profile).map(|_| ())
+}
+
+/// Resolve the server-side effective SFTP start directory using `realpath(".")`.
+///
+/// Returns the absolute path the SFTP server reports as the initial working
+/// directory (typically the user's home directory). Falls back to "/" if the
+/// SFTP channel cannot be opened or if realpath is not supported by the server.
+///
+/// Called during initial connect when the profile has no explicit remote path
+/// configured, so the file browser starts at the user's actual home rather
+/// than the filesystem root.
+pub fn get_sftp_home(profile: &Profile) -> Result<String, String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    let home = sftp
+        .realpath(Path::new("."))
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|_| "/".to_string());
+
+    Ok(home)
 }
 
 pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, String> {
@@ -282,6 +318,75 @@ pub fn create_directory(profile: &Profile, path: &str) -> Result<(), String> {
 
     sftp.mkdir(Path::new(path), 0o755)
         .map_err(|e| format!("Failed to create directory '{}': {}", path, e))
+}
+
+/// Recursively download a remote directory to a local destination path.
+///
+/// Uses a single SFTP session for the entire operation. Creates the local directory
+/// structure mirroring the remote tree. Symlinks to directories are followed.
+pub fn download_directory(profile: &Profile, remote_path: &str, local_path: &str) -> Result<(), String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    std::fs::create_dir_all(local_path)
+        .map_err(|e| format!("Failed to create local directory '{}': {}", local_path, e))?;
+
+    download_directory_recursive(&sftp, remote_path, local_path)
+}
+
+/// Internal recursive helper for directory download — operates on an open SFTP channel.
+fn download_directory_recursive(sftp: &ssh2::Sftp, remote_path: &str, local_path: &str) -> Result<(), String> {
+    use std::io::Read;
+
+    let entries = sftp
+        .readdir(Path::new(remote_path))
+        .map_err(|e| format!("Failed to list '{}': {}", remote_path, e))?;
+
+    for (entry_path, stat) in entries {
+        let entry_name = match entry_path.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => continue,
+        };
+
+        let entry_path_str = entry_path.to_string_lossy().to_string();
+        let local_entry = format!("{}/{}", local_path.trim_end_matches('/'), entry_name);
+
+        // Determine if the entry is a directory (follow symlinks)
+        let is_symlink = stat.perm
+            .map(|p| (p & 0o170000) == 0o120000)
+            .unwrap_or(false);
+        let is_dir = if is_symlink {
+            sftp.stat(&entry_path).map(|s| s.is_dir()).unwrap_or(false)
+        } else {
+            stat.is_dir()
+        };
+
+        if is_dir {
+            std::fs::create_dir_all(&local_entry)
+                .map_err(|e| format!("Failed to create local directory '{}': {}", local_entry, e))?;
+            download_directory_recursive(sftp, &entry_path_str, &local_entry)?;
+        } else {
+            // Download file: symlinks to files are opened and read as regular files
+            let mut remote_file = sftp
+                .open(&entry_path)
+                .map_err(|e| format!("Failed to open remote file '{}': {}", entry_path_str, e))?;
+
+            let mut local_file = std::fs::File::create(&local_entry)
+                .map_err(|e| format!("Failed to create local file '{}': {}", local_entry, e))?;
+
+            let mut buf = Vec::new();
+            remote_file
+                .read_to_end(&mut buf)
+                .map_err(|e| format!("Failed to read remote file '{}': {}", entry_path_str, e))?;
+
+            std::io::Write::write_all(&mut local_file, &buf)
+                .map_err(|e| format!("Failed to write local file '{}': {}", local_entry, e))?;
+        }
+    }
+
+    Ok(())
 }
 
 /// Recursively delete a remote directory and all of its contents.

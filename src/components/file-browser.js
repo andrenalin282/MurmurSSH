@@ -129,6 +129,10 @@ export class FileBrowser {
         return `<nav class="file-browser__breadcrumbs">${crumbs.join("")}</nav>`;
     }
     render() {
+        // Preserve scroll position before rebuilding the DOM (prevents scroll-jump on row click).
+        // The scrollable element is .file-browser (overflow-y: auto), not the table itself.
+        const scrollEl = this.container.querySelector(".file-browser");
+        const savedScrollTop = scrollEl?.scrollTop ?? 0;
         const isAtRoot = this.currentPath === "/";
         const hasProfile = this.profileId !== null;
         const upRow = isAtRoot
@@ -148,6 +152,7 @@ export class FileBrowser {
                  </tr>`)
                     .join("");
         const hasFile = this.selectedEntry !== null && !this.selectedEntry.is_dir;
+        const hasDir = this.selectedEntry !== null && this.selectedEntry.is_dir;
         const hasAny = this.selectedEntry !== null;
         const inlineErrorHtml = this.inlineError
             ? `<div class="file-browser__inline-error">${escHtml(this.inlineError)}</div>`
@@ -175,7 +180,7 @@ export class FileBrowser {
         </table>
         <div class="file-browser__actions">
           <button id="upload-btn"     ${!hasProfile || this.busy ? "disabled" : ""}>Upload</button>
-          <button id="download-btn"   ${!hasFile || this.busy ? "disabled" : ""}>Download</button>
+          <button id="download-btn"   ${(!hasFile && !hasDir) || this.busy ? "disabled" : ""}>${hasDir ? "Download Folder" : "Download"}</button>
           <button id="edit-btn"       ${!hasFile || this.busy ? "disabled" : ""}>Edit</button>
           <button id="delete-btn"     ${!hasAny || this.busy ? "disabled" : ""}>Delete</button>
           <button id="new-file-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>＋ File</button>
@@ -183,6 +188,11 @@ export class FileBrowser {
         </div>
       </div>
     `;
+        // Restore scroll position after DOM rebuild
+        const newScrollEl = this.container.querySelector(".file-browser");
+        if (newScrollEl && savedScrollTop > 0) {
+            newScrollEl.scrollTop = savedScrollTop;
+        }
         // Breadcrumb navigation
         this.container.querySelectorAll(".breadcrumb__link").forEach((el) => {
             el.addEventListener("click", () => {
@@ -322,8 +332,27 @@ export class FileBrowser {
     async handleTerminal() {
         if (!this.profileId)
             return;
+        // Check whether the SSH key needs a local runtime copy for terminal compatibility.
+        // OpenSSH rejects keys with group/other permission bits or on non-local filesystems.
+        let useRuntimeCopy = false;
         try {
-            await api.launchSsh(this.profileId);
+            const needsCopy = await api.checkKeyNeedsCopy(this.profileId);
+            if (needsCopy) {
+                const accepted = await showConfirm("The SSH key for this profile has permissions that OpenSSH may reject.\n\n" +
+                    "MurmurSSH can create a local runtime copy of the key with correct permissions " +
+                    "for this terminal session only. The original key file is not modified.\n\n" +
+                    "The copy will be deleted when you disconnect.", "Copy Key Locally for Terminal?");
+                if (accepted) {
+                    await api.copyKeyForRuntime(this.profileId);
+                    useRuntimeCopy = true;
+                }
+            }
+        }
+        catch {
+            // Non-fatal — if the check fails, proceed with normal launch
+        }
+        try {
+            await api.launchSsh(this.profileId, useRuntimeCopy);
         }
         catch (err) {
             this.onStatusMessage?.(`Terminal launch failed: ${err}`, true);
@@ -370,6 +399,16 @@ export class FileBrowser {
         }
     }
     async handleDownload() {
+        if (!this.profileId || !this.selectedRemotePath || !this.selectedName || !this.selectedEntry)
+            return;
+        if (this.selectedEntry.is_dir) {
+            await this.handleDownloadFolder();
+        }
+        else {
+            await this.handleDownloadFile();
+        }
+    }
+    async handleDownloadFile() {
         if (!this.profileId || !this.selectedRemotePath || !this.selectedName)
             return;
         let savePath;
@@ -394,6 +433,38 @@ export class FileBrowser {
         }
         catch (err) {
             this.onStatusMessage?.(`Download failed: ${err}`, true);
+        }
+        finally {
+            this.setBusy(false);
+        }
+    }
+    async handleDownloadFolder() {
+        if (!this.profileId || !this.selectedRemotePath || !this.selectedName)
+            return;
+        let localDestPath;
+        if (this.localPath) {
+            // Local path set — download into that directory
+            localDestPath = this.localPath.replace(/\/?$/, "/") + this.selectedName;
+        }
+        else {
+            // No local path — ask the user to pick a destination folder
+            const chosen = await open({
+                multiple: false,
+                directory: true,
+                title: "Select destination folder",
+            });
+            if (!chosen || typeof chosen !== "string")
+                return; // user cancelled
+            // Save into a subfolder named after the remote directory
+            localDestPath = chosen.replace(/\/?$/, "/") + this.selectedName;
+        }
+        try {
+            this.setBusy(true);
+            await api.downloadDirectory(this.profileId, this.selectedRemotePath, localDestPath);
+            this.onStatusMessage?.(`Downloaded folder to ${localDestPath}`, false);
+        }
+        catch (err) {
+            this.onStatusMessage?.(`Folder download failed: ${err}`, true);
         }
         finally {
             this.setBusy(false);

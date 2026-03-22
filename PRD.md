@@ -238,7 +238,7 @@ For any non-trivial change, the work should follow this order:
 1. read project guidance and current phase instructions
 2. identify constraints, dependencies, and affected files
 3. break the work into smaller implementation steps
-4. use sub-agents for complex or cross-layer tasks where useful
+4. use sub-agents for complex or cross-layer tasks; also use inline fix sub-agents when compile errors, regressions, or state bugs appear mid-implementation with unclear root cause; parallel sub-agents are appropriate for independent work streams (e.g. Rust backend and TypeScript frontend changes that do not share state)
 5. implement in small, verifiable batches
 6. explicitly review and resolve issues, warnings, and regressions
 7. validate the affected user flows before considering the work complete
