@@ -285,7 +285,7 @@ profileSelector.onConnect(async (profileId: string) => {
     // Non-fatal — last-used profile restore on next launch will just fall back to first
   }
   statusBar.set("connected", `Connected to ${profile.host}`);
-  fileBrowser.setProfile(profileId, profile.default_remote_path ?? "/");
+  fileBrowser.setProfile(profileId, profile.default_remote_path ?? "/", profile.local_path ?? null);
   await fileBrowser.refresh();
 });
 
@@ -301,7 +301,7 @@ profileSelector.init().then(async (lastUsedId) => {
   if (lastUsedId) {
     const profile = profileSelector.getSelectedProfile();
     if (profile) {
-      fileBrowser.setProfile(lastUsedId, profile.default_remote_path ?? "/");
+      fileBrowser.setProfile(lastUsedId, profile.default_remote_path ?? "/", profile.local_path ?? null);
     }
   }
 });

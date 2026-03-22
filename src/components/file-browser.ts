@@ -1,4 +1,4 @@
-import { save } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
 import { showConfirm, showPrompt } from "./dialog";
 import type { FileEntry } from "../types";
@@ -31,9 +31,9 @@ function parentPath(path: string): string {
 
 export class FileBrowser {
   private container: HTMLElement;
-  private fileInput: HTMLInputElement;
 
   private profileId: string | null = null;
+  private localPath: string | null = null;
   private currentPath: string = "/";
   private homePath: string = "/";
   private entries: FileEntry[] = [];
@@ -48,19 +48,12 @@ export class FileBrowser {
     const el = document.getElementById(containerId);
     if (!el) throw new Error(`Element #${containerId} not found`);
     this.container = el;
-
-    // Persistent hidden file input — avoids recreating on each render
-    this.fileInput = document.createElement("input");
-    this.fileInput.type = "file";
-    this.fileInput.style.display = "none";
-    document.body.appendChild(this.fileInput);
-    this.fileInput.addEventListener("change", () => this.handleUploadFileSelected());
-
     this.renderEmpty();
   }
 
-  setProfile(profileId: string, defaultPath: string = "/"): void {
+  setProfile(profileId: string, defaultPath: string = "/", localPath: string | null = null): void {
     this.profileId = profileId;
+    this.localPath = localPath;
     this.currentPath = defaultPath;
     this.homePath = defaultPath;
     this.selectedName = null;
@@ -285,7 +278,7 @@ export class FileBrowser {
 
     document
       .getElementById("upload-btn")
-      ?.addEventListener("click", () => this.fileInput.click());
+      ?.addEventListener("click", () => this.handleUpload());
 
     document
       .getElementById("download-btn")
@@ -372,6 +365,7 @@ export class FileBrowser {
 
   private handleDisconnect(): void {
     this.profileId = null;
+    this.localPath = null;
     this.currentPath = "/";
     this.homePath = "/";
     this.entries = [];
@@ -384,21 +378,27 @@ export class FileBrowser {
 
   // ── Action handlers ──────────────────────────────────────────────────────
 
-  private async handleUploadFileSelected(): Promise<void> {
-    const file = this.fileInput.files?.[0];
-    if (!file || !this.profileId) return;
+  private async handleUpload(): Promise<void> {
+    if (!this.profileId) return;
 
-    // Reset so the same file can be re-uploaded
-    this.fileInput.value = "";
+    // Open file picker; start in local_path if set so user lands in the right folder
+    const localFilePath = await open({
+      multiple: false,
+      directory: false,
+      defaultPath: this.localPath ?? undefined,
+    });
 
-    const remotePath = joinPath(this.currentPath, file.name);
+    if (!localFilePath || typeof localFilePath !== "string") return;
+
+    // Extract filename from local path (handles both / and \ separators)
+    const filename =
+      localFilePath.replace(/\\/g, "/").split("/").pop() ?? localFilePath;
+    const remotePath = joinPath(this.currentPath, filename);
 
     try {
       this.setBusy(true);
-      const buffer = await file.arrayBuffer();
-      const bytes = Array.from(new Uint8Array(buffer));
-      await api.uploadFileBytes(this.profileId, remotePath, bytes);
-      this.onStatusMessage?.(`Uploaded ${file.name}`, false);
+      await api.uploadFile(this.profileId, localFilePath, remotePath);
+      this.onStatusMessage?.(`Uploaded ${filename}`, false);
       await this.refresh();
     } catch (err) {
       this.onStatusMessage?.(`Upload failed: ${err}`, true);
@@ -410,13 +410,20 @@ export class FileBrowser {
   private async handleDownload(): Promise<void> {
     if (!this.profileId || !this.selectedRemotePath || !this.selectedName) return;
 
-    // Ask the user where to save the file before starting the download
-    const savePath = await save({
-      defaultPath: this.selectedName,
-      title: "Save file",
-    });
+    let savePath: string;
 
-    if (!savePath) return; // user cancelled the dialog
+    if (this.localPath) {
+      // Local path set — save directly without a dialog
+      savePath = this.localPath.replace(/\/?$/, "/") + this.selectedName;
+    } else {
+      // No local path — ask the user where to save
+      const chosen = await save({
+        defaultPath: this.selectedName,
+        title: "Save file",
+      });
+      if (!chosen) return; // user cancelled
+      savePath = chosen;
+    }
 
     try {
       this.setBusy(true);

@@ -13,6 +13,7 @@ export class ProfileSelector {
   private container: HTMLElement;
   private profiles: Profile[] = [];
   private selectedId: string | null = null;
+  private isConnected: boolean = false;
   private onConnectCallback: ((profileId: string) => void) | null = null;
   private onNewCallback: (() => void) | null = null;
   private onEditCallback: ((profile: Profile) => void) | null = null;
@@ -83,16 +84,24 @@ export class ProfileSelector {
   }
 
   /**
-   * Reflect active connection state on the Connect button.
-   * When connected, the button is disabled to prevent double-connect.
-   * When disconnected, it is re-enabled.
+   * Reflect active connection state on the Connect, Edit, and Delete buttons.
+   * When connected: Connect is disabled (prevent double-connect), Edit and Delete
+   * are locked to prevent modifying the active profile.
+   * When disconnected: buttons are restored based on current selection state.
    */
   setConnected(isConnected: boolean): void {
-    const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
-    if (!connectBtn) return;
+    this.isConnected = isConnected;
     const hasSelection = this.selectedId !== null && this.profiles.length > 0;
-    connectBtn.disabled = isConnected || !hasSelection;
-    connectBtn.textContent = isConnected ? "Connected" : "Connect";
+    const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
+    const editBtn = document.getElementById("edit-profile-btn") as HTMLButtonElement | null;
+    const deleteBtn = document.getElementById("delete-profile-btn") as HTMLButtonElement | null;
+
+    if (connectBtn) {
+      connectBtn.disabled = isConnected || !hasSelection;
+      connectBtn.textContent = isConnected ? "Connected" : "Connect";
+    }
+    if (editBtn) editBtn.disabled = isConnected || !hasSelection;
+    if (deleteBtn) deleteBtn.disabled = isConnected || !hasSelection;
   }
 
   /**
@@ -105,9 +114,10 @@ export class ProfileSelector {
     const editBtn = document.getElementById("edit-profile-btn") as HTMLButtonElement | null;
     const deleteBtn = document.getElementById("delete-profile-btn") as HTMLButtonElement | null;
     const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
-    if (editBtn) editBtn.disabled = !hasSelection;
-    if (deleteBtn) deleteBtn.disabled = !hasSelection;
-    if (connectBtn) connectBtn.disabled = !hasSelection;
+    // Edit and Delete remain locked while a session is active
+    if (editBtn) editBtn.disabled = this.isConnected || !hasSelection;
+    if (deleteBtn) deleteBtn.disabled = this.isConnected || !hasSelection;
+    if (connectBtn) connectBtn.disabled = this.isConnected || !hasSelection;
   }
 
   private render(): void {

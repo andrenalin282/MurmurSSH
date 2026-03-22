@@ -14,6 +14,12 @@ pub struct Profile {
     pub editor_command: Option<String>,
     pub upload_mode: UploadMode,
 
+    /// Optional local working directory for uploads and downloads.
+    /// When set: downloads save here directly; upload picker starts here.
+    /// When absent/None: download shows a save dialog; upload uses system default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_path: Option<String>,
+
     /// How the credential (password or key passphrase) is persisted between sessions.
     /// Defaults to Never if absent — old profiles without this field always prompt.
     #[serde(skip_serializing_if = "Option::is_none")]

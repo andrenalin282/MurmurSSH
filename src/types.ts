@@ -21,6 +21,8 @@ export interface Profile {
   default_remote_path: string | null;
   editor_command: string | null;
   upload_mode: UploadMode;
+  /** Optional local working directory for uploads and downloads. */
+  local_path?: string | null;
   /** How the credential is retained between sessions. Absent/undefined means "never". */
   credential_storage_mode?: CredentialStorageMode;
   /**

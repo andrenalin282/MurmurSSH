@@ -100,6 +100,7 @@ Profile IDs are generated from the display name: lowercase, non-alphanumeric seq
 - Phase 5.4: SSH SSO (ControlMaster for password auth, ssh-agent for key+passphrase), Terminal button in toolbar, file browser scroll fix, configurable profile storage path, profile backup on write (.json.bkp), open-profile-folder command, settings dialog with path configuration
 - Phase 5.5: Removed auto terminal launch (Terminal button only), centralized connection state (connectedProfileId + ProfileSelector.setConnected), CSS custom properties + light theme (Catppuccin Latte), theme selector in settings dialog, system theme listener via matchMedia, settings save bug fix (read-merge-write)
 - Phase 5.6: Toolbar state hardening (refresh errors use inlineError+render() keeping buttons active), symlink-to-directory fix in SFTP listing (stat() follows symlink for public_html etc.), editable path input field (Enter navigates, Escape resets), download flow via save dialog (downloadFileTo command), New File and New Folder create actions (＋ File / ＋ Folder buttons)
+- Phase 5.7: local_path per-profile field (stored in profile JSON, folder picker in form), download uses local_path directly if set (no dialog), upload picker starts in local_path via Tauri open() dialog (replaces hidden file input), connected profile locking (Edit/Delete disabled while connected, restored on disconnect)
 
 ## Guidance Files
 

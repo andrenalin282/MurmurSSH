@@ -112,6 +112,14 @@ export class ProfileForm {
               placeholder="/home/user">
           </div>
           <div class="form-field">
+            <label for="pf-local-path">Local Path</label>
+            <div class="form-field__row">
+              <input id="pf-local-path" type="text" value="${escHtml(profile?.local_path ?? "")}"
+                placeholder="/home/user/projects  (optional)">
+              <button type="button" class="btn-secondary" id="pf-browse-local">Browse…</button>
+            </div>
+          </div>
+          <div class="form-field">
             <label for="pf-editor">Editor Command</label>
             <input id="pf-editor" type="text" value="${escHtml(profile?.editor_command ?? "")}"
               placeholder="code  (blank = system default)">
@@ -159,6 +167,15 @@ export class ProfileForm {
       }
     });
 
+    // Folder picker for local working directory
+    this.overlay.querySelector("#pf-browse-local")?.addEventListener("click", async () => {
+      const result = await open({ multiple: false, directory: true });
+      if (typeof result === "string") {
+        const input = this.overlay?.querySelector<HTMLInputElement>("#pf-local-path");
+        if (input) input.value = result;
+      }
+    });
+
     // Clear saved credential button (edit mode only, shown when a credential is stored)
     this.overlay.querySelector("#pf-clear-cred")?.addEventListener("click", async () => {
       if (!this.editingId) return;
@@ -192,6 +209,7 @@ export class ProfileForm {
     const authType = get("pf-auth-type") as AuthType;
     const keyPath = get("pf-key-path");
     const remotePath = get("pf-remote-path");
+    const localPath = get("pf-local-path");
     const editorCommand = get("pf-editor");
     const uploadMode = get("pf-upload-mode") as UploadMode;
 
@@ -255,6 +273,7 @@ export class ProfileForm {
       auth_type: authType,
       key_path: authType === "key" ? keyPath : null,
       default_remote_path: remotePath || null,
+      local_path: localPath || null,
       editor_command: editorCommand || null,
       upload_mode: uploadMode,
       // Carry forward credential fields only when NOT switching away from password auth.
