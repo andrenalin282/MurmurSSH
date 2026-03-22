@@ -83,6 +83,19 @@ export class ProfileSelector {
   }
 
   /**
+   * Reflect active connection state on the Connect button.
+   * When connected, the button is disabled to prevent double-connect.
+   * When disconnected, it is re-enabled.
+   */
+  setConnected(isConnected: boolean): void {
+    const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
+    if (!connectBtn) return;
+    const hasSelection = this.selectedId !== null && this.profiles.length > 0;
+    connectBtn.disabled = isConnected || !hasSelection;
+    connectBtn.textContent = isConnected ? "Connected" : "Connect";
+  }
+
+  /**
    * Update the disabled state of Edit / Delete / Connect buttons to match the
    * current selectedId without triggering a full re-render. Called after the
    * user changes the dropdown selection.

@@ -32,6 +32,10 @@ export interface Profile {
 
 export interface Settings {
   last_used_profile_id: string | null;
+  /** Custom directory for profile JSON files. Null/absent = default path. */
+  profiles_path?: string | null;
+  /** UI theme: "dark" | "light" | "system". Null/absent = "system". */
+  theme?: "dark" | "light" | "system" | null;
 }
 
 export interface FileEntry {

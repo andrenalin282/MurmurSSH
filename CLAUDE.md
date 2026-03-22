@@ -25,9 +25,10 @@ src/                        # Vanilla TypeScript frontend (no framework)
   components/               # DOM-based UI components
     credential-dialog.ts    # Password/passphrase/host-key dialogs + save mode choice
     dialog.ts               # showConfirm() — promise-based in-app modal
-    file-browser.ts         # SFTP file browser
+    file-browser.ts         # SFTP file browser (toolbar: Disconnect/Terminal/Home/Up/Refresh)
     profile-form.ts         # Profile create/edit modal form
     profile-selector.ts     # Profile dropdown + management buttons (New/Edit/Delete)
+    settings-dialog.ts      # Settings modal: profile storage path configuration
     status-bar.ts           # Connection status indicator
   types.ts                  # Shared TypeScript types (mirrors Rust models)
   main.ts                   # App entry point — wires all components together
@@ -38,6 +39,7 @@ src-tauri/src/
     known_hosts_service.rs  # Host key verification (~/.config/murmurssh/known_hosts)
     secrets_service.rs      # Local-machine persistent secret files (~/.config/murmurssh/secrets/)
     sftp_service.rs         # SFTP operations + connect() with host-key/auth logic
+    ssh_session_service.rs  # SSH SSO: ControlMaster (password auth) / ssh-agent (key+passphrase)
     workspace_service.rs    # Remote editing, watcher dedup via active_watchers()
   commands/                 # Tauri IPC layer — thin wrappers over services
     connection.rs           # connect_sftp, accept_host_key, save_credential, clear_credential
@@ -94,6 +96,10 @@ Profile IDs are generated from the display name: lowercase, non-alphanumeric seq
 - Phase 3: Profile management GUI, file picker, in-app modals, connect validation
 - Phase 4: Password auth, passphrase support, host key verification, workspace stability
 - Phase 5: Credential storage modes (never/local_machine/portable_profile), save-mode UX in dialogs, profile portability
+- Phase 5.3: Host-key dialog (Accept once/save/cancel), file browser toolbar (Disconnect/Terminal/Home/Up), breadcrumbs, permission-safe navigation, disconnect state cleanup
+- Phase 5.4: SSH SSO (ControlMaster for password auth, ssh-agent for key+passphrase), Terminal button in toolbar, file browser scroll fix, configurable profile storage path, profile backup on write (.json.bkp), open-profile-folder command, settings dialog with path configuration
+- Phase 5.5: Removed auto terminal launch (Terminal button only), centralized connection state (connectedProfileId + ProfileSelector.setConnected), CSS custom properties + light theme (Catppuccin Latte), theme selector in settings dialog, system theme listener via matchMedia, settings save bug fix (read-merge-write)
+- Phase 5.6: Toolbar state hardening (refresh errors use inlineError+render() keeping buttons active), symlink-to-directory fix in SFTP listing (stat() follows symlink for public_html etc.), editable path input field (Enter navigates, Escape resets), download flow via save dialog (downloadFileTo command), New File and New Folder create actions (＋ File / ＋ Folder buttons)
 
 ## Guidance Files
 
@@ -104,3 +110,24 @@ Before implementing anything, read all of the following:
 - `.claude/skills/architecture-rules.md` — structure, module, and persistence rules
 - `.claude/skills/linux-integration.md` — platform, terminal, and filesystem conventions
 - `.claude/skills/open-source-guidelines.md` — code and community expectations
+- `.claude/skills/execution-workflow.md` — execution order, sub-agent usage, issue logging, validation, and final reporting rules
+
+## Execution Rules
+
+When implementing anything in this repository:
+
+- first read all guidance files listed above
+- extract constraints before making changes
+- identify affected files by layer before editing
+- decompose non-trivial work into small implementation steps
+- use sub-agents for complex, cross-layer, or unclear-root-cause tasks
+- maintain a live issue/finding list during the work
+- resolve errors and warnings explicitly instead of silently working around them
+- validate requirements and affected flows before declaring completion
+- report files changed, root causes, validation, and remaining issues in the final summary
+
+Sub-agents are especially expected when work crosses:
+- `src/` and `src-tauri/src/`
+- UI + backend + persistence
+- security/authentication/secret handling
+- multiple core modules with shared state or compatibility impact

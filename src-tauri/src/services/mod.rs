@@ -6,4 +6,5 @@ pub mod session_trust_store;
 pub mod settings_service;
 pub mod sftp_service;
 pub mod ssh_service;
+pub mod ssh_session_service;
 pub mod workspace_service;

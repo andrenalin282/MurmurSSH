@@ -168,11 +168,24 @@ pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, S
     let mut entries: Vec<FileEntry> = raw
         .into_iter()
         .filter_map(|(path_buf, stat)| {
-            path_buf.file_name().map(|name| FileEntry {
-                name: name.to_string_lossy().to_string(),
-                is_dir: stat.is_dir(),
-                size: stat.size,
-                modified: stat.mtime,
+            path_buf.file_name().map(|name| {
+                // readdir returns lstat results: symlinks report S_IFLNK, not S_IFDIR.
+                // Follow symlinks via sftp.stat() so that symlinks-to-directories
+                // (e.g. public_html → /var/www/html) are shown as navigable folders.
+                let is_symlink = stat.perm
+                    .map(|p| (p & 0o170000) == 0o120000)
+                    .unwrap_or(false);
+                let is_dir = if is_symlink {
+                    sftp.stat(&path_buf).map(|s| s.is_dir()).unwrap_or(false)
+                } else {
+                    stat.is_dir()
+                };
+                FileEntry {
+                    name: name.to_string_lossy().to_string(),
+                    is_dir,
+                    size: stat.size,
+                    modified: stat.mtime,
+                }
             })
         })
         .collect();

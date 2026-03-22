@@ -33,6 +33,18 @@ pub fn upload_file(
     sftp_service::upload_file(&profile, &local_path, &remote_path)
 }
 
+/// Download a remote file to a user-specified local path.
+/// Called by the frontend after the user picks a save location via the save dialog.
+#[tauri::command]
+pub fn download_file_to(
+    profile_id: String,
+    remote_path: String,
+    local_path: String,
+) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    sftp_service::download_file(&profile, &remote_path, &local_path)
+}
+
 /// Download a remote file to ~/Downloads/<filename> and return the save path.
 #[tauri::command]
 pub fn download_file(profile_id: String, remote_path: String) -> Result<String, String> {

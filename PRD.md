@@ -218,3 +218,63 @@ Not part of the MVP, but acceptable for later discussion:
 - port forwarding
 - diff viewer
 - integrated text editor
+
+## 14. Delivery and Implementation Rules
+
+Implementation should follow a disciplined phase-based process.
+
+### Delivery principles
+
+- work in small phases with clear goals
+- do not silently expand scope beyond the current phase
+- preserve the minimal Linux-first product direction
+- keep the implementation understandable for open-source contributors
+- prefer incremental improvements over broad rewrites
+
+### Required implementation approach
+
+For any non-trivial change, the work should follow this order:
+
+1. read project guidance and current phase instructions
+2. identify constraints, dependencies, and affected files
+3. break the work into smaller implementation steps
+4. use sub-agents for complex or cross-layer tasks where useful
+5. implement in small, verifiable batches
+6. explicitly review and resolve issues, warnings, and regressions
+7. validate the affected user flows before considering the work complete
+
+### Issue handling
+
+Problems found during implementation should not be hidden.
+
+They should be:
+- listed clearly
+- resolved in priority order
+- documented if deferred
+
+This includes:
+- logic bugs
+- validation gaps
+- state inconsistencies
+- warnings that indicate real maintenance risk
+- incomplete edge-case handling
+
+### Validation before completion
+
+A phase should not be considered complete until:
+
+- the defined requirements for that phase are implemented
+- the affected flows are checked end-to-end as far as practical
+- architectural constraints remain preserved
+- any remaining limitations are explicitly documented
+
+### Definition of done
+
+A phase is considered done when:
+
+- the work satisfies the phase goal
+- scope has been respected
+- architecture remains aligned with project rules
+- user-visible behavior is coherent and minimal
+- important warnings or issues have been resolved or documented
+- the final output clearly lists changes, validation, and remaining known limitations

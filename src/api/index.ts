@@ -87,6 +87,14 @@ export async function checkPathExists(path: string): Promise<boolean> {
   return invoke("check_path_exists", { path });
 }
 
+export async function openProfileFolder(): Promise<void> {
+  return invoke("open_profile_folder");
+}
+
+export async function getProfilesPath(): Promise<string> {
+  return invoke("get_profiles_path");
+}
+
 export async function listDirectory(
   profileId: string,
   path: string
@@ -129,6 +137,18 @@ export async function downloadFile(
   return invoke("download_file", { profileId, remotePath });
 }
 
+/**
+ * Download a remote file to a user-specified local path.
+ * Used after the user picks a save location via the save dialog.
+ */
+export async function downloadFileTo(
+  profileId: string,
+  remotePath: string,
+  localPath: string
+): Promise<void> {
+  return invoke("download_file_to", { profileId, remotePath, localPath });
+}
+
 export async function deleteFile(
   profileId: string,
   remotePath: string
@@ -156,6 +176,23 @@ export async function openForEdit(
   remotePath: string
 ): Promise<void> {
   return invoke("open_for_edit", { profileId, remotePath });
+}
+
+/**
+ * Establish a background SSH session for terminal SSO.
+ * Must be called after connectSftp() succeeds.
+ * Non-fatal: if this fails the terminal still works, just re-prompts.
+ */
+export async function startSshSession(profileId: string): Promise<void> {
+  return invoke("start_ssh_session", { profileId });
+}
+
+/**
+ * Stop the SSH SSO session for a profile (called on disconnect).
+ * Kills the ControlMaster or ssh-agent process and removes the socket.
+ */
+export async function stopSshSession(profileId: string): Promise<void> {
+  return invoke("stop_ssh_session", { profileId });
 }
 
 /**

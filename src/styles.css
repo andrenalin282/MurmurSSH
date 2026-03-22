@@ -1,3 +1,75 @@
+/* ── CSS custom properties — dark theme (Catppuccin Mocha) ── */
+
+:root {
+  color-scheme: dark;
+
+  --bg-base:         #1e1e2e;
+  --bg-surface:      #181825;
+  --bg-overlay:      #313244;
+  --bg-hover:        #45475a;
+
+  --fg-text:         #cdd6f4;
+  --fg-subtle:       #a6adc8;
+  --fg-faint:        #6c7086;
+
+  --accent:          #89b4fa;
+  --accent-hover:    #b4befe;
+  --accent-fg:       #1e1e2e;   /* text on accent-colored background */
+
+  --dir:             #89b4fa;
+
+  --border:          #313244;
+  --border-strong:   #45475a;
+
+  --btn-disabled-bg: #45475a;
+  --btn-disabled-fg: #6c7086;
+
+  --ok:              #a6e3a1;
+  --warn:            #f9e2af;
+  --err:             #f38ba8;
+  --err-bg:          rgba(243, 139, 168, 0.10);
+  --warn-bg:         rgba(249, 226, 175, 0.08);
+
+  --modal-overlay:   rgba(0, 0, 0, 0.60);
+}
+
+/* ── Light theme overrides (Catppuccin Latte) ────────────── */
+
+:root.theme-light {
+  color-scheme: light;
+
+  --bg-base:         #eff1f5;
+  --bg-surface:      #e6e9ef;
+  --bg-overlay:      #ccd0da;
+  --bg-hover:        #bcc0cc;
+
+  --fg-text:         #4c4f69;
+  --fg-subtle:       #6c6f85;
+  --fg-faint:        #9ca0b0;
+
+  --accent:          #1e66f5;
+  --accent-hover:    #04a5e5;
+  --accent-fg:       #eff1f5;
+
+  --dir:             #1e66f5;
+
+  --border:          #ccd0da;
+  --border-strong:   #bcc0cc;
+
+  --btn-disabled-bg: #ccd0da;
+  --btn-disabled-fg: #9ca0b0;
+
+  --ok:              #40a02b;
+  --warn:            #df8e1d;
+  --err:             #d20f39;
+  --err-bg:          rgba(210, 15, 57, 0.10);
+  --warn-bg:         rgba(223, 142, 29, 0.08);
+
+  --modal-overlay:   rgba(0, 0, 0, 0.40);
+}
+
+/* ── Reset ───────────────────────────────────────────────── */
+
 *,
 *::before,
 *::after {
@@ -8,8 +80,8 @@ body {
   margin: 0;
   font-family: system-ui, sans-serif;
   font-size: 14px;
-  background: #1e1e2e;
-  color: #cdd6f4;
+  background: var(--bg-base);
+  color: var(--fg-text);
   height: 100vh;
   overflow: hidden;
 }
@@ -24,12 +96,37 @@ body {
 #sidebar {
   width: 220px;
   flex-shrink: 0;
-  background: #181825;
-  border-right: 1px solid #313244;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
   gap: 12px;
+}
+
+/* ── Sidebar footer ──────────────────────────────────────── */
+
+#sidebar-footer {
+  margin-top: auto;
+}
+
+.sidebar-footer-btns {
+  display: flex;
+  gap: 4px;
+}
+
+.sidebar-footer-btns button {
+  flex: 1;
+  font-size: 12px;
+  padding: 5px 4px;
+  background: var(--bg-overlay);
+  color: var(--fg-subtle);
+  font-weight: 400;
+}
+
+.sidebar-footer-btns button:hover {
+  background: var(--bg-hover);
+  color: var(--fg-text);
 }
 
 /* ── Main area ───────────────────────────────────────────── */
@@ -45,25 +142,23 @@ body {
 
 select {
   width: 100%;
-  background: #313244;
-  color: #cdd6f4;
-  border: 1px solid #45475a;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 6px 8px;
   font-size: 13px;
-  /* Prevent OS-native light-theme dropdown appearance on some Linux setups */
-  color-scheme: dark;
 }
 
-/* Dropdown option items — explicit dark styling so the popup list matches */
+/* Dropdown option items — explicit styling so the popup list matches */
 option {
-  background: #313244;
-  color: #cdd6f4;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
 }
 
 button {
-  background: #89b4fa;
-  color: #1e1e2e;
+  background: var(--accent);
+  color: var(--accent-fg);
   border: none;
   border-radius: 4px;
   padding: 7px 12px;
@@ -73,12 +168,12 @@ button {
 }
 
 button:hover {
-  background: #b4befe;
+  background: var(--accent-hover);
 }
 
 button:disabled {
-  background: #45475a;
-  color: #6c7086;
+  background: var(--btn-disabled-bg);
+  color: var(--btn-disabled-fg);
   cursor: not-allowed;
 }
 
@@ -94,7 +189,7 @@ button:disabled {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #a6adc8;
+  color: var(--fg-subtle);
 }
 
 /* ── Status bar ──────────────────────────────────────────── */
@@ -104,9 +199,9 @@ button:disabled {
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 1px solid #313244;
+  border-bottom: 1px solid var(--border);
   font-size: 12px;
-  background: #181825;
+  background: var(--bg-surface);
 }
 
 .status-indicator {
@@ -116,16 +211,27 @@ button:disabled {
   flex-shrink: 0;
 }
 
-.status-disconnected .status-indicator { background: #6c7086; }
-.status-connecting   .status-indicator { background: #f9e2af; }
-.status-connected    .status-indicator { background: #a6e3a1; }
-.status-error        .status-indicator { background: #f38ba8; }
+.status-disconnected .status-indicator { background: var(--fg-faint); }
+.status-connecting   .status-indicator { background: var(--warn); }
+.status-connected    .status-indicator { background: var(--ok); }
+.status-error        .status-indicator { background: var(--err); }
+
+/* ── File browser container (the #file-browser host div) ──── */
+
+#file-browser {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
 
 /* ── File browser ────────────────────────────────────────── */
 
 .file-browser {
   flex: 1;
-  overflow: auto;
+  min-height: 0;
+  overflow-y: auto;
   padding: 16px;
 }
 
@@ -135,7 +241,7 @@ button:disabled {
   flex-direction: column;
   align-items: flex-start;
   justify-content: flex-start;
-  color: #6c7086;
+  color: var(--fg-faint);
   height: 100%;
 }
 
@@ -154,31 +260,31 @@ button:disabled {
   gap: 6px;
   margin-bottom: 8px;
   padding-bottom: 8px;
-  border-bottom: 1px solid #313244;
+  border-bottom: 1px solid var(--border);
 }
 
 /* Toolbar buttons are compact secondary style */
 .file-browser__toolbar button {
-  background: #313244;
-  color: #cdd6f4;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
   font-weight: 400;
   font-size: 12px;
   padding: 5px 10px;
 }
 
 .file-browser__toolbar button:hover:not(:disabled) {
-  background: #45475a;
+  background: var(--bg-hover);
 }
 
 /* Disconnect is slightly more prominent (uses default blue style but compact) */
 #disconnect-btn {
-  background: #89b4fa;
-  color: #1e1e2e;
+  background: var(--accent);
+  color: var(--accent-fg);
   font-weight: 600;
 }
 
 #disconnect-btn:hover:not(:disabled) {
-  background: #b4befe;
+  background: var(--accent-hover);
 }
 
 /* ── Breadcrumbs ──────────────────────────────────────────── */
@@ -190,31 +296,31 @@ button:disabled {
   gap: 2px;
   font-family: monospace;
   font-size: 12px;
-  color: #a6adc8;
+  color: var(--fg-subtle);
   margin-bottom: 10px;
   line-height: 1.6;
 }
 
 .breadcrumb__link {
-  color: #89b4fa;
+  color: var(--accent);
   cursor: pointer;
   padding: 1px 3px;
   border-radius: 3px;
 }
 
 .breadcrumb__link:hover {
-  background: #313244;
-  color: #cdd6f4;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
 }
 
 .breadcrumb__current {
-  color: #cdd6f4;
+  color: var(--fg-text);
   font-weight: 600;
   padding: 1px 3px;
 }
 
 .breadcrumb__sep {
-  color: #45475a;
+  color: var(--border-strong);
   user-select: none;
   padding: 0 1px;
 }
@@ -222,9 +328,9 @@ button:disabled {
 /* ── Inline error banner (permission denied etc.) ─────────── */
 
 .file-browser__inline-error {
-  background: rgba(243, 139, 168, 0.1);
-  border-left: 3px solid #f38ba8;
-  color: #f38ba8;
+  background: var(--err-bg);
+  border-left: 3px solid var(--err);
+  color: var(--err);
   font-size: 12px;
   padding: 6px 10px;
   border-radius: 0 3px 3px 0;
@@ -236,7 +342,7 @@ button:disabled {
   flex: 1;
   font-family: monospace;
   font-size: 13px;
-  color: #a6adc8;
+  color: var(--fg-subtle);
 }
 
 .file-browser__table {
@@ -248,8 +354,8 @@ button:disabled {
 .file-browser__table th {
   text-align: left;
   padding: 6px 8px;
-  color: #a6adc8;
-  border-bottom: 1px solid #313244;
+  color: var(--fg-subtle);
+  border-bottom: 1px solid var(--border);
   font-weight: 500;
 }
 
@@ -258,31 +364,31 @@ button:disabled {
 }
 
 .empty-dir {
-  color: #6c7086;
+  color: var(--fg-faint);
   text-align: center;
   padding: 24px 0;
 }
 
 .file-entry:hover {
-  background: #313244;
+  background: var(--bg-overlay);
   cursor: default;
 }
 
 .file-entry--selected {
-  background: #45475a;
+  background: var(--bg-hover);
 }
 
 .file-entry--selected:hover {
-  background: #45475a;
+  background: var(--bg-hover);
 }
 
 .file-entry--up {
-  color: #a6adc8;
+  color: var(--fg-subtle);
   font-style: italic;
 }
 
 .file-entry--dir {
-  color: #89b4fa;
+  color: var(--dir);
 }
 
 .file-browser__actions {
@@ -292,33 +398,33 @@ button:disabled {
 }
 
 .file-browser__actions button {
-  background: #313244;
-  color: #cdd6f4;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
   font-weight: 400;
 }
 
 .file-browser__actions button:hover:not(:disabled) {
-  background: #45475a;
+  background: var(--bg-hover);
 }
 
 /* ── Secondary / danger buttons ──────────────────────────── */
 
 .btn-secondary {
-  background: #313244;
-  color: #cdd6f4;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
   font-weight: 400;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: #45475a;
+  background: var(--bg-hover);
 }
 
 .btn-danger {
-  color: #f38ba8;
+  color: var(--err);
 }
 
 .btn-danger:hover:not(:disabled) {
-  background: #45475a;
+  background: var(--bg-hover);
 }
 
 /* ── Profile management buttons ──────────────────────────── */
@@ -339,7 +445,7 @@ button:disabled {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--modal-overlay);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -347,8 +453,8 @@ button:disabled {
 }
 
 .modal {
-  background: #1e1e2e;
-  border: 1px solid #45475a;
+  background: var(--bg-base);
+  border: 1px solid var(--border-strong);
   border-radius: 6px;
   padding: 20px 24px;
   min-width: 320px;
@@ -365,13 +471,13 @@ button:disabled {
 .modal__title {
   font-size: 15px;
   font-weight: 600;
-  color: #cdd6f4;
+  color: var(--fg-text);
   margin-bottom: 12px;
 }
 
 .modal__body {
   font-size: 13px;
-  color: #a6adc8;
+  color: var(--fg-subtle);
   margin-bottom: 20px;
   white-space: pre-wrap;
 }
@@ -401,14 +507,14 @@ button:disabled {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #a6adc8;
+  color: var(--fg-subtle);
 }
 
 .form-field input,
 .form-field select {
-  background: #313244;
-  color: #cdd6f4;
-  border: 1px solid #45475a;
+  background: var(--bg-overlay);
+  color: var(--fg-text);
+  border: 1px solid var(--border-strong);
   border-radius: 4px;
   padding: 6px 8px;
   font-size: 13px;
@@ -418,7 +524,7 @@ button:disabled {
 .form-field input:focus,
 .form-field select:focus {
   outline: none;
-  border-color: #89b4fa;
+  border-color: var(--accent);
 }
 
 .form-field__row {
@@ -439,7 +545,7 @@ button:disabled {
 
 .form-error {
   font-size: 12px;
-  color: #f38ba8;
+  color: var(--err);
   margin-top: 4px;
 }
 
@@ -451,7 +557,7 @@ button:disabled {
 }
 
 .status-connecting .status-indicator {
-  background: #f9e2af;
+  background: var(--warn);
   animation: pulse 1.2s ease-in-out infinite;
 }
 
@@ -462,7 +568,7 @@ button:disabled {
   margin-top: 8px;
   font-family: monospace;
   font-size: 12px;
-  color: #f9e2af;
+  color: var(--warn);
   word-break: break-all;
 }
 
@@ -480,7 +586,7 @@ button:disabled {
 
 .save-mode-options {
   margin-bottom: 12px;
-  border: 1px solid #313244;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px 10px;
   display: flex;
@@ -494,7 +600,7 @@ button:disabled {
   gap: 8px;
   cursor: pointer;
   font-size: 13px;
-  color: #cdd6f4;
+  color: var(--fg-text);
 }
 
 .save-mode-option input[type="radio"] {
@@ -504,32 +610,32 @@ button:disabled {
 
 .save-mode-tag {
   font-size: 11px;
-  color: #a6adc8;
+  color: var(--fg-subtle);
   font-weight: 400;
 }
 
 .save-mode-tag--safe {
-  color: #a6e3a1;
+  color: var(--ok);
 }
 
 .save-mode-tag--warn {
-  color: #f9e2af;
+  color: var(--warn);
 }
 
 .save-mode-warning {
   font-size: 12px;
-  color: #f9e2af;
+  color: var(--warn);
   margin-top: 4px;
   padding: 6px 8px;
-  background: rgba(249, 226, 175, 0.08);
+  background: var(--warn-bg);
   border-radius: 4px;
-  border-left: 3px solid #f9e2af;
+  border-left: 3px solid var(--warn);
 }
 
 /* ── Saved credential section in profile form ─────────────── */
 
 .saved-credential-section {
-  border: 1px solid #313244;
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px 10px;
 }
@@ -540,11 +646,48 @@ button:disabled {
   justify-content: space-between;
   gap: 8px;
   font-size: 13px;
-  color: #a6adc8;
+  color: var(--fg-subtle);
 }
 
 .btn-small {
   font-size: 11px;
   padding: 4px 8px;
   flex-shrink: 0;
+}
+
+/* ── File browser path input ──────────────────────────────── */
+
+.file-browser__path-row {
+  margin-bottom: 8px;
+}
+
+.file-browser__path-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  background: var(--bg-surface);
+  color: var(--fg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  box-sizing: border-box;
+}
+
+.file-browser__path-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  color: var(--fg-text);
+}
+
+/* ── Settings dialog ──────────────────────────────────────── */
+
+.settings-path-display {
+  font-family: monospace;
+  font-size: 12px;
+  color: var(--fg-subtle);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  word-break: break-all;
 }

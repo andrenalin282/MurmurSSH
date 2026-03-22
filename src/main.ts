@@ -4,6 +4,7 @@ import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
 import { ProfileForm } from "./components/profile-form";
 import { ProfileSelector } from "./components/profile-selector";
+import { SettingsDialog } from "./components/settings-dialog";
 import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
 import {
@@ -12,24 +13,63 @@ import {
   showPassphrasePrompt,
   type HostKeyDecision,
 } from "./components/credential-dialog";
-import type { UploadReadyPayload } from "./types";
+import type { Settings, UploadReadyPayload } from "./types";
+
+// ── Theme system ─────────────────────────────────────────────────────────────
+
+type Theme = "dark" | "light" | "system";
+
+let currentTheme: Theme = "system";
+const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
+
+/**
+ * Apply a theme by toggling the "theme-light" class on <html>.
+ * Default (no class) = dark theme. "theme-light" class = light theme.
+ * "system" follows the OS prefers-color-scheme media query.
+ */
+function applyTheme(theme: Theme): void {
+  currentTheme = theme;
+  const isDark =
+    theme === "dark" || (theme === "system" && systemThemeQuery.matches);
+  document.documentElement.classList.toggle("theme-light", !isDark);
+}
+
+// React to OS-level theme changes when in system mode
+systemThemeQuery.addEventListener("change", () => {
+  if (currentTheme === "system") {
+    applyTheme("system");
+  }
+});
 
 const profileSelector = new ProfileSelector("profile-selector");
 const statusBar = new StatusBar("status-bar");
 const fileBrowser = new FileBrowser("file-browser");
 const profileForm = new ProfileForm();
+const settingsDialog = new SettingsDialog();
+
+// Centralized connection state — single source of truth for connected profile.
+// Updated in onConnect (after SFTP + file browser ready) and onDisconnect.
+let connectedProfileId: string | null = null;
 
 // Surface file browser messages in the status bar
 fileBrowser.setStatusCallback((msg, isError) => {
   statusBar.set(isError ? "error" : "connected", msg);
 });
 
-// Disconnect: clear session credentials, reset status bar and file browser
+// Disconnect: stop SSH SSO session, clear session credentials, reset connection state
 fileBrowser.onDisconnect(async () => {
-  const profile = profileSelector.getSelectedProfile();
-  if (profile) {
+  const profileId = connectedProfileId;
+  connectedProfileId = null;
+  profileSelector.setConnected(false);
+
+  if (profileId) {
     try {
-      await api.clearSessionCredentials(profile.id);
+      await api.stopSshSession(profileId);
+    } catch {
+      // Non-fatal
+    }
+    try {
+      await api.clearSessionCredentials(profileId);
     } catch {
       // Non-fatal — session cache cleanup is best-effort
     }
@@ -41,6 +81,33 @@ fileBrowser.onDisconnect(async () => {
 profileForm.onSaved(async (savedId: string) => {
   await profileSelector.reload(savedId);
 });
+
+// After settings are applied: apply theme immediately, then reload profiles
+settingsDialog.onApplied(async (savedSettings: Settings) => {
+  applyTheme((savedSettings.theme as Theme) ?? "system");
+  await profileSelector.reload();
+});
+
+// Sidebar footer: folder + settings buttons
+const sidebarFooter = document.getElementById("sidebar-footer");
+if (sidebarFooter) {
+  sidebarFooter.innerHTML = `
+    <div class="sidebar-footer-btns">
+      <button class="btn-secondary" id="open-folder-btn" title="Open profile folder">📁 Profiles</button>
+      <button class="btn-secondary" id="settings-btn" title="Settings">⚙ Settings</button>
+    </div>
+  `;
+  document.getElementById("open-folder-btn")?.addEventListener("click", async () => {
+    try {
+      await api.openProfileFolder();
+    } catch (err) {
+      statusBar.set("error", `Cannot open folder: ${err}`);
+    }
+  });
+  document.getElementById("settings-btn")?.addEventListener("click", () => {
+    settingsDialog.show();
+  });
+}
 
 // Wire profile management buttons
 profileSelector.onNew(() => {
@@ -190,27 +257,47 @@ profileSelector.onConnect(async (profileId: string) => {
   const profile = profileSelector.getSelectedProfile();
   if (!profile) return;
 
+  // Prevent double-connect
+  if (connectedProfileId !== null) return;
+
   statusBar.set("connecting", "Connecting…");
 
-  // Verify SFTP connection (host key + auth) before launching terminal or browsing
+  // Verify SFTP connection (host key + auth) before browsing
   const ok = await verifyConnection(profileId);
   if (!ok) return;
 
-  // Launch SSH terminal session (handles its own auth interactively)
+  // Establish SSH session for terminal SSO (non-fatal if it fails)
   try {
-    await api.launchSsh(profileId);
-  } catch (err) {
-    // Terminal launch failure is non-fatal — SFTP still works
-    statusBar.set("connected", `Warning: terminal launch failed: ${err}`);
+    await api.startSshSession(profileId);
+  } catch {
+    // Session setup failure is non-fatal — terminal will re-prompt for credentials
   }
 
-  await api.saveSettings({ last_used_profile_id: profileId });
+  // Update centralized connection state
+  connectedProfileId = profileId;
+  profileSelector.setConnected(true);
+
+  // Read current settings before writing to preserve profiles_path, theme, etc.
+  try {
+    const currentSettings = await api.getSettings();
+    await api.saveSettings({ ...currentSettings, last_used_profile_id: profileId });
+  } catch {
+    // Non-fatal — last-used profile restore on next launch will just fall back to first
+  }
   statusBar.set("connected", `Connected to ${profile.host}`);
   fileBrowser.setProfile(profileId, profile.default_remote_path ?? "/");
   await fileBrowser.refresh();
 });
 
-profileSelector.init().then((lastUsedId) => {
+profileSelector.init().then(async (lastUsedId) => {
+  // Load and apply persisted theme on startup
+  try {
+    const settings = await api.getSettings();
+    applyTheme((settings.theme as Theme) ?? "system");
+  } catch {
+    // Non-fatal — default theme (dark) stays active
+  }
+
   if (lastUsedId) {
     const profile = profileSelector.getSelectedProfile();
     if (profile) {

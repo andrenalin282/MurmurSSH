@@ -1,6 +1,7 @@
 use crate::models::{AuthType, Profile};
 use crate::services::{credentials_store, profile_service, secrets_service, settings_service};
 use std::path::Path;
+use std::process::Command;
 
 #[tauri::command]
 pub fn list_profiles() -> Result<Vec<Profile>, String> {
@@ -59,4 +60,28 @@ pub fn delete_profile(id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn check_path_exists(path: String) -> bool {
     Path::new(&path).exists()
+}
+
+/// Returns the active profiles directory path (custom or default).
+#[tauri::command]
+pub fn get_profiles_path() -> String {
+    profile_service::get_profiles_dir()
+        .to_string_lossy()
+        .to_string()
+}
+
+/// Open the current profile storage directory in the system file manager.
+#[tauri::command]
+pub fn open_profile_folder() -> Result<(), String> {
+    let dir = profile_service::get_profiles_dir();
+    // Ensure the directory exists before trying to open it
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir)
+            .map_err(|e| format!("Cannot create profiles directory: {}", e))?;
+    }
+    Command::new("xdg-open")
+        .arg(dir.to_string_lossy().as_ref())
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("Failed to open folder: {}", e))
 }

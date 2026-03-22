@@ -1,6 +1,15 @@
+import { save } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
-import { showConfirm } from "./dialog";
+import { showConfirm, showPrompt } from "./dialog";
 import type { FileEntry } from "../types";
+
+function escHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -76,7 +85,10 @@ export class FileBrowser {
       this.inlineError = null;
       this.render();
     } catch (err) {
-      this.renderError(String(err));
+      // Keep toolbar buttons active — connection is still live.
+      // Show the error inline so Disconnect/Terminal/Refresh remain usable.
+      this.inlineError = String(err);
+      this.render();
     } finally {
       this.setBusy(false);
     }
@@ -101,25 +113,12 @@ export class FileBrowser {
       <div class="file-browser file-browser--empty">
         <div class="file-browser__toolbar">
           <button id="disconnect-btn" disabled>Disconnect</button>
+          <button id="terminal-btn" disabled>Terminal</button>
           <button id="home-btn" disabled>Home</button>
           <button id="up-btn" disabled>Up</button>
           <button id="refresh-btn" disabled>Refresh</button>
         </div>
         <p>Connect to a profile to browse files.</p>
-      </div>
-    `;
-  }
-
-  private renderError(message: string): void {
-    this.container.innerHTML = `
-      <div class="file-browser file-browser--error">
-        <div class="file-browser__toolbar">
-          <button id="disconnect-btn" disabled>Disconnect</button>
-          <button id="home-btn" disabled>Home</button>
-          <button id="up-btn" disabled>Up</button>
-          <button id="refresh-btn" disabled>Refresh</button>
-        </div>
-        <p>${message}</p>
       </div>
     `;
   }
@@ -165,8 +164,10 @@ export class FileBrowser {
          </tr>`;
 
     const rows =
-      this.entries.length === 0
+      this.entries.length === 0 && !this.inlineError
         ? '<tr><td colspan="2" class="empty-dir">Empty directory</td></tr>'
+        : this.entries.length === 0
+        ? ""
         : this.entries
             .map(
               (entry) =>
@@ -182,18 +183,23 @@ export class FileBrowser {
     const hasAny = this.selectedEntry !== null;
 
     const inlineErrorHtml = this.inlineError
-      ? `<div class="file-browser__inline-error">${this.inlineError}</div>`
+      ? `<div class="file-browser__inline-error">${escHtml(this.inlineError)}</div>`
       : "";
 
     this.container.innerHTML = `
       <div class="file-browser">
         <div class="file-browser__toolbar">
           <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""}>Disconnect</button>
+          <button id="terminal-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>Terminal</button>
           <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""}>Home</button>
           <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""}>Up</button>
           <button id="refresh-btn"    ${this.busy ? "disabled" : ""}>Refresh</button>
         </div>
         ${this.renderBreadcrumbs()}
+        <div class="file-browser__path-row">
+          <input id="path-input" type="text" class="file-browser__path-input"
+            value="${escHtml(this.currentPath)}" spellcheck="false" autocomplete="off">
+        </div>
         ${inlineErrorHtml}
         <table class="file-browser__table">
           <thead>
@@ -202,10 +208,12 @@ export class FileBrowser {
           <tbody>${upRow}${rows}</tbody>
         </table>
         <div class="file-browser__actions">
-          <button id="upload-btn"   ${this.busy ? "disabled" : ""}>Upload</button>
-          <button id="download-btn" ${!hasFile || this.busy ? "disabled" : ""}>Download</button>
-          <button id="edit-btn"     ${!hasFile || this.busy ? "disabled" : ""}>Edit</button>
-          <button id="delete-btn"   ${!hasAny  || this.busy ? "disabled" : ""}>Delete</button>
+          <button id="upload-btn"     ${!hasProfile || this.busy ? "disabled" : ""}>Upload</button>
+          <button id="download-btn"   ${!hasFile || this.busy ? "disabled" : ""}>Download</button>
+          <button id="edit-btn"       ${!hasFile || this.busy ? "disabled" : ""}>Edit</button>
+          <button id="delete-btn"     ${!hasAny  || this.busy ? "disabled" : ""}>Delete</button>
+          <button id="new-file-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>＋ File</button>
+          <button id="new-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""}>＋ Folder</button>
         </div>
       </div>
     `;
@@ -216,6 +224,18 @@ export class FileBrowser {
         const path = el.dataset.path;
         if (path) this.navigateTo(path);
       });
+    });
+
+    // Path input: Enter navigates, Escape resets
+    const pathInput = this.container.querySelector<HTMLInputElement>("#path-input");
+    pathInput?.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        const p = pathInput.value.trim() || "/";
+        this.navigateToPath(p);
+      } else if (e.key === "Escape") {
+        pathInput.value = this.currentPath;
+        pathInput.blur();
+      }
     });
 
     // Event delegation on the table body
@@ -248,6 +268,10 @@ export class FileBrowser {
       ?.addEventListener("click", () => this.handleDisconnect());
 
     document
+      .getElementById("terminal-btn")
+      ?.addEventListener("click", () => this.handleTerminal());
+
+    document
       .getElementById("home-btn")
       ?.addEventListener("click", () => this.navigateTo(this.homePath));
 
@@ -274,6 +298,14 @@ export class FileBrowser {
     document
       .getElementById("delete-btn")
       ?.addEventListener("click", () => this.handleDelete());
+
+    document
+      .getElementById("new-file-btn")
+      ?.addEventListener("click", () => this.handleNewFile());
+
+    document
+      .getElementById("new-folder-btn")
+      ?.addEventListener("click", () => this.handleNewFolder());
   }
 
   private async navigateInto(dirName: string): Promise<void> {
@@ -329,6 +361,15 @@ export class FileBrowser {
     }
   }
 
+  private async handleTerminal(): Promise<void> {
+    if (!this.profileId) return;
+    try {
+      await api.launchSsh(this.profileId);
+    } catch (err) {
+      this.onStatusMessage?.(`Terminal launch failed: ${err}`, true);
+    }
+  }
+
   private handleDisconnect(): void {
     this.profileId = null;
     this.currentPath = "/";
@@ -367,10 +408,19 @@ export class FileBrowser {
   }
 
   private async handleDownload(): Promise<void> {
-    if (!this.profileId || !this.selectedRemotePath) return;
+    if (!this.profileId || !this.selectedRemotePath || !this.selectedName) return;
+
+    // Ask the user where to save the file before starting the download
+    const savePath = await save({
+      defaultPath: this.selectedName,
+      title: "Save file",
+    });
+
+    if (!savePath) return; // user cancelled the dialog
+
     try {
       this.setBusy(true);
-      const savePath = await api.downloadFile(this.profileId, this.selectedRemotePath);
+      await api.downloadFileTo(this.profileId, this.selectedRemotePath, savePath);
       this.onStatusMessage?.(`Downloaded to ${savePath}`, false);
     } catch (err) {
       this.onStatusMessage?.(`Download failed: ${err}`, true);
@@ -387,6 +437,42 @@ export class FileBrowser {
       this.onStatusMessage?.(`Opened for editing`, false);
     } catch (err) {
       this.onStatusMessage?.(`Edit failed: ${err}`, true);
+    } finally {
+      this.setBusy(false);
+    }
+  }
+
+  private async handleNewFile(): Promise<void> {
+    if (!this.profileId) return;
+    const name = await showPrompt("New File", "filename.txt");
+    if (!name) return;
+
+    const remotePath = joinPath(this.currentPath, name);
+    try {
+      this.setBusy(true);
+      await api.uploadFileBytes(this.profileId, remotePath, []);
+      this.onStatusMessage?.(`Created ${name}`, false);
+      await this.refresh();
+    } catch (err) {
+      this.onStatusMessage?.(`Could not create file: ${err}`, true);
+    } finally {
+      this.setBusy(false);
+    }
+  }
+
+  private async handleNewFolder(): Promise<void> {
+    if (!this.profileId) return;
+    const name = await showPrompt("New Folder", "folder-name");
+    if (!name) return;
+
+    const remotePath = joinPath(this.currentPath, name);
+    try {
+      this.setBusy(true);
+      await api.createDirectory(this.profileId, remotePath);
+      this.onStatusMessage?.(`Created folder ${name}`, false);
+      await this.refresh();
+    } catch (err) {
+      this.onStatusMessage?.(`Could not create folder: ${err}`, true);
     } finally {
       this.setBusy(false);
     }

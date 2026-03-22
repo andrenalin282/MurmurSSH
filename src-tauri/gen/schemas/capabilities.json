@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Default capabilities for MurmurSSH","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open"],"platforms":["linux"]}}
+{"default":{"identifier":"default","description":"Default capabilities for MurmurSSH","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-save"],"platforms":["linux"]}}
