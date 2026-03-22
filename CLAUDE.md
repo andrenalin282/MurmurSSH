@@ -101,6 +101,7 @@ Profile IDs are generated from the display name: lowercase, non-alphanumeric seq
 - Phase 5.5: Removed auto terminal launch (Terminal button only), centralized connection state (connectedProfileId + ProfileSelector.setConnected), CSS custom properties + light theme (Catppuccin Latte), theme selector in settings dialog, system theme listener via matchMedia, settings save bug fix (read-merge-write)
 - Phase 5.6: Toolbar state hardening (refresh errors use inlineError+render() keeping buttons active), symlink-to-directory fix in SFTP listing (stat() follows symlink for public_html etc.), editable path input field (Enter navigates, Escape resets), download flow via save dialog (downloadFileTo command), New File and New Folder create actions (＋ File / ＋ Folder buttons)
 - Phase 5.7: local_path per-profile field (stored in profile JSON, folder picker in form), download uses local_path directly if set (no dialog), upload picker starts in local_path via Tauri open() dialog (replaces hidden file input), connected profile locking (Edit/Delete disabled while connected, restored on disconnect)
+- Phase 6.2/6.3: Recursive folder delete with explicit confirmation dialog (delete_directory command + sftp_service), delete flow audit (correct confirmation text per type, stale selection cleared, refresh after delete), README and CLAUDE.md release documentation update
 
 ## Guidance Files
 

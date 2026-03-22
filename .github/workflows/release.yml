@@ -10,6 +10,8 @@ jobs:
   build-linux:
     name: Build Linux (amd64)
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout
@@ -60,6 +62,10 @@ jobs:
         id: find_deb
         run: |
           DEB=$(find src-tauri/target/release/bundle/deb -name "*.deb" | head -1)
+          if [ -z "$DEB" ]; then
+            echo "ERROR: No .deb file found in src-tauri/target/release/bundle/deb/" >&2
+            exit 1
+          fi
           echo "path=$DEB" >> "$GITHUB_OUTPUT"
           echo "name=$(basename $DEB)" >> "$GITHUB_OUTPUT"
 
@@ -79,6 +85,5 @@ jobs:
           generate_release_notes: true
           files: |
             ${{ steps.find_deb.outputs.path }}
-            # ${{ steps.find_appimage.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

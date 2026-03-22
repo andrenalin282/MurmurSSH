@@ -30,6 +30,7 @@ pub fn run() {
             commands::sftp::download_file,
             commands::sftp::download_file_to,
             commands::sftp::delete_file,
+            commands::sftp::delete_directory,
             commands::sftp::rename_file,
             commands::sftp::create_directory,
             commands::workspace::open_for_edit,

@@ -283,3 +283,53 @@ pub fn create_directory(profile: &Profile, path: &str) -> Result<(), String> {
     sftp.mkdir(Path::new(path), 0o755)
         .map_err(|e| format!("Failed to create directory '{}': {}", path, e))
 }
+
+/// Recursively delete a remote directory and all of its contents.
+///
+/// Uses a single SFTP session for the entire operation. Walks the tree depth-first,
+/// deleting files and empty subdirectories in order, then removes the root directory.
+pub fn delete_directory(profile: &Profile, path: &str) -> Result<(), String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    delete_directory_recursive(&sftp, path)
+}
+
+/// Internal recursive helper — operates on an already-open SFTP channel.
+fn delete_directory_recursive(sftp: &ssh2::Sftp, path: &str) -> Result<(), String> {
+    let entries = sftp
+        .readdir(Path::new(path))
+        .map_err(|e| format!("Failed to list '{}': {}", path, e))?;
+
+    for (entry_path, stat) in entries {
+        let entry_path_str = entry_path.to_string_lossy().to_string();
+
+        // Determine if this entry is a directory (follow symlinks via stat)
+        let is_symlink = stat.perm
+            .map(|p| (p & 0o170000) == 0o120000)
+            .unwrap_or(false);
+
+        let is_dir = if is_symlink {
+            // For symlinks, stat() follows the link. If the target is a directory
+            // we treat it as a directory for deletion purposes.
+            sftp.stat(&entry_path).map(|s| s.is_dir()).unwrap_or(false)
+        } else {
+            stat.is_dir()
+        };
+
+        if is_dir && !is_symlink {
+            // Recurse into real directories
+            delete_directory_recursive(sftp, &entry_path_str)?;
+        } else {
+            // Delete files and symlinks (including symlinks to directories)
+            sftp.unlink(&entry_path)
+                .map_err(|e| format!("Failed to delete '{}': {}", entry_path_str, e))?;
+        }
+    }
+
+    // Remove the now-empty directory itself
+    sftp.rmdir(Path::new(path))
+        .map_err(|e| format!("Failed to remove directory '{}': {}", path, e))
+}
