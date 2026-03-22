@@ -90,5 +90,13 @@ pub fn delete_profile(id: &str) -> Result<(), String> {
     if !path.exists() {
         return Err(format!("Profile '{}' not found", id));
     }
-    fs::remove_file(&path).map_err(|e| format!("Failed to delete profile: {}", e))
+    fs::remove_file(&path).map_err(|e| format!("Failed to delete profile: {}", e))?;
+
+    // Also remove the backup file created by save_profile, if it exists.
+    let bkp = profiles_dir().join(format!("{}.json.bkp", id));
+    if bkp.exists() {
+        let _ = fs::remove_file(&bkp); // Non-fatal — best-effort cleanup
+    }
+
+    Ok(())
 }

@@ -25,8 +25,57 @@ export async function saveSettings(settings: Settings): Promise<void> {
   return invoke("save_settings", { settings });
 }
 
-export async function launchSsh(profileId: string): Promise<void> {
-  return invoke("launch_ssh", { profileId });
+/**
+ * Launch an SSH terminal session for the profile.
+ *
+ * If `useRuntimeCopy` is true, the terminal uses the pre-created local copy
+ * of the key file (in ~/.config/murmurssh/runtime-keys/) instead of the original.
+ * This fixes "UNPROTECTED PRIVATE KEY FILE" rejections when keys are on mounted
+ * or network filesystems. Requires `copyKeyForRuntime()` to have been called first.
+ */
+export async function launchSsh(
+  profileId: string,
+  useRuntimeCopy?: boolean
+): Promise<void> {
+  return invoke("launch_ssh", {
+    profileId,
+    useRuntimeCopy: useRuntimeCopy ?? false,
+  });
+}
+
+/**
+ * Check whether the SSH key for a profile needs a local runtime copy for
+ * terminal compatibility. Returns true if the key file has group or other
+ * permission bits set (OpenSSH rejects keys in that case).
+ */
+export async function checkKeyNeedsCopy(profileId: string): Promise<boolean> {
+  return invoke("check_key_needs_copy", { profileId });
+}
+
+/**
+ * Create a local runtime copy of the SSH key for terminal compatibility.
+ * The copy is stored in ~/.config/murmurssh/runtime-keys/<profile_id> with
+ * 0600 permissions. The original key file is never modified.
+ * Must only be called after the user has explicitly accepted the copy prompt.
+ */
+export async function copyKeyForRuntime(profileId: string): Promise<void> {
+  return invoke("copy_key_for_runtime", { profileId });
+}
+
+/**
+ * Delete the runtime key copy for a profile.
+ * Called on disconnect to clean up the temporary file immediately.
+ */
+export async function deleteRuntimeKey(profileId: string): Promise<void> {
+  return invoke("delete_runtime_key", { profileId });
+}
+
+/**
+ * Delete all runtime key copies (startup cleanup).
+ * Removes leftover runtime keys from sessions that crashed or were force-killed.
+ */
+export async function cleanupRuntimeKeys(): Promise<void> {
+  return invoke("cleanup_runtime_keys");
 }
 
 /**
@@ -95,6 +144,16 @@ export async function getProfilesPath(): Promise<string> {
   return invoke("get_profiles_path");
 }
 
+/**
+ * Resolve the server-side effective SFTP home directory using realpath(".").
+ * Returns the absolute path the SFTP server reports as the initial working
+ * directory (typically the user's home). Falls back to "/" on any server error.
+ * Called when a profile has no explicit default_remote_path configured.
+ */
+export async function getSftpHome(profileId: string): Promise<string> {
+  return invoke("get_sftp_home", { profileId });
+}
+
 export async function listDirectory(
   profileId: string,
   path: string
@@ -154,6 +213,19 @@ export async function deleteFile(
   remotePath: string
 ): Promise<void> {
   return invoke("delete_file", { profileId, remotePath });
+}
+
+/**
+ * Recursively download a remote directory to a local destination path.
+ * The local_path is the full destination path (e.g. /home/user/mydir).
+ * Creates the directory and its full contents locally.
+ */
+export async function downloadDirectory(
+  profileId: string,
+  remotePath: string,
+  localPath: string
+): Promise<void> {
+  return invoke("download_directory", { profileId, remotePath, localPath });
 }
 
 /**
@@ -229,4 +301,19 @@ export async function saveCredential(
  */
 export async function clearCredential(profileId: string): Promise<void> {
   return invoke("clear_credential", { profileId });
+}
+
+/** Close the application cleanly. */
+export async function quitApp(): Promise<void> {
+  return invoke("quit_app");
+}
+
+/** Return the application version string (e.g. "0.1.3-beta.1"). */
+export async function getAppVersion(): Promise<string> {
+  return invoke("get_app_version");
+}
+
+/** Open a URL in the system default browser using xdg-open. Only https/http allowed. */
+export async function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
 }

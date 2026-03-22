@@ -8,6 +8,65 @@ import { SettingsDialog } from "./components/settings-dialog";
 import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
+// ── Help / About dialog ───────────────────────────────────────────────────────
+async function showHelpDialog() {
+    let version = "";
+    try {
+        version = await api.getAppVersion();
+    }
+    catch {
+        // Non-fatal — version display is informational only
+    }
+    const versionLine = version
+        ? `<p style="color:var(--fg-subtle);font-size:12px;">Version ${version}</p>`
+        : "";
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+    <div class="modal modal--form" role="dialog" aria-modal="true">
+      <div class="modal__title">About MurmurSSH</div>
+      <div class="modal__body">
+        ${versionLine}
+        <p><strong>MurmurSSH</strong> is a minimal open-source SSH and SFTP desktop client for Linux.</p>
+        <p>It lets you manage connection profiles, browse remote files over SFTP, and open SSH terminal sessions — all without cloud services or telemetry.</p>
+        <p><strong>Your data stays local.</strong> All profiles, credentials, and files are stored on your machine only. Nothing is sent to any server unless you explicitly upload a file.</p>
+        <p><strong>SSH key compatibility:</strong> If your private key is stored on a mounted or network filesystem, the system SSH client may reject it due to file permission requirements. MurmurSSH can create a local runtime copy of the key (in <code>~/.config/murmurssh/runtime-keys/</code>) with the correct permissions for terminal use. The original key is never modified. The copy is temporary and is deleted when you disconnect.</p>
+        <p><strong>Note:</strong> Terminal windows opened via the Terminal button must be closed manually when you are done.</p>
+        <p>Created by <strong>Kai André Schultka</strong> with <strong>Claude Code</strong>.</p>
+        <p style="margin-top:12px;">
+          <a href="#" id="help-github-link" style="color:var(--accent);">GitHub Repository</a>
+          &nbsp;·&nbsp;
+          <a href="#" id="help-issues-link" style="color:var(--accent);">Report an Issue</a>
+          &nbsp;·&nbsp;
+          <a href="#" id="help-releases-link" style="color:var(--accent);">Releases</a>
+        </p>
+      </div>
+      <div class="modal__actions">
+        <button id="help-close">Close</button>
+      </div>
+    </div>
+  `;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#help-close")?.addEventListener("click", () => overlay.remove());
+    overlay.querySelector("#help-github-link")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openExternalUrl("https://github.com/andrenalin282/MurmurSSH");
+    });
+    overlay.querySelector("#help-issues-link")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openExternalUrl("https://github.com/andrenalin282/MurmurSSH/issues");
+    });
+    overlay.querySelector("#help-releases-link")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openExternalUrl("https://github.com/andrenalin282/MurmurSSH/releases");
+    });
+}
+function openExternalUrl(url) {
+    // Open URL via backend xdg-open (Linux-native, no additional plugin needed)
+    api.openUrl(url).catch(() => {
+        // Non-fatal fallback — silently ignore if xdg-open is unavailable
+    });
+}
 let currentTheme = "system";
 const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
 /**
@@ -38,7 +97,7 @@ let connectedProfileId = null;
 fileBrowser.setStatusCallback((msg, isError) => {
     statusBar.set(isError ? "error" : "connected", msg);
 });
-// Disconnect: stop SSH SSO session, clear session credentials, reset connection state
+// Disconnect: stop SSH SSO session, clear session credentials, clean up runtime keys
 fileBrowser.onDisconnect(async () => {
     const profileId = connectedProfileId;
     connectedProfileId = null;
@@ -56,6 +115,12 @@ fileBrowser.onDisconnect(async () => {
         catch {
             // Non-fatal — session cache cleanup is best-effort
         }
+        try {
+            await api.deleteRuntimeKey(profileId);
+        }
+        catch {
+            // Non-fatal — runtime key cleanup is best-effort
+        }
     }
     statusBar.set("disconnected");
 });
@@ -68,13 +133,18 @@ settingsDialog.onApplied(async (savedSettings) => {
     applyTheme(savedSettings.theme ?? "system");
     await profileSelector.reload();
 });
-// Sidebar footer: folder + settings buttons
+// Sidebar footer: folder, settings, help, donate, quit buttons
 const sidebarFooter = document.getElementById("sidebar-footer");
 if (sidebarFooter) {
     sidebarFooter.innerHTML = `
     <div class="sidebar-footer-btns">
       <button class="btn-secondary" id="open-folder-btn" title="Open profile folder">📁 Profiles</button>
       <button class="btn-secondary" id="settings-btn" title="Settings">⚙ Settings</button>
+    </div>
+    <div class="sidebar-footer-btns sidebar-footer-btns--row2">
+      <button class="btn-secondary" id="help-btn" title="About MurmurSSH">? Help</button>
+      <a href="#" id="donate-btn" class="btn-secondary sidebar-donate-btn" title="Spend me a coffee">☕ Donate</a>
+      <button class="btn-secondary btn-quit" id="quit-btn" title="Quit MurmurSSH">✕ Quit</button>
     </div>
   `;
     document.getElementById("open-folder-btn")?.addEventListener("click", async () => {
@@ -87,6 +157,22 @@ if (sidebarFooter) {
     });
     document.getElementById("settings-btn")?.addEventListener("click", () => {
         settingsDialog.show();
+    });
+    document.getElementById("help-btn")?.addEventListener("click", () => {
+        showHelpDialog();
+    });
+    document.getElementById("donate-btn")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openExternalUrl("https://www.paypal.com/paypalme/kaischultka");
+    });
+    document.getElementById("quit-btn")?.addEventListener("click", async () => {
+        try {
+            await api.quitApp();
+        }
+        catch {
+            // Fallback: if command fails, try window close
+            window.close();
+        }
     });
 }
 // Wire profile management buttons
@@ -243,10 +329,32 @@ profileSelector.onConnect(async (profileId) => {
         // Non-fatal — last-used profile restore on next launch will just fall back to first
     }
     statusBar.set("connected", `Connected to ${profile.host}`);
-    fileBrowser.setProfile(profileId, profile.default_remote_path ?? "/", profile.local_path ?? null);
+    // Determine the initial remote path for the file browser.
+    // If the profile has an explicit remote path configured, use it.
+    // Otherwise, ask the SFTP server for its effective start directory (realpath("."))
+    // so the browser opens at the user's actual home instead of the filesystem root.
+    let startPath = profile.default_remote_path ?? "";
+    if (!startPath) {
+        try {
+            startPath = await api.getSftpHome(profileId);
+        }
+        catch {
+            // Non-fatal — fall back to root if realpath resolution fails
+            startPath = "/";
+        }
+    }
+    fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null);
     await fileBrowser.refresh();
 });
 profileSelector.init().then(async (lastUsedId) => {
+    // Clean up any leftover runtime keys from a previous session that crashed
+    // or was force-killed before completing the disconnect/quit cleanup path.
+    try {
+        await api.cleanupRuntimeKeys();
+    }
+    catch {
+        // Non-fatal — startup cleanup is best-effort
+    }
     // Load and apply persisted theme on startup
     try {
         const settings = await api.getSettings();

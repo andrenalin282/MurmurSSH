@@ -22,7 +22,13 @@
       "Bash(npm show:*)",
       "Bash(echo \"TS exit: $?\")",
       "Bash(npm install:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(node -e \"const p=require\\(''./package.json''\\); console.log\\(''package.json:'', p.version\\)\")",
+      "Bash(grep '\"\"version\"\"' src-tauri/tauri.conf.json)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git push:*)"
     ]
   }
 }

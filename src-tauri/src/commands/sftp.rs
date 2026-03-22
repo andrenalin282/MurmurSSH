@@ -3,6 +3,17 @@ use std::path::PathBuf;
 use crate::models::FileEntry;
 use crate::services::{profile_service, sftp_service};
 
+/// Resolve the server-side effective SFTP home directory using realpath(".").
+///
+/// Returns the absolute path the SFTP server reports as the initial working
+/// directory (typically the user's home). Falls back to "/" on any error.
+/// Called when a profile has no explicit default_remote_path configured.
+#[tauri::command]
+pub fn get_sftp_home(profile_id: String) -> Result<String, String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    sftp_service::get_sftp_home(&profile)
+}
+
 #[tauri::command]
 pub fn list_directory(profile_id: String, path: String) -> Result<Vec<FileEntry>, String> {
     let profile = profile_service::get_profile(&profile_id)?;
@@ -91,6 +102,19 @@ pub fn create_directory(profile_id: String, path: String) -> Result<(), String> 
 pub fn delete_directory(profile_id: String, remote_path: String) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;
     sftp_service::delete_directory(&profile, &remote_path)
+}
+
+/// Recursively download a remote directory to a local destination path.
+/// The local_path is the destination directory (e.g. ~/Downloads/mydir).
+/// The directory and its entire tree are created locally.
+#[tauri::command]
+pub fn download_directory(
+    profile_id: String,
+    remote_path: String,
+    local_path: String,
+) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    sftp_service::download_directory(&profile, &remote_path, &local_path)
 }
 
 /// Returns ~/Downloads if it exists, otherwise ~/ as a fallback.

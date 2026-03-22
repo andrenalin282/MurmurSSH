@@ -146,6 +146,28 @@ Use role-focused sub-agents where helpful, for example:
 - Their findings must be consolidated before broad changes are applied
 - If sub-agents disagree, prefer the simpler architecture-preserving option
 
+### Inline fix sub-agents (during active coding)
+
+During implementation, launch a targeted sub-agent when:
+
+- a compile error or type error has more than one plausible root cause
+- a discovered bug spans multiple files or layers
+- an unexpected regression appears that the original task plan did not anticipate
+- a warning suggests a deeper structural problem (not just a rename or unused import)
+- validation reveals a state inconsistency that touches both frontend and backend
+
+Do not guess inline. Use a sub-agent to investigate root cause first, then apply the fix.
+
+### Parallel sub-agents
+
+When a task has clearly independent work streams, launch sub-agents in parallel:
+
+- Rust backend changes and TypeScript frontend changes that do not share state can run in parallel
+- Architecture review and implementation can run in parallel when the review does not block the implementation approach
+- Multiple independent bug investigations can run in parallel
+
+Consolidate all parallel findings before applying changes to shared files.
+
 ---
 
 ## Issue Log Requirement
