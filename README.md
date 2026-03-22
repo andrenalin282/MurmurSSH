@@ -62,7 +62,7 @@ You need [Rust](https://rustup.rs) (stable toolchain) and Node.js 18 or later.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/murmurssh.git
+git clone https://github.com/your-org/murmurssh.git
 cd murmurssh
 
 # Install Node dependencies
@@ -98,7 +98,11 @@ Create a profile for each server you connect to:
    - **SSH Key** — pick your private key file with the Browse button
    - **SSH Agent** — delegates to your running `ssh-agent`
    - **Password** — entered at connection time; you can choose whether to save it
-4. Optionally set a default remote path, a custom editor command, and the upload mode for edited files
+4. Optionally set:
+   - **Default Remote Path** — the directory opened when you connect
+   - **Local Path** — a local folder used as the default for uploads and downloads
+   - **Editor Command** — the command used to open files for editing (blank = system default)
+   - **Upload Mode** — confirm before upload, or auto-upload on file save
 5. Click **Save**
 
 The last used profile is restored automatically on startup.
@@ -118,12 +122,14 @@ Select a profile and click **Connect**. MurmurSSH will:
 |---|---|
 | Navigate | Click a directory row |
 | Go up | Click `..` |
-| Upload | Click **Upload**, pick a local file |
-| Download | Select a file → **Download** → saved to `~/Downloads/` |
+| Navigate | Click a directory row or type a path in the path input and press Enter |
+| Go up | Click `..` or the **Up** button |
+| Upload | Click **Upload** → file picker opens, starts in your configured local path if set |
+| Download | Select a file → **Download** → saves to your configured local path, or opens a save dialog |
 | Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
 | Delete | Select a file → **Delete** → confirm |
-| Rename | Select a file → **Rename** |
-| New directory | Click **New Dir** |
+| New file | Click **＋ File** → enter a name |
+| New folder | Click **＋ Folder** → enter a name |
 
 ### Credential storage
 
@@ -210,8 +216,7 @@ MurmurSSH is released under the [MIT License](LICENSE).
 ## Known limitations
 
 - Only one profile can be active at a time
-- Downloads always go to `~/Downloads/` — naming conflicts overwrite without warning
-- Directory deletion is not implemented (delete contents via SSH first)
+- Directory deletion is not implemented — delete contents via SSH first, then the directory
 - Binary files and files larger than 1 MB cannot be opened for editing
 - Each SFTP operation opens a fresh connection — not optimised for rapid sequential use
 - No Windows or macOS support — Linux only, by design
