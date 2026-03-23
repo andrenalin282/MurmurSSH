@@ -174,6 +174,20 @@ export async function uploadFileBytes(
 }
 
 /**
+ * Recursively upload a local directory to a remote destination path.
+ * The remote_path is the full destination path (e.g. /home/user/mydir).
+ * Creates the directory and its entire contents on the remote server.
+ * Existing remote directories are tolerated (not treated as errors).
+ */
+export async function uploadDirectory(
+  profileId: string,
+  localPath: string,
+  remotePath: string
+): Promise<void> {
+  return invoke("upload_directory", { profileId, localPath, remotePath });
+}
+
+/**
  * Upload a local file path to a remote path.
  * Used by the workspace confirm flow after the user approves.
  */

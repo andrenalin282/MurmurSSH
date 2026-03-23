@@ -1,0 +1,259 @@
+{
+  "_meta": {
+    "version": "0.1.3-beta.2",
+    "audit_date": "2026-03-23",
+    "note": "All copy in this file is sourced from verified codebase features only. Do not add claims not backed by website-feature-inventory.md. Plaintext credential storage is described accurately — do not rephrase as 'encrypted' or 'secure'."
+  },
+
+  "hero": {
+    "tagline": "A minimal SSH and SFTP client for Linux",
+    "subheading": "Manage SSH connections and remote files without cloud accounts, telemetry, or complexity.",
+    "cta_primary": "Download .deb",
+    "cta_secondary": "View source on GitHub",
+    "status_badge": "Beta — v0.1.3-beta.2"
+  },
+
+  "product_description": {
+    "short": "MurmurSSH is a lightweight desktop client for SSH and SFTP, built for Linux. It stores connection profiles locally, supports SSH key, agent, and password authentication, and includes an SFTP file browser with remote file editing.",
+    "medium": "MurmurSSH is an open-source desktop application for Linux that lets you manage SSH connections and browse remote files over SFTP. Profiles are saved as plain JSON files on your machine. All credentials stay local — no cloud sync, no accounts, no telemetry. Built with Tauri 2 and Rust.",
+    "tech_stack": "Tauri 2 · Rust · Vanilla TypeScript · ssh2 crate · inotify (Linux)"
+  },
+
+  "feature_list": [
+    {
+      "id": "profile-management",
+      "title": "Profile-based connection management",
+      "description": "Save connection details — host, port, username, auth method, default path — as named profiles. Profiles are stored as plain JSON files you can copy between machines.",
+      "confirmed": true
+    },
+    {
+      "id": "auth-key",
+      "title": "SSH key authentication",
+      "description": "Point to any private key file on disk. Passphrase-protected keys are supported — the passphrase is prompted at connection time and never saved.",
+      "confirmed": true
+    },
+    {
+      "id": "auth-agent",
+      "title": "SSH agent authentication",
+      "description": "Delegate authentication to a running ssh-agent. MurmurSSH tries each available identity until one succeeds.",
+      "confirmed": true
+    },
+    {
+      "id": "auth-password",
+      "title": "Password authentication",
+      "description": "Enter a password at connection time. Choose whether to save it: not at all, on this machine only (plaintext file with 0600 permissions), or inside the profile file (plaintext, portable).",
+      "confirmed": true
+    },
+    {
+      "id": "host-key-verification",
+      "title": "Host key verification",
+      "description": "Unknown host keys are shown with their SHA-256 fingerprint before you trust them. You can accept once (session only) or save the key to disk. If a stored fingerprint no longer matches the server, the connection is blocked.",
+      "confirmed": true
+    },
+    {
+      "id": "sftp-browser",
+      "title": "SFTP file browser",
+      "description": "Browse remote directories with breadcrumb navigation and a clickable path input. Upload, download, delete, rename (backend only), and create files and folders.",
+      "confirmed": true
+    },
+    {
+      "id": "recursive-folder-ops",
+      "title": "Recursive folder operations",
+      "description": "Download an entire remote folder to a local directory. Delete a folder and all its contents (confirmation required).",
+      "confirmed": true
+    },
+    {
+      "id": "remote-editing",
+      "title": "Remote file editing",
+      "description": "Open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back — automatically or after confirmation, depending on your setting. Files larger than 1 MB or binary files are rejected.",
+      "confirmed": true
+    },
+    {
+      "id": "ssh-terminal",
+      "title": "SSH terminal sessions",
+      "description": "Launch an SSH session in your system terminal (x-terminal-emulator) with one click. Password auth reuses the SFTP session credential via ControlMaster — no re-prompt needed.",
+      "confirmed": true
+    },
+    {
+      "id": "credential-storage",
+      "title": "Optional password saving",
+      "description": "Choose per-connection: don't save (default), save to a machine-local file with 0600 permissions, or save inside the profile JSON. SSH key passphrases are never saved under any setting.",
+      "confirmed": true
+    },
+    {
+      "id": "theme",
+      "title": "Light and dark themes",
+      "description": "Catppuccin Latte (light) and Catppuccin Mocha (dark) color palettes. Follows your OS preference by default, switchable in settings.",
+      "confirmed": true
+    },
+    {
+      "id": "local-storage",
+      "title": "Fully local storage",
+      "description": "All profiles, settings, and credentials are stored in ~/.config/murmurssh/ on your machine. Nothing leaves your computer.",
+      "confirmed": true
+    },
+    {
+      "id": "key-copy",
+      "title": "SSH key compatibility for mounted filesystems",
+      "description": "If a private key has permissions that OpenSSH would reject (e.g., on a mounted filesystem), MurmurSSH can create a 0600 local copy for the terminal session. The original key is never modified. The copy is deleted when you disconnect.",
+      "confirmed": true
+    },
+    {
+      "id": "open-source",
+      "title": "Free and open source",
+      "description": "MIT license. No paid tier, no feature gates. Source available on GitHub.",
+      "confirmed": true
+    }
+  ],
+
+  "supported_workflows": [
+    {
+      "id": "connect-and-browse",
+      "title": "Connect and browse remote files",
+      "steps": [
+        "Create a profile with host, username, and auth method",
+        "Click Connect",
+        "Accept or verify the host key on first connect",
+        "Enter password or passphrase if prompted",
+        "Browse remote directories in the SFTP file browser"
+      ]
+    },
+    {
+      "id": "remote-edit",
+      "title": "Edit a remote file locally",
+      "steps": [
+        "Connect to a profile",
+        "Navigate to a remote text file (≤ 1 MB, non-binary)",
+        "Click Edit",
+        "File opens in your local editor",
+        "Save in your editor — MurmurSSH uploads the change automatically or asks for confirmation"
+      ]
+    },
+    {
+      "id": "upload-download",
+      "title": "Transfer files",
+      "steps": [
+        "Connect to a profile",
+        "To upload: click Upload, select a local file (file picker opens in local_path if configured)",
+        "To download: select a remote file, click Download (saves to local_path directly, or opens a save dialog)",
+        "To download a folder: select a remote folder, click Download — the entire directory tree is copied locally"
+      ]
+    },
+    {
+      "id": "ssh-session",
+      "title": "Open an SSH terminal session",
+      "steps": [
+        "Connect to a profile via SFTP",
+        "Click Terminal in the toolbar",
+        "An SSH session opens in your system terminal (x-terminal-emulator)",
+        "For password auth: terminal reuses the existing session — no re-prompt",
+        "For key auth: terminal uses the key file directly; passphrase prompted interactively by the terminal"
+      ]
+    },
+    {
+      "id": "portable-profile",
+      "title": "Move a profile to another machine",
+      "steps": [
+        "Locate your profile JSON in ~/.config/murmurssh/profiles/",
+        "Copy the file to the same path on another machine",
+        "Open MurmurSSH — the profile appears in the selector",
+        "Note: SSH key paths are absolute and may need updating on the target machine"
+      ]
+    }
+  ],
+
+  "screenshot_captions": {
+    "note": "No screenshots are present in the repository as of audit date. Captions below describe what each screen would show based on the implemented UI. Update this section with actual image filenames once screenshots are taken.",
+    "screens": [
+      {
+        "id": "main-connected",
+        "suggested_filename": "screenshot-sftp-browser.png",
+        "caption": "The SFTP file browser showing a remote directory listing. Toolbar buttons (Disconnect, Terminal, Home, Up, Refresh) at top. Breadcrumb navigation below. File table with name and size columns. Action buttons (Upload, Download, Edit, Delete, ＋ File, ＋ Folder) at the bottom."
+      },
+      {
+        "id": "profile-form",
+        "suggested_filename": "screenshot-profile-form.png",
+        "caption": "The profile creation form. Fields for display name, host, port, username, authentication type (key/agent/password), key file path (with Browse button), default remote path, local path, editor command, and upload mode."
+      },
+      {
+        "id": "host-key-dialog",
+        "suggested_filename": "screenshot-host-key-dialog.png",
+        "caption": "The host key verification dialog. Shows the server's SHA-256 fingerprint with three options: Cancel, Accept once, Accept and save."
+      },
+      {
+        "id": "password-prompt",
+        "suggested_filename": "screenshot-password-prompt.png",
+        "caption": "The password prompt with three save-mode options: Don't save, Save on this PC only, Save in profile file. A warning is shown when the portable option is selected."
+      },
+      {
+        "id": "settings-dialog",
+        "suggested_filename": "screenshot-settings.png",
+        "caption": "The settings dialog with profile storage path configuration and theme selector (System / Dark / Light)."
+      },
+      {
+        "id": "light-theme",
+        "suggested_filename": "screenshot-light-theme.png",
+        "caption": "MurmurSSH in light theme (Catppuccin Latte)."
+      }
+    ]
+  },
+
+  "release_and_install": {
+    "current_version": "0.1.3-beta.2",
+    "status": "Beta",
+    "status_note": "This is a beta release. Core features are functional but bugs are expected. Please report issues via the GitHub issue tracker.",
+    "platform": "Linux (Ubuntu 22.04+, Debian-based)",
+    "distribution_format": ".deb package",
+    "install_steps": [
+      "Download the latest .deb file from the GitHub Releases page",
+      "Run: sudo dpkg -i murmurssh_*.deb",
+      "Launch MurmurSSH from your application menu or run murmurssh from a terminal"
+    ],
+    "runtime_requirements": [
+      "Ubuntu 22.04 or later, or compatible Debian-based Linux",
+      "x-terminal-emulator (pre-installed on most Ubuntu systems)",
+      "xdg-utils (pre-installed on most Ubuntu systems)"
+    ],
+    "build_from_source": {
+      "prerequisites": [
+        "Rust (stable toolchain via rustup)",
+        "Node.js 18 or later"
+      ],
+      "system_build_deps": [
+        "libwebkit2gtk-4.1-dev",
+        "libgtk-3-dev",
+        "libayatana-appindicator3-dev",
+        "librsvg2-dev",
+        "libssh2-1-dev"
+      ],
+      "commands": [
+        "npm install",
+        "npm run tauri dev       # development with hot reload",
+        "npm run tauri icon path/to/icon.png  # generate icons (required before release build)",
+        "npm run tauri build     # produces .deb in src-tauri/target/release/bundle/deb/"
+      ]
+    },
+    "license": "MIT"
+  },
+
+  "known_limitations": [
+    "Only one profile can be active at a time",
+    "Deleted files and folders cannot be recovered — there is no trash or undo",
+    "Remote file editing is limited to text files under 1 MB",
+    "Each SFTP operation opens a fresh connection — not optimized for rapid sequential file operations",
+    "Linux only — no Windows or macOS support",
+    "File rename has no UI button (backend support exists; no frontend control)",
+    "Workspace cache (~/.config/murmurssh/workspace/) is not cleaned up automatically"
+  ],
+
+  "what_murmurssh_does_not_do": [
+    "No cloud sync or remote settings storage",
+    "No user account or login required",
+    "No telemetry or usage data collection",
+    "No built-in terminal emulator — uses your system terminal",
+    "No integrated text editor — uses your system editor",
+    "No port forwarding or SSH tunnels",
+    "No multi-file batch transfers",
+    "No Windows or macOS builds"
+  ]
+}

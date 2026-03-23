@@ -207,8 +207,9 @@ export class FileBrowser {
           <tbody>${upRow}${rows}</tbody>
         </table>
         <div class="file-browser__actions">
-          <button id="upload-btn"     ${!hasProfile || this.busy ? "disabled" : ""}>Upload</button>
-          <button id="download-btn"   ${(!hasFile && !hasDir) || this.busy ? "disabled" : ""}>${hasDir ? "Download Folder" : "Download"}</button>
+          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""}>Upload</button>
+          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""}>Upload Folder</button>
+          <button id="download-btn"      ${(!hasFile && !hasDir) || this.busy ? "disabled" : ""}>${hasDir ? "Download Folder" : "Download"}</button>
           <button id="edit-btn"       ${!hasFile || this.busy ? "disabled" : ""}>Edit</button>
           <button id="delete-btn"     ${!hasAny  || this.busy ? "disabled" : ""}>Delete</button>
           <button id="new-file-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>＋ File</button>
@@ -291,6 +292,10 @@ export class FileBrowser {
     document
       .getElementById("upload-btn")
       ?.addEventListener("click", () => this.handleUpload());
+
+    document
+      .getElementById("upload-folder-btn")
+      ?.addEventListener("click", () => this.handleUploadFolder());
 
     document
       .getElementById("download-btn")
@@ -439,6 +444,37 @@ export class FileBrowser {
       await this.refresh();
     } catch (err) {
       this.onStatusMessage?.(`Upload failed: ${err}`, true);
+    } finally {
+      this.setBusy(false);
+    }
+  }
+
+  private async handleUploadFolder(): Promise<void> {
+    if (!this.profileId) return;
+
+    // Open folder picker; start in local_path if set so user lands in the right place
+    const localFolderPath = await open({
+      multiple: false,
+      directory: true,
+      title: "Select folder to upload",
+      defaultPath: this.localPath ?? undefined,
+    });
+
+    if (!localFolderPath || typeof localFolderPath !== "string") return;
+
+    // Extract folder name from the local path (strip trailing slash, then take last segment)
+    const folderName =
+      localFolderPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() ??
+      "folder";
+    const remotePath = joinPath(this.currentPath, folderName);
+
+    try {
+      this.setBusy(true);
+      await api.uploadDirectory(this.profileId, localFolderPath, remotePath);
+      this.onStatusMessage?.(`Uploaded folder ${folderName}`, false);
+      await this.refresh();
+    } catch (err) {
+      this.onStatusMessage?.(`Folder upload failed: ${err}`, true);
     } finally {
       this.setBusy(false);
     }

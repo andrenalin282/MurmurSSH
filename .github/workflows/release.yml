@@ -51,10 +51,6 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      # TODO: To also build an AppImage, add "appimage" to the bundle targets
-      # in src-tauri/tauri.conf.json:
-      #   "bundle": { "targets": ["deb", "appimage"], "active": true }
-      # The AppImage step below will then find and upload it automatically.
       - name: Build Tauri app
         run: npm run tauri build
 
@@ -69,13 +65,16 @@ jobs:
           echo "path=$DEB" >> "$GITHUB_OUTPUT"
           echo "name=$(basename $DEB)" >> "$GITHUB_OUTPUT"
 
-      # Uncomment once "appimage" is added to tauri.conf.json bundle targets:
-      # - name: Find .AppImage artifact
-      #   id: find_appimage
-      #   run: |
-      #     IMG=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" | head -1)
-      #     echo "path=$IMG" >> "$GITHUB_OUTPUT"
-      #     echo "name=$(basename $IMG)" >> "$GITHUB_OUTPUT"
+      - name: Find .AppImage artifact
+        id: find_appimage
+        run: |
+          IMG=$(find src-tauri/target/release/bundle/appimage -name "*.AppImage" 2>/dev/null | head -1)
+          if [ -z "$IMG" ]; then
+            echo "WARNING: No .AppImage file found — AppImage will not be uploaded" >&2
+          else
+            echo "path=$IMG" >> "$GITHUB_OUTPUT"
+            echo "name=$(basename $IMG)" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -86,14 +85,28 @@ jobs:
           body: |
             ## Download
 
-            **Linux (Ubuntu / Debian):** download the `.deb` file below and install with:
+            **Linux — Ubuntu / Debian (.deb):** download the `.deb` file and install with:
 
             ```
             sudo dpkg -i murmurssh_*.deb
             ```
 
+            **Linux — portable (.AppImage):** download the `.AppImage` file, make it executable, and run it directly — no installation needed:
+
+            ```
+            chmod +x murmurssh_*.AppImage
+            ./murmurssh_*.AppImage
+            ```
+
             GitHub also attaches automatic "Source code" archives — those are not needed to run the app.
-          files: |
-            ${{ steps.find_deb.outputs.path }}
+          files: ${{ steps.find_deb.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload AppImage to release
+        if: steps.find_appimage.outputs.path != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.find_appimage.outputs.path }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

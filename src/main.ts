@@ -44,7 +44,9 @@ async function showHelpDialog(): Promise<void> {
         <p><strong>Note:</strong> Terminal windows opened via the Terminal button must be closed manually when you are done.</p>
         <p>Created by <strong>Kai André Schultka</strong> with <strong>Claude Code</strong>.</p>
         <p style="margin-top:12px;">
-          <a href="#" id="help-github-link" style="color:var(--accent);">GitHub Repository</a>
+          <a href="#" id="help-website-link" style="color:var(--accent);">Website</a>
+          &nbsp;·&nbsp;
+          <a href="#" id="help-github-link" style="color:var(--accent);">GitHub</a>
           &nbsp;·&nbsp;
           <a href="#" id="help-issues-link" style="color:var(--accent);">Report an Issue</a>
           &nbsp;·&nbsp;
@@ -60,6 +62,11 @@ async function showHelpDialog(): Promise<void> {
   document.body.appendChild(overlay);
 
   overlay.querySelector("#help-close")?.addEventListener("click", () => overlay.remove());
+
+  overlay.querySelector("#help-website-link")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    openExternalUrl("https://murmurssh.kai-schultka.de");
+  });
 
   overlay.querySelector("#help-github-link")?.addEventListener("click", (e) => {
     e.preventDefault();

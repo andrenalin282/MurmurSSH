@@ -104,6 +104,19 @@ pub fn delete_directory(profile_id: String, remote_path: String) -> Result<(), S
     sftp_service::delete_directory(&profile, &remote_path)
 }
 
+/// Recursively upload a local directory to a remote destination path.
+/// The remote_path is the full destination path (e.g. /home/user/mydir).
+/// The directory and its entire local tree are created on the remote server.
+#[tauri::command]
+pub fn upload_directory(
+    profile_id: String,
+    local_path: String,
+    remote_path: String,
+) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    sftp_service::upload_directory(&profile, &local_path, &remote_path)
+}
+
 /// Recursively download a remote directory to a local destination path.
 /// The local_path is the destination directory (e.g. ~/Downloads/mydir).
 /// The directory and its entire tree are created locally.
