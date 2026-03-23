@@ -174,6 +174,19 @@ export async function uploadFileBytes(
 }
 
 /**
+ * Upload a local path (file or directory) to a remote destination.
+ * Automatically handles both files and directories.
+ * Used by drag-and-drop upload where the item type isn't known ahead of time.
+ */
+export async function uploadPath(
+  profileId: string,
+  localPath: string,
+  remotePath: string
+): Promise<void> {
+  return invoke("upload_path", { profileId, localPath, remotePath });
+}
+
+/**
  * Recursively upload a local directory to a remote destination path.
  * The remote_path is the full destination path (e.g. /home/user/mydir).
  * Creates the directory and its entire contents on the remote server.

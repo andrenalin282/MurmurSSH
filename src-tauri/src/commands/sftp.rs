@@ -117,6 +117,29 @@ pub fn upload_directory(
     sftp_service::upload_directory(&profile, &local_path, &remote_path)
 }
 
+/// Upload a local path (file or directory) to a remote destination.
+/// Detects whether the path is a file or directory and calls the appropriate service.
+/// Used by drag-and-drop upload where the item type is not known ahead of time.
+#[tauri::command]
+pub fn upload_path(
+    profile_id: String,
+    local_path: String,
+    remote_path: String,
+) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    let path = std::path::Path::new(&local_path);
+    if path.is_dir() {
+        sftp_service::upload_directory(&profile, &local_path, &remote_path)
+    } else if path.is_file() {
+        sftp_service::upload_file(&profile, &local_path, &remote_path)
+    } else {
+        Err(format!(
+            "Cannot upload '{}': path does not exist or is not a file or directory",
+            local_path
+        ))
+    }
+}
+
 /// Recursively download a remote directory to a local destination path.
 /// The local_path is the destination directory (e.g. ~/Downloads/mydir).
 /// The directory and its entire tree are created locally.

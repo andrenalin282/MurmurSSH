@@ -26,7 +26,10 @@ export async function saveSettings(settings) {
  * or network filesystems. Requires `copyKeyForRuntime()` to have been called first.
  */
 export async function launchSsh(profileId, useRuntimeCopy) {
-    return invoke("launch_ssh", { profileId, useRuntimeCopy: useRuntimeCopy ?? false });
+    return invoke("launch_ssh", {
+        profileId,
+        useRuntimeCopy: useRuntimeCopy ?? false,
+    });
 }
 /**
  * Check whether the SSH key for a profile needs a local runtime copy for
@@ -128,6 +131,23 @@ export async function uploadFileBytes(profileId, remotePath, content) {
     return invoke("upload_file_bytes", { profileId, remotePath, content });
 }
 /**
+ * Upload a local path (file or directory) to a remote destination.
+ * Automatically handles both files and directories.
+ * Used by drag-and-drop upload where the item type isn't known ahead of time.
+ */
+export async function uploadPath(profileId, localPath, remotePath) {
+    return invoke("upload_path", { profileId, localPath, remotePath });
+}
+/**
+ * Recursively upload a local directory to a remote destination path.
+ * The remote_path is the full destination path (e.g. /home/user/mydir).
+ * Creates the directory and its entire contents on the remote server.
+ * Existing remote directories are tolerated (not treated as errors).
+ */
+export async function uploadDirectory(profileId, localPath, remotePath) {
+    return invoke("upload_directory", { profileId, localPath, remotePath });
+}
+/**
  * Upload a local file path to a remote path.
  * Used by the workspace confirm flow after the user approves.
  */
@@ -153,6 +173,7 @@ export async function deleteFile(profileId, remotePath) {
 }
 /**
  * Recursively download a remote directory to a local destination path.
+ * The local_path is the full destination path (e.g. /home/user/mydir).
  * Creates the directory and its full contents locally.
  */
 export async function downloadDirectory(profileId, remotePath, localPath) {
