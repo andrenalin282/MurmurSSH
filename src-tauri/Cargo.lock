@@ -1939,7 +1939,7 @@ dependencies = [
 
 [[package]]
 name = "murmurssh"
-version = "0.1.4-beta.1"
+version = "1.0.0"
 dependencies = [
  "notify",
  "serde",

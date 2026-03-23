@@ -65,8 +65,8 @@ sudo dpkg -i murmurssh_*.deb
 Download the `.AppImage` from the [Releases](../../releases) page. No installation needed — make it executable and run it directly:
 
 ```bash
-chmod +x MurmurSSH-*.AppImage
-./MurmurSSH-*.AppImage
+chmod +x MurmurSSH_*.AppImage
+./MurmurSSH_*.AppImage
 ```
 
 The AppImage bundles all dependencies and runs on most Linux distributions without installation.
@@ -250,4 +250,4 @@ MurmurSSH is released under the [MIT License](LICENSE).
 - Binary files and files larger than 1 MB cannot be opened for editing
 - Each SFTP operation opens a fresh connection — not optimised for rapid sequential use
 - No Windows or macOS support — Linux only, by design
-- This is a beta release — please report bugs via the [issue tracker](https://github.com/andrenalin282/MurmurSSH/issues)
+- Please report bugs via the [issue tracker](https://github.com/andrenalin282/MurmurSSH/issues)

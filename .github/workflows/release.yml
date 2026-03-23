@@ -94,8 +94,8 @@ jobs:
             **Linux — portable (.AppImage):** download the `.AppImage` file, make it executable, and run it directly — no installation needed:
 
             ```
-            chmod +x murmurssh_*.AppImage
-            ./murmurssh_*.AppImage
+            chmod +x MurmurSSH_*.AppImage
+            ./MurmurSSH_*.AppImage
             ```
 
             GitHub also attaches automatic "Source code" archives — those are not needed to run the app.

@@ -39,8 +39,8 @@ Explain the problem you're solving, not just the solution.
 You need [Rust](https://rustup.rs) (stable toolchain) and Node.js 18+.
 
 ```bash
-git clone https://github.com/your-org/murmurssh.git
-cd murmurssh
+git clone https://github.com/andrenalin282/MurmurSSH.git
+cd MurmurSSH
 npm install
 npm run tauri dev
 ```
