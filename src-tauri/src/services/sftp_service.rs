@@ -389,6 +389,75 @@ fn download_directory_recursive(sftp: &ssh2::Sftp, remote_path: &str, local_path
     Ok(())
 }
 
+/// Recursively upload a local directory to a remote destination path.
+///
+/// Uses a single SFTP session for the entire operation. Creates the remote directory
+/// structure mirroring the local tree. Existing remote directories are tolerated
+/// so a re-upload of the same folder does not fail on the root mkdir.
+/// Symlinks are followed; broken symlinks and non-regular files are skipped.
+pub fn upload_directory(profile: &Profile, local_path: &str, remote_path: &str) -> Result<(), String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    mkdir_ok_if_exists(&sftp, Path::new(remote_path))?;
+    upload_directory_recursive(&sftp, Path::new(local_path), remote_path)
+}
+
+/// Try to create a remote directory; silently succeed if it already exists.
+fn mkdir_ok_if_exists(sftp: &ssh2::Sftp, path: &Path) -> Result<(), String> {
+    match sftp.mkdir(path, 0o755) {
+        Ok(()) => Ok(()),
+        Err(_) => {
+            // Directory may already exist — confirm with stat before reporting an error.
+            sftp.stat(path)
+                .map(|_| ())
+                .map_err(|_| format!("Failed to create remote directory '{}'", path.display()))
+        }
+    }
+}
+
+/// Internal recursive helper for directory upload — operates on an open SFTP channel.
+fn upload_directory_recursive(sftp: &ssh2::Sftp, local_dir: &Path, remote_dir: &str) -> Result<(), String> {
+    let read_dir = std::fs::read_dir(local_dir)
+        .map_err(|e| format!("Failed to read local directory '{}': {}", local_dir.display(), e))?;
+
+    for entry in read_dir {
+        let entry = entry
+            .map_err(|e| format!("Failed to read directory entry: {}", e))?;
+        let local_entry = entry.path();
+
+        let entry_name = match local_entry.file_name() {
+            Some(n) => n.to_string_lossy().to_string(),
+            None => continue,
+        };
+        if entry_name.is_empty() {
+            continue;
+        }
+
+        let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), entry_name);
+
+        // Use is_dir() / is_file() which follow symlinks.
+        // Broken symlinks and special files (sockets, devices) are skipped.
+        if local_entry.is_dir() {
+            mkdir_ok_if_exists(sftp, Path::new(&remote_entry))?;
+            upload_directory_recursive(sftp, &local_entry, &remote_entry)?;
+        } else if local_entry.is_file() {
+            let mut local_file = std::fs::File::open(&local_entry)
+                .map_err(|e| format!("Failed to open '{}': {}", local_entry.display(), e))?;
+            let mut remote_file = sftp
+                .create(Path::new(&remote_entry))
+                .map_err(|e| format!("Failed to create remote file '{}': {}", remote_entry, e))?;
+            std::io::copy(&mut local_file, &mut remote_file)
+                .map_err(|e| format!("Failed to upload '{}': {}", remote_entry, e))?;
+        }
+        // Broken symlinks and special files are skipped without error.
+    }
+
+    Ok(())
+}
+
 /// Recursively delete a remote directory and all of its contents.
 ///
 /// Uses a single SFTP session for the entire operation. Walks the tree depth-first,

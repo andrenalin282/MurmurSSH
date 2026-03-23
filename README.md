@@ -1,10 +1,12 @@
 # MurmurSSH
 
-**A minimal, open-source SSH and SFTP client for Linux.**
+**A minimal, local-first SSH and SFTP client for Linux.**
 
 MurmurSSH is a lightweight desktop application for managing SSH connections and browsing remote files over SFTP. It is designed for Linux users who want a simple, profile-based tool without cloud accounts, telemetry, or unnecessary complexity.
 
 Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, free to contribute to.
+
+**Website:** [murmurssh.kai-schultka.de](https://murmurssh.kai-schultka.de)
 
 ---
 
@@ -12,7 +14,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
-- **SFTP file browser** — browse remote directories, upload files, download files, delete files and folders (recursive), rename files, create directories and files.
+- **SFTP file browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, and create files and directories.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
@@ -23,7 +25,11 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 ## Screenshots
 
-*Coming soon.*
+Screenshots are in [`docs/screenshots/`](docs/screenshots/).
+
+![SFTP file browser](docs/screenshots/murmur-ssh-file-list.png)
+![Connection profile form](docs/screenshots/murmur-ssh-connection-profile.png)
+![Settings dialog](docs/screenshots/murmur-ssh-settings.png)
 
 ---
 
@@ -54,6 +60,17 @@ Download the latest `.deb` release from the [Releases](../../releases) page and 
 sudo dpkg -i murmurssh_*.deb
 ```
 
+### Install from .AppImage (portable)
+
+Download the `.AppImage` from the [Releases](../../releases) page. No installation needed — make it executable and run it directly:
+
+```bash
+chmod +x MurmurSSH-*.AppImage
+./MurmurSSH-*.AppImage
+```
+
+The AppImage bundles all dependencies and runs on most Linux distributions without installation.
+
 ---
 
 ## Building from source
@@ -62,8 +79,8 @@ You need [Rust](https://rustup.rs) (stable toolchain) and Node.js 18 or later.
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-org/murmurssh.git
-cd murmurssh
+git clone https://github.com/andrenalin282/MurmurSSH.git
+cd MurmurSSH
 
 # Install Node dependencies
 npm install
@@ -72,17 +89,17 @@ npm install
 npm run tauri dev
 ```
 
-To build a release `.deb` package:
+To build a release package:
 
 ```bash
-# Generate icons from a 1024×1024 PNG
+# Generate icons from a 1024×1024 PNG (required once before building)
 npm run tauri icon path/to/icon.png
 
-# Build
+# Build .deb and .AppImage
 npm run tauri build
 ```
 
-The `.deb` package is written to `src-tauri/target/release/bundle/deb/`.
+Output is written to `src-tauri/target/release/bundle/`.
 
 ---
 
@@ -120,12 +137,11 @@ Select a profile and click **Connect**. MurmurSSH will:
 
 | Action | How |
 |---|---|
-| Navigate | Click a directory row |
-| Go up | Click `..` |
 | Navigate | Click a directory row or type a path in the path input and press Enter |
 | Go up | Click `..` or the **Up** button |
-| Upload | Click **Upload** → file picker opens, starts in your configured local path if set |
-| Download | Select a file → **Download** → saves to your configured local path, or opens a save dialog |
+| Upload file | Click **Upload** → file picker opens, starts in your configured local path if set |
+| Upload folder | Click **Upload Folder** → folder picker opens, uploads entire directory recursively |
+| Download | Select a file or folder → **Download** → saves to your configured local path, or opens a save dialog |
 | Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
 | Delete file | Select a file → **Delete** → confirm |
 | Delete folder | Select a folder → **Delete** → confirm recursive deletion |
@@ -216,7 +232,6 @@ Whether it's a bug report, a small fix, a usability improvement, or documentatio
 - UI polish and accessibility improvements
 - Documentation improvements
 - Platform testing on Debian, Fedora, or other distributions
-- Translations (if the project eventually supports them)
 
 Please open an issue first for larger changes so we can discuss the approach before you invest time in it.
 
@@ -235,4 +250,4 @@ MurmurSSH is released under the [MIT License](LICENSE).
 - Binary files and files larger than 1 MB cannot be opened for editing
 - Each SFTP operation opens a fresh connection — not optimised for rapid sequential use
 - No Windows or macOS support — Linux only, by design
-- This is a beta release — please report bugs via the issue tracker
+- This is a beta release — please report bugs via the [issue tracker](https://github.com/andrenalin282/MurmurSSH/issues)
