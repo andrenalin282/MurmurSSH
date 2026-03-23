@@ -322,7 +322,7 @@ export async function quitApp(): Promise<void> {
   return invoke("quit_app");
 }
 
-/** Return the application version string (e.g. "0.1.3-beta.2"). */
+/** Return the application version string (e.g. "1.0.0"). */
 export async function getAppVersion(): Promise<string> {
   return invoke("get_app_version");
 }

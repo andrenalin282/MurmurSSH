@@ -6,21 +6,19 @@ This roadmap reflects realistic near-term priorities and longer-term ideas. It w
 
 ---
 
-## Near Term (v0.1 → v0.2)
+## Near Term (v1.0 → v1.1)
 
 These are the next concrete improvements:
 
-- **Packaged release** — first `.deb` and `.AppImage` for Linux amd64 published on GitHub Releases
 - **ARM builds** — additional `.deb` and `.AppImage` for arm64 / Raspberry Pi
-- **Directory deletion** — delete empty remote directories via the file browser
-- **Download progress** — show progress for larger file downloads
-- **Rename via UI** — rename files and directories directly in the file browser
+- **Rename via UI** — rename files and directories directly in the file browser (backend already supports it)
 - **Improved error messages** — more actionable SSH and SFTP error descriptions
 - **Keyboard navigation** — arrow keys and Enter in the file browser table
+- **Download progress** — show progress indicator for larger file downloads
 
 ---
 
-## Planned (v0.2 → v1.0)
+## Planned (v1.1 → v1.x)
 
 These features are planned but not yet started:
 
@@ -28,7 +26,7 @@ These features are planned but not yet started:
 - **File permissions display** — show Unix permission bits in the file browser
 - **Drag-and-drop upload** — drag files from the desktop into the browser
 - **Profile import/export** — backup and restore profiles as a single archive
-- **Flatpak packaging** — alternative to .deb for broader Linux distribution support
+- **Flatpak packaging** — alternative to `.deb` for broader Linux distribution support
 - **Configurable terminal** — let users choose which terminal emulator to use
 - **Session reconnect** — detect a dropped connection and offer to reconnect
 
@@ -47,5 +45,5 @@ These are not committed to — just tracked for discussion:
 
 ---
 
-Issues and feature requests are tracked on [GitHub Issues](../../issues).
+Issues and feature requests are tracked on [GitHub Issues](https://github.com/andrenalin282/MurmurSSH/issues).
 Label `wishlist` is used for ideas not yet planned.

@@ -8,7 +8,7 @@ This policy applies to the MurmurSSH application and its source code.
 
 ## Supported Versions
 
-MurmurSSH is in early development. Only the latest release receives security fixes.
+Only the latest release receives security fixes.
 
 | Version | Supported |
 |---------|-----------|
