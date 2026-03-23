@@ -28,7 +28,9 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(git tag:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(cargo update:*)",
+      "Bash(cat /home/kai/Coding/MurmurSSH/.github/ISSUE_TEMPLATE/*.yml)"
     ]
   }
 }

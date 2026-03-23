@@ -708,6 +708,14 @@ button:disabled {
   color: var(--fg-text);
 }
 
+/* ── Drag-and-drop upload highlight ──────────────────────── */
+
+.file-browser--dragover {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
+}
+
 /* ── Settings dialog ──────────────────────────────────────── */
 
 .settings-path-display {

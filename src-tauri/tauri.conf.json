@@ -31,7 +31,7 @@
     ],
     "publisher": "Kai André Schultka",
     "copyright": "© 2024-2026 Kai André Schultka",
-    "category": "Network",
+    "category": "Developer Tool",
     "shortDescription": "Minimal local-first SSH and SFTP client for Linux",
     "longDescription": "A minimal, local-first SSH and SFTP client for Linux. No cloud, no telemetry, no tracking — your data stays on your machine or in your own storage.",
     "icon": [
