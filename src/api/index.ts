@@ -21,6 +21,23 @@ export async function getSettings(): Promise<Settings> {
   return invoke("get_settings");
 }
 
+export interface SshConfigEntry {
+  host: string;
+  hostname: string | null;
+  user: string | null;
+  port: number | null;
+  identity_file: string | null;
+}
+
+/**
+ * Parse ~/.ssh/config and return importable host entries.
+ * Only non-wildcard Host stanzas with parseable fields are returned.
+ * Throws a string error if the file is missing or unreadable.
+ */
+export async function parseSshConfig(): Promise<SshConfigEntry[]> {
+  return invoke("parse_ssh_config");
+}
+
 export async function saveSettings(settings: Settings): Promise<void> {
   return invoke("save_settings", { settings });
 }
@@ -159,6 +176,18 @@ export async function listDirectory(
   path: string
 ): Promise<FileEntry[]> {
   return invoke("list_directory", { profileId, path });
+}
+
+/**
+ * Check whether a path exists on the remote server via SFTP stat().
+ * Returns true if accessible (file or directory), false if not found.
+ * Used before upload to detect conflicts for the overwrite dialog.
+ */
+export async function remoteFileExists(
+  profileId: string,
+  remotePath: string
+): Promise<boolean> {
+  return invoke("remote_file_exists", { profileId, remotePath });
 }
 
 /**

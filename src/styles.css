@@ -745,3 +745,88 @@ button:disabled {
   padding: 6px 8px;
   word-break: break-all;
 }
+
+/* ── Transfer progress bar ────────────────────────────────── */
+
+.transfer-progress {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+}
+
+.transfer-progress__status {
+  flex: 1;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.transfer-progress__cancel {
+  font-size: 12px;
+  padding: 3px 10px;
+  flex-shrink: 0;
+}
+
+/* ── SSH import modal ─────────────────────────────────────── */
+
+.ssh-import__intro {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--fg-subtle);
+}
+
+.ssh-import__list {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.ssh-import__row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.ssh-import__row:last-child {
+  border-bottom: none;
+}
+
+.ssh-import__row:hover {
+  background: var(--bg-overlay);
+}
+
+.ssh-import__host {
+  font-family: monospace;
+  color: var(--fg-text);
+  flex-shrink: 0;
+}
+
+.ssh-import__meta {
+  color: var(--fg-faint);
+  font-size: 11px;
+}
+
+/* ── Overwrite dialog extras ──────────────────────────────── */
+
+.modal__check {
+  padding: 8px 0 4px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.modal__check label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}

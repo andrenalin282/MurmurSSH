@@ -54,6 +54,58 @@ export function showPrompt(title: string, placeholder = "", initialValue = ""): 
   });
 }
 
+export type OverwriteAction = "yes" | "no" | "cancel";
+
+/**
+ * Show the upload-overwrite dialog for a single file conflict.
+ *
+ * Returns the user's chosen action and whether "Apply to all" was checked:
+ * - action "yes"    → overwrite this (and optionally all) files
+ * - action "no"     → skip this (and optionally all) files
+ * - action "cancel" → abort the entire upload batch
+ * - applyToAll      → caller should remember `action` for remaining conflicts
+ */
+export function showOverwriteDialog(
+  filename: string
+): Promise<{ action: OverwriteAction; applyToAll: boolean }> {
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal__title">File Already Exists</div>
+        <div class="modal__body">
+          <strong>${escHtml(filename)}</strong> already exists on the server.<br>Overwrite?
+        </div>
+        <div class="modal__check">
+          <label>
+            <input type="checkbox" id="overwrite-apply-all"> Apply to all
+          </label>
+        </div>
+        <div class="modal__actions">
+          <button class="btn-secondary" id="overwrite-cancel">Cancel</button>
+          <button class="btn-secondary" id="overwrite-no">No</button>
+          <button id="overwrite-yes">Yes</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const checkbox = overlay.querySelector<HTMLInputElement>("#overwrite-apply-all")!;
+    const cleanup = (action: OverwriteAction) => {
+      overlay.remove();
+      resolve({ action, applyToAll: checkbox.checked });
+    };
+
+    overlay.querySelector("#overwrite-cancel")?.addEventListener("click", () => cleanup("cancel"));
+    overlay.querySelector("#overwrite-no")?.addEventListener("click", () => cleanup("no"));
+    overlay.querySelector("#overwrite-yes")?.addEventListener("click", () => cleanup("yes"));
+
+    // Default focus on Yes so Enter confirms
+    setTimeout(() => overlay.querySelector<HTMLButtonElement>("#overwrite-yes")?.focus(), 10);
+  });
+}
+
 /**
  * Show a simple in-app confirmation dialog.
  * Returns a promise that resolves to true (confirmed) or false (cancelled).

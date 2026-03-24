@@ -20,6 +20,14 @@ pub fn list_directory(profile_id: String, path: String) -> Result<Vec<FileEntry>
     sftp_service::list_directory(&profile, &path)
 }
 
+/// Check whether a remote path exists (file or directory) via SFTP stat().
+/// Returns true if accessible, false if not found or inaccessible.
+#[tauri::command]
+pub fn remote_file_exists(profile_id: String, remote_path: String) -> Result<bool, String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    sftp_service::remote_file_exists(&profile, &remote_path)
+}
+
 /// Upload raw bytes from the frontend to a remote path.
 /// Used by the file browser upload button, which reads the file in JS.
 #[tauri::command]

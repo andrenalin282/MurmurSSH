@@ -1,5 +1,6 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
+import type { SshConfigEntry } from "../api/index";
 import type { AuthType, Profile, UploadMode } from "../types";
 
 function escHtml(s: string): string {
@@ -139,6 +140,7 @@ export class ProfileForm {
           <div class="form-error" id="pf-error" style="display:none"></div>
           <div class="modal__actions">
             <button type="button" class="btn-secondary" id="pf-cancel">Cancel</button>
+            ${!isEdit ? '<button type="button" class="btn-secondary" id="pf-import-ssh">Import from SSH config…</button>' : ""}
             <button type="submit" id="pf-save">Save</button>
           </div>
         </form>
@@ -192,9 +194,157 @@ export class ProfileForm {
 
     this.overlay.querySelector("#pf-cancel")?.addEventListener("click", () => this.close());
 
+    // SSH config import (new profile mode only)
+    this.overlay.querySelector("#pf-import-ssh")?.addEventListener("click", () => this.handleSshImport());
+
     this.overlay.querySelector("#pf-form")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       await this.handleSave(isEdit);
+    });
+  }
+
+  // ── SSH Config Import ────────────────────────────────────────────────────
+
+  private async handleSshImport(): Promise<void> {
+    const errorEl = this.overlay?.querySelector<HTMLElement>("#pf-error");
+
+    let entries: SshConfigEntry[];
+    try {
+      entries = await api.parseSshConfig();
+    } catch (err) {
+      if (errorEl) {
+        errorEl.textContent = String(err);
+        errorEl.style.display = "";
+      }
+      return;
+    }
+
+    if (entries.length === 0) {
+      if (errorEl) {
+        errorEl.textContent = "No importable host entries found in ~/.ssh/config.";
+        errorEl.style.display = "";
+      }
+      return;
+    }
+
+    // Hide any previous error while the import modal is open
+    if (errorEl) errorEl.style.display = "none";
+
+    const selected = await this.showImportModal(entries);
+    if (!selected || selected.length === 0) return;
+
+    // Gather existing profile IDs to avoid duplicates
+    const existing = await api.listProfiles().catch(() => [] as { id: string }[]);
+    const existingIds = new Set(existing.map((p) => p.id));
+
+    let lastSavedId: string | null = null;
+    //const skipped: string[] = [];
+    const failed: string[] = [];
+
+    for (const entry of selected) {
+      const name = entry.host;
+      const baseId = sanitizeId(name);
+
+      // Find a unique ID (suffix -2, -3, ... if needed)
+      let id = baseId;
+      let suffix = 2;
+      while (existingIds.has(id)) {
+        id = `${baseId}-${suffix}`;
+        suffix++;
+      }
+
+      const profile: Profile = {
+        id,
+        name,
+        host: entry.hostname ?? entry.host,
+        port: entry.port ?? 22,
+        username: entry.user ?? "",
+        auth_type: entry.identity_file ? "key" : "agent",
+        key_path: entry.identity_file ?? null,
+        default_remote_path: null,
+        local_path: null,
+        editor_command: null,
+        upload_mode: "confirm",
+      };
+
+      try {
+        await api.saveProfile(profile);
+        existingIds.add(id);
+        lastSavedId = id;
+      } catch {
+        failed.push(name);
+      }
+    }
+
+    this.close();
+
+    if (lastSavedId) {
+      await this.onSavedCallback?.(lastSavedId);
+    }
+
+    // Surface errors after closing (status bar or alert)
+    if (failed.length > 0) {
+      // Non-critical: just log — the modal is gone
+      console.warn("SSH import: failed to save profiles for:", failed);
+    }
+  }
+
+  /**
+   * Show a modal listing SSH config entries with checkboxes.
+   * Returns the selected entries, or null/[] if cancelled.
+   */
+  private showImportModal(entries: SshConfigEntry[]): Promise<SshConfigEntry[] | null> {
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className = "modal-overlay";
+
+      const rows = entries
+        .map((entry, i) => {
+          const hostDisplay = entry.hostname && entry.hostname !== entry.host
+            ? `${escHtml(entry.host)} → ${escHtml(entry.hostname)}`
+            : escHtml(entry.host);
+          const meta: string[] = [];
+          if (entry.user) meta.push(`user: ${escHtml(entry.user)}`);
+          if (entry.port && entry.port !== 22) meta.push(`port: ${entry.port}`);
+          if (entry.identity_file) meta.push("key auth");
+          return `
+            <label class="ssh-import__row">
+              <input type="checkbox" name="ssh-entry" value="${i}" checked>
+              <span class="ssh-import__host">${hostDisplay}</span>
+              ${meta.length > 0 ? `<span class="ssh-import__meta">${meta.join(" · ")}</span>` : ""}
+            </label>`;
+        })
+        .join("");
+
+      modal.innerHTML = `
+        <div class="modal modal--form" role="dialog" aria-modal="true">
+          <div class="modal__title">Import from SSH Config</div>
+          <div class="modal__body ssh-import__intro">
+            Found ${entries.length} host ${entries.length === 1 ? "entry" : "entries"} in ~/.ssh/config.
+            Select the profiles to create:
+          </div>
+          <div class="ssh-import__list">${rows}</div>
+          <div class="modal__actions">
+            <button class="btn-secondary" id="ssh-import-cancel">Cancel</button>
+            <button id="ssh-import-confirm">Import Selected</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      const cleanup = (result: SshConfigEntry[] | null) => {
+        modal.remove();
+        resolve(result);
+      };
+
+      modal.querySelector("#ssh-import-cancel")?.addEventListener("click", () => cleanup(null));
+
+      modal.querySelector("#ssh-import-confirm")?.addEventListener("click", () => {
+        const checked = modal.querySelectorAll<HTMLInputElement>('input[name="ssh-entry"]:checked');
+        const selected = Array.from(checked).map((cb) => entries[parseInt(cb.value, 10)]);
+        cleanup(selected);
+      });
     });
   }
 

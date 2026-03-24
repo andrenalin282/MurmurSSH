@@ -290,6 +290,18 @@ pub fn download_file(profile: &Profile, remote_path: &str, local_path: &str) -> 
         .map_err(|e| format!("Download of '{}' failed: {}", remote_path, e))
 }
 
+/// Check whether a path exists on the remote server via SFTP stat().
+/// Returns Ok(true) if stat succeeds (file or directory present),
+/// Ok(false) if the path does not exist or is otherwise inaccessible.
+pub fn remote_file_exists(profile: &Profile, remote_path: &str) -> Result<bool, String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    Ok(sftp.stat(Path::new(remote_path)).is_ok())
+}
+
 pub fn delete_file(profile: &Profile, remote_path: &str) -> Result<(), String> {
     let session = connect(profile)?;
     let sftp = session

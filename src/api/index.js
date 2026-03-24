@@ -14,6 +14,14 @@ export async function deleteProfile(id) {
 export async function getSettings() {
     return invoke("get_settings");
 }
+/**
+ * Parse ~/.ssh/config and return importable host entries.
+ * Only non-wildcard Host stanzas with parseable fields are returned.
+ * Throws a string error if the file is missing or unreadable.
+ */
+export async function parseSshConfig() {
+    return invoke("parse_ssh_config");
+}
 export async function saveSettings(settings) {
     return invoke("save_settings", { settings });
 }
@@ -122,6 +130,14 @@ export async function getSftpHome(profileId) {
 }
 export async function listDirectory(profileId, path) {
     return invoke("list_directory", { profileId, path });
+}
+/**
+ * Check whether a path exists on the remote server via SFTP stat().
+ * Returns true if accessible (file or directory), false if not found.
+ * Used before upload to detect conflicts for the overwrite dialog.
+ */
+export async function remoteFileExists(profileId, remotePath) {
+    return invoke("remote_file_exists", { profileId, remotePath });
 }
 /**
  * Upload raw bytes to a remote path.
