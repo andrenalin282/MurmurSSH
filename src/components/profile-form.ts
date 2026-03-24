@@ -238,11 +238,16 @@ export class ProfileForm {
     const existingIds = new Set(existing.map((p) => p.id));
 
     let lastSavedId: string | null = null;
-    //const skipped: string[] = [];
+    let created = 0;
+    const skipped: string[] = [];
     const failed: string[] = [];
 
     for (const entry of selected) {
       const name = entry.host;
+      if (!entry.user || !entry.user.trim()) {
+        skipped.push(`${name}: missing username`);
+        continue;
+      }
       const baseId = sanitizeId(name);
 
       // Find a unique ID (suffix -2, -3, ... if needed)
@@ -271,8 +276,9 @@ export class ProfileForm {
         await api.saveProfile(profile);
         existingIds.add(id);
         lastSavedId = id;
+        created++;
       } catch {
-        failed.push(name);
+        failed.push(`${name}: save failed`);
       }
     }
 
@@ -282,11 +288,47 @@ export class ProfileForm {
       await this.onSavedCallback?.(lastSavedId);
     }
 
-    // Surface errors after closing (status bar or alert)
-    if (failed.length > 0) {
-      // Non-critical: just log — the modal is gone
-      console.warn("SSH import: failed to save profiles for:", failed);
-    }
+    await this.showImportResultModal(created, skipped, failed);
+  }
+
+  private showImportResultModal(
+    created: number,
+    skipped: string[],
+    failed: string[]
+  ): Promise<void> {
+    return new Promise((resolve) => {
+      const modal = document.createElement("div");
+      modal.className = "modal-overlay";
+
+      const details: string[] = [];
+      if (skipped.length > 0) {
+        details.push(`<div><strong>Skipped:</strong><br>${skipped.map((s) => escHtml(s)).join("<br>")}</div>`);
+      }
+      if (failed.length > 0) {
+        details.push(`<div style="margin-top:8px;"><strong>Failed:</strong><br>${failed.map((f) => escHtml(f)).join("<br>")}</div>`);
+      }
+
+      modal.innerHTML = `
+        <div class="modal" role="dialog" aria-modal="true">
+          <div class="modal__title">SSH Import Result</div>
+          <div class="modal__body">
+            Created: ${created}<br>
+            Skipped: ${skipped.length}<br>
+            Failed: ${failed.length}
+            ${details.length > 0 ? `<div style="margin-top:10px">${details.join("")}</div>` : ""}
+          </div>
+          <div class="modal__actions">
+            <button id="ssh-import-result-ok">OK</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      modal.querySelector("#ssh-import-result-ok")?.addEventListener("click", () => {
+        modal.remove();
+        resolve();
+      });
+    });
   }
 
   /**

@@ -7,6 +7,7 @@ import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
 import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
+import { showOverwriteDialog } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
 // ── Help / About dialog ───────────────────────────────────────────────────────
 async function showHelpDialog() {
@@ -100,6 +101,7 @@ const settingsDialog = new SettingsDialog();
 // Centralized connection state — single source of truth for connected profile.
 // Updated in onConnect (after SFTP + file browser ready) and onDisconnect.
 let connectedProfileId = null;
+let connectingProfileId = null;
 // Surface file browser messages in the status bar
 fileBrowser.setStatusCallback((msg, isError) => {
     statusBar.set(isError ? "error" : "connected", msg);
@@ -286,14 +288,32 @@ listen("upload-ready", async (event) => {
     const { profile_id, local_path, remote_path } = event.payload;
     const filename = remote_path.split("/").pop() ?? remote_path;
     const confirmed = await showConfirm(`Upload changes to "${filename}" back to the server?\n${remote_path}`, "Upload File");
-    if (confirmed) {
-        try {
-            await api.uploadFile(profile_id, local_path, remote_path);
-            statusBar.set("connected", `Uploaded ${filename}`);
+    if (!confirmed)
+        return;
+    // Keep overwrite behavior consistent with all other upload paths.
+    try {
+        const exists = await api.remoteFileExists(profile_id, remote_path);
+        if (exists) {
+            const overwrite = await showOverwriteDialog(filename);
+            if (overwrite.action === "cancel") {
+                statusBar.set("connected", "Upload cancelled.");
+                return;
+            }
+            if (overwrite.action === "no") {
+                statusBar.set("connected", "Upload skipped.");
+                return;
+            }
         }
-        catch (err) {
-            statusBar.set("error", `Upload failed: ${err}`);
-        }
+    }
+    catch {
+        // Non-fatal: if conflict check fails, proceed with upload attempt.
+    }
+    try {
+        await api.uploadFile(profile_id, local_path, remote_path);
+        statusBar.set("connected", `Uploaded ${filename}`);
+    }
+    catch (err) {
+        statusBar.set("error", `Upload failed: ${err}`);
     }
 });
 // Auto-upload mode: backend uploaded without asking, just show confirmation
@@ -310,13 +330,18 @@ profileSelector.onConnect(async (profileId) => {
     if (!profile)
         return;
     // Prevent double-connect
-    if (connectedProfileId !== null)
+    if (connectedProfileId !== null || connectingProfileId !== null)
         return;
+    connectingProfileId = profileId;
+    profileSelector.setConnecting(true);
     statusBar.set("connecting", "Connecting…");
     // Verify SFTP connection (host key + auth) before browsing
     const ok = await verifyConnection(profileId);
-    if (!ok)
+    if (!ok) {
+        connectingProfileId = null;
+        profileSelector.setConnecting(false);
         return;
+    }
     // Establish SSH session for terminal SSO (non-fatal if it fails)
     try {
         await api.startSshSession(profileId);
@@ -326,6 +351,8 @@ profileSelector.onConnect(async (profileId) => {
     }
     // Update centralized connection state
     connectedProfileId = profileId;
+    connectingProfileId = null;
+    profileSelector.setConnecting(false);
     profileSelector.setConnected(true);
     // Read current settings before writing to preserve profiles_path, theme, etc.
     try {
@@ -351,7 +378,12 @@ profileSelector.onConnect(async (profileId) => {
         }
     }
     fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null);
-    await fileBrowser.refresh();
+    try {
+        await fileBrowser.refresh();
+    }
+    catch {
+        // Non-fatal: browser refresh reports its own inline error.
+    }
 });
 profileSelector.init().then(async (lastUsedId) => {
     // Clean up any leftover runtime keys from a previous session that crashed

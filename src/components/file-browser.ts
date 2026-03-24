@@ -63,6 +63,7 @@ export class FileBrowser {
 
   private onStatusMessage: ((msg: string, isError: boolean) => void) | null = null;
   private onDisconnectCallback: (() => void) | null = null;
+  private uploadApplyToAllDecision: OverwriteAction | null = null;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -545,6 +546,47 @@ export class FileBrowser {
    */
   private endTransfer(): void {
     this.transferProgress = null;
+    this.uploadApplyToAllDecision = null;
+  }
+
+  private normalizeRemoteError(err: unknown): string {
+    const msg = String(err);
+    if (/file exists|already exists/i.test(msg)) return "target already exists";
+    if (/no such file|not found/i.test(msg)) return "source or target path not found";
+    if (/permission denied|access denied/i.test(msg)) return "permission denied";
+    return msg;
+  }
+
+  /**
+   * Ask overwrite/skip/cancel for a remote destination path.
+   * Returns true if upload may proceed, false if item should be skipped.
+   * Throws "UPLOAD_CANCELLED" when the whole batch should stop.
+   */
+  private async resolveOverwrite(remotePath: string, label: string): Promise<boolean> {
+    if (!this.profileId) return false;
+    try {
+      const exists = await api.remoteFileExists(this.profileId, remotePath);
+      if (!exists) return true;
+
+      let action: OverwriteAction;
+      if (this.uploadApplyToAllDecision) {
+        action = this.uploadApplyToAllDecision;
+      } else {
+        const result = await showOverwriteDialog(label);
+        action = result.action;
+        if (result.applyToAll && action !== "cancel") {
+          this.uploadApplyToAllDecision = action;
+        }
+      }
+
+      if (action === "cancel") throw new Error("UPLOAD_CANCELLED");
+      if (action === "no") return false;
+      return true;
+    } catch (err) {
+      if (String(err) === "Error: UPLOAD_CANCELLED") throw err;
+      // Conflict check failed -> keep behavior resilient and attempt upload.
+      return true;
+    }
   }
 
   /**
@@ -694,7 +736,6 @@ export class FileBrowser {
     let skipped = 0;
     let errors = 0;
     let aborted = false;
-    let applyToAllDecision: OverwriteAction | null = null; // "yes" | "no" remembered across files
 
     for (const localFilePath of localPaths) {
       // Check for user-requested cancel
@@ -704,33 +745,18 @@ export class FileBrowser {
         localFilePath.replace(/\\/g, "/").split("/").pop() ?? localFilePath;
       const remotePath = joinPath(this.currentPath, filename);
 
-      // ── Overwrite check ──────────────────────────────────────────────────
       try {
-        const exists = await api.remoteFileExists(profileId, remotePath);
-        if (exists) {
-          let action: OverwriteAction;
-
-          if (applyToAllDecision) {
-            // User already chose "apply to all" → reuse that decision
-            action = applyToAllDecision;
-          } else {
-            const result = await showOverwriteDialog(filename);
-            action = result.action;
-            if (result.applyToAll && action !== "cancel") {
-              applyToAllDecision = action; // remember for subsequent files
-            }
-          }
-
-          if (action === "cancel") { aborted = true; break; }
-          if (action === "no") {
-            skipped++;
-            this.updateTransfer(uploaded + skipped + errors);
-            continue;
-          }
-          // action === "yes" → fall through to upload
+        const proceed = await this.resolveOverwrite(remotePath, filename);
+        if (!proceed) {
+          skipped++;
+          this.updateTransfer(uploaded + skipped + errors);
+          continue;
         }
-      } catch {
-        // Existence check failure — proceed with upload (safe default)
+      } catch (err) {
+        if (String(err) === "Error: UPLOAD_CANCELLED") {
+          aborted = true;
+          break;
+        }
       }
 
       // ── Upload ───────────────────────────────────────────────────────────
@@ -751,7 +777,7 @@ export class FileBrowser {
       const parts: string[] = [];
       if (uploaded > 0) parts.push(`${uploaded} uploaded`);
       if (skipped > 0) parts.push(`${skipped} skipped`);
-      this.onStatusMessage?.(`Upload cancelled. ${parts.join(", ")}`, false);
+      this.onStatusMessage?.(`Upload cancelled. ${parts.join(", ") || "No files uploaded."}`, false);
     } else {
       const parts: string[] = [];
       if (uploaded > 0) parts.push(`${uploaded} uploaded`);
@@ -773,7 +799,9 @@ export class FileBrowser {
     this.startTransfer("Uploading", total);
 
     let uploaded = 0;
+    let skipped = 0;
     let errors = 0;
+    let aborted = false;
 
     for (const localPath of localPaths) {
       if (this.transferProgress?.cancelled) break;
@@ -784,22 +812,44 @@ export class FileBrowser {
       const remotePath = joinPath(this.currentPath, name);
 
       try {
+        const proceed = await this.resolveOverwrite(remotePath, name);
+        if (!proceed) {
+          skipped++;
+          this.updateTransfer(uploaded + skipped + errors);
+          continue;
+        }
+      } catch (err) {
+        if (String(err) === "Error: UPLOAD_CANCELLED") {
+          aborted = true;
+          break;
+        }
+      }
+
+      try {
         await api.uploadPath(profileId, localPath, remotePath);
         uploaded++;
       } catch {
         errors++;
       }
 
-      this.updateTransfer(uploaded + errors);
+      this.updateTransfer(uploaded + skipped + errors);
     }
 
     this.endTransfer();
 
-    if (errors === 0) {
-      this.onStatusMessage?.(`Uploaded ${uploaded} ${uploaded === 1 ? "item" : "items"}`, false);
+    if (aborted) {
+      this.onStatusMessage?.(
+        `Upload cancelled. ${uploaded} uploaded${skipped > 0 ? `, ${skipped} skipped` : ""}${errors > 0 ? `, ${errors} failed` : ""}`,
+        false
+      );
+    } else if (errors === 0) {
+      this.onStatusMessage?.(
+        `Upload complete. ${uploaded} uploaded${skipped > 0 ? `, ${skipped} skipped` : ""}.`,
+        false
+      );
     } else {
       this.onStatusMessage?.(
-        `Uploaded ${uploaded} ${uploaded === 1 ? "item" : "items"}, ${errors} failed`,
+        `Upload complete. ${uploaded} uploaded${skipped > 0 ? `, ${skipped} skipped` : ""}, ${errors} failed.`,
         true
       );
     }
@@ -826,12 +876,21 @@ export class FileBrowser {
     const remotePath = joinPath(this.currentPath, folderName);
 
     try {
+      const proceed = await this.resolveOverwrite(remotePath, folderName);
+      if (!proceed) {
+        this.onStatusMessage?.("Upload skipped.", false);
+        return;
+      }
       this.setBusy(true);
       this.onStatusMessage?.(`Uploading folder ${folderName}…`, false);
       await api.uploadDirectory(this.profileId, localFolderPath, remotePath);
       this.onStatusMessage?.(`Uploaded folder ${folderName}`, false);
       await this.refresh();
     } catch (err) {
+      if (String(err) === "Error: UPLOAD_CANCELLED") {
+        this.onStatusMessage?.("Upload cancelled.", false);
+        return;
+      }
       this.onStatusMessage?.(`Folder upload failed: ${err}`, true);
     } finally {
       this.setBusy(false);
@@ -935,9 +994,13 @@ export class FileBrowser {
 
     let done = 0;
     let errors = 0;
+    let aborted = false;
 
     for (const entry of entries) {
-      if (this.transferProgress?.cancelled) break;
+      if (this.transferProgress?.cancelled) {
+        aborted = true;
+        break;
+      }
 
       const remotePath = joinPath(this.currentPath, entry.name);
       const localDest = destDir.replace(/\/?$/, "/") + entry.name;
@@ -957,10 +1020,15 @@ export class FileBrowser {
 
     this.endTransfer();
 
-    if (errors === 0) {
-      this.onStatusMessage?.(`Downloaded ${done} items to ${destDir}`, false);
+    if (aborted) {
+      this.onStatusMessage?.(
+        `Download cancelled. ${done} downloaded${errors > 0 ? `, ${errors} failed` : ""}.`,
+        false
+      );
+    } else if (errors === 0) {
+      this.onStatusMessage?.(`Download complete. ${done} downloaded to ${destDir}.`, false);
     } else {
-      this.onStatusMessage?.(`Downloaded ${done} items, ${errors} failed`, true);
+      this.onStatusMessage?.(`Download complete. ${done} downloaded, ${errors} failed.`, true);
     }
 
     this.setBusy(false);
@@ -991,7 +1059,7 @@ export class FileBrowser {
       this.clearSelection();
       await this.refresh();
     } catch (err) {
-      this.onStatusMessage?.(`Rename failed: ${err}`, true);
+      this.onStatusMessage?.(`Rename failed: ${this.normalizeRemoteError(err)}`, true);
     } finally {
       this.setBusy(false);
     }
@@ -1038,6 +1106,7 @@ export class FileBrowser {
     this.setBusy(true);
     let moved = 0;
     let errors = 0;
+    const failedItems: string[] = [];
 
     for (const name of names) {
       const fromPath = joinPath(this.currentPath, name);
@@ -1047,8 +1116,9 @@ export class FileBrowser {
       try {
         await api.renameFile(this.profileId, fromPath, toPath);
         moved++;
-      } catch {
+      } catch (err) {
         errors++;
+        failedItems.push(`${name}: ${this.normalizeRemoteError(err)}`);
       }
     }
 
@@ -1056,7 +1126,11 @@ export class FileBrowser {
     if (errors === 0) {
       this.onStatusMessage?.(`Moved ${moved} ${itemLabel}`, false);
     } else {
-      this.onStatusMessage?.(`Moved ${moved} ${itemLabel}, ${errors} failed`, true);
+      const detail = failedItems.slice(0, 2).join("; ");
+      this.onStatusMessage?.(
+        `Moved ${moved} ${itemLabel}, ${errors} failed${detail ? ` (${detail}${failedItems.length > 2 ? "; …" : ""})` : ""}`,
+        true
+      );
     }
 
     this.clearSelection();
