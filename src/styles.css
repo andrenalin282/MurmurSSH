@@ -716,6 +716,23 @@ button:disabled {
   background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
+/* ── Internal drag-and-drop: valid drop target ────────────── */
+
+.file-entry--drop-target {
+  background: color-mix(in srgb, var(--ok) 15%, transparent) !important;
+  outline: 1px solid var(--ok);
+  outline-offset: -1px;
+}
+
+/* ── Selection info bar ───────────────────────────────────── */
+
+.file-browser__selection-info {
+  font-size: 11px;
+  color: var(--fg-subtle);
+  margin-top: 8px;
+  padding: 0 2px;
+}
+
 /* ── Settings dialog ──────────────────────────────────────── */
 
 .settings-path-display {
