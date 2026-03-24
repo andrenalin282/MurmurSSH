@@ -1,5 +1,5 @@
 use crate::models::{AuthType, Profile};
-use crate::services::{credentials_store, profile_service, secrets_service, settings_service};
+use crate::services::{credentials_store, profile_service, secrets_service, settings_service, ssh_config_service};
 use std::path::Path;
 use std::process::Command;
 
@@ -68,6 +68,14 @@ pub fn get_profiles_path() -> String {
     profile_service::get_profiles_dir()
         .to_string_lossy()
         .to_string()
+}
+
+/// Parse the user's SSH config file (~/.ssh/config) and return importable host entries.
+///
+/// Only reads the file — never modifies it or creates any profiles automatically.
+#[tauri::command]
+pub fn parse_ssh_config() -> Result<Vec<ssh_config_service::SshConfigEntry>, String> {
+    ssh_config_service::parse_ssh_config()
 }
 
 /// Open the current profile storage directory in the system file manager.

@@ -1,7 +1,8 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import * as api from "../api/index";
-import { showConfirm, showPrompt } from "./dialog";
+import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
+import type { OverwriteAction } from "./dialog";
 import type { FileEntry } from "../types";
 
 function escHtml(s: string): string {
@@ -51,6 +52,14 @@ export class FileBrowser {
   private busy: boolean = false;
   private inlineError: string | null = null;
   private isDragOver: boolean = false; // Tauri OS→app drag indicator
+
+  // Transfer progress (upload / download)
+  private transferProgress: {
+    label: string;   // "Uploading" | "Downloading"
+    current: number;
+    total: number;
+    cancelled: boolean;
+  } | null = null;
 
   private onStatusMessage: ((msg: string, isError: boolean) => void) | null = null;
   private onDisconnectCallback: (() => void) | null = null;
@@ -180,32 +189,6 @@ export class FileBrowser {
     `;
   }
 
-  /** Build clickable breadcrumb HTML for currentPath. */
-  private renderBreadcrumbs(): string {
-    const parts = this.currentPath.split("/").filter((p) => p.length > 0);
-
-    if (parts.length === 0) {
-      return `<nav class="file-browser__breadcrumbs"><span class="breadcrumb__current">/</span></nav>`;
-    }
-
-    const crumbs: string[] = [];
-    crumbs.push(`<span class="breadcrumb__link" data-path="/">/</span>`);
-
-    parts.forEach((segment, index) => {
-      crumbs.push(`<span class="breadcrumb__sep">›</span>`);
-
-      const isLast = index === parts.length - 1;
-      if (isLast) {
-        crumbs.push(`<span class="breadcrumb__current">${segment}</span>`);
-      } else {
-        const segPath = "/" + parts.slice(0, index + 1).join("/");
-        crumbs.push(`<span class="breadcrumb__link" data-path="${segPath}">${segment}</span>`);
-      }
-    });
-
-    return `<nav class="file-browser__breadcrumbs">${crumbs.join("")}</nav>`;
-  }
-
   private render(): void {
     // Preserve scroll position before rebuilding the DOM.
     const scrollEl = this.container.querySelector<HTMLElement>(".file-browser");
@@ -268,6 +251,15 @@ export class FileBrowser {
       : "Download";
     const downloadDisabled = !hasAny || this.busy;
 
+    // Transfer progress bar
+    const tp = this.transferProgress;
+    const transferProgressHtml = tp
+      ? `<div class="transfer-progress" id="transfer-progress">
+           <span class="transfer-progress__status" id="transfer-status">${escHtml(tp.label)}: ${tp.current} / ${tp.total} files</span>
+           <button class="transfer-progress__cancel" id="transfer-cancel-btn">Cancel</button>
+         </div>`
+      : "";
+
     this.container.innerHTML = `
       <div class="file-browser${this.isDragOver ? " file-browser--dragover" : ""}">
         <div class="file-browser__toolbar">
@@ -277,7 +269,6 @@ export class FileBrowser {
           <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""}>Up</button>
           <button id="refresh-btn"    ${this.busy ? "disabled" : ""}>Refresh</button>
         </div>
-        ${this.renderBreadcrumbs()}
         <div class="file-browser__path-row">
           <input id="path-input" type="text" class="file-browser__path-input"
             value="${escHtml(this.currentPath)}" spellcheck="false" autocomplete="off">
@@ -301,6 +292,7 @@ export class FileBrowser {
           <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""}>＋ File</button>
           <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""}>＋ Folder</button>
         </div>
+        ${transferProgressHtml}
       </div>
     `;
 
@@ -309,14 +301,6 @@ export class FileBrowser {
     if (newScrollEl && savedScrollTop > 0) {
       newScrollEl.scrollTop = savedScrollTop;
     }
-
-    // ── Breadcrumb navigation ──────────────────────────────────────────────
-    this.container.querySelectorAll<HTMLElement>(".breadcrumb__link").forEach((el) => {
-      el.addEventListener("click", () => {
-        const path = el.dataset.path;
-        if (path) this.navigateTo(path);
-      });
-    });
 
     // ── Path input ─────────────────────────────────────────────────────────
     const pathInput = this.container.querySelector<HTMLInputElement>("#path-input");
@@ -519,6 +503,48 @@ export class FileBrowser {
     document
       .getElementById("new-folder-btn")
       ?.addEventListener("click", () => this.handleNewFolder());
+
+    // ── Transfer-progress cancel ───────────────────────────────────────────
+    document
+      .getElementById("transfer-cancel-btn")
+      ?.addEventListener("click", () => {
+        if (!this.transferProgress) return;
+        this.transferProgress.cancelled = true;
+        const btn = document.getElementById("transfer-cancel-btn") as HTMLButtonElement | null;
+        if (btn) { btn.disabled = true; btn.textContent = "Cancelling…"; }
+        const statusEl = document.getElementById("transfer-status");
+        if (statusEl) statusEl.textContent = "Cancelling…";
+      });
+  }
+
+  // ── Transfer-progress helpers ──────────────────────────────────────────────
+
+  /**
+   * Start a tracked transfer operation. Calls render() to insert the progress bar.
+   * Must be called with busy=true already set.
+   */
+  private startTransfer(label: string, total: number): void {
+    this.transferProgress = { label, current: 0, total, cancelled: false };
+    this.render();
+  }
+
+  /**
+   * Update the in-progress counter via direct DOM manipulation.
+   * Must NOT call render() — that would interrupt the transfer loop visually.
+   */
+  private updateTransfer(current: number): void {
+    if (!this.transferProgress) return;
+    this.transferProgress.current = current;
+    const el = document.getElementById("transfer-status");
+    if (el) el.textContent = `${this.transferProgress.label}: ${current} / ${this.transferProgress.total} files`;
+  }
+
+  /**
+   * Mark the transfer as done and remove the progress bar state.
+   * render() will be called by the following refresh(), removing the element.
+   */
+  private endTransfer(): void {
+    this.transferProgress = null;
   }
 
   /**
@@ -633,6 +659,7 @@ export class FileBrowser {
     this.isDraggingInternal = false;
     this.dragSourceNames = new Set();
     this.dropTargetName = null;
+    this.transferProgress = null;
     this.onDisconnectCallback?.();
     this.renderEmpty();
   }
@@ -659,34 +686,78 @@ export class FileBrowser {
     if (!this.profileId) return;
     const profileId = this.profileId;
     const total = localPaths.length;
-    const label = total === 1 ? "file" : "files";
 
     this.setBusy(true);
+    this.startTransfer("Uploading", total);
+
     let uploaded = 0;
+    let skipped = 0;
     let errors = 0;
+    let aborted = false;
+    let applyToAllDecision: OverwriteAction | null = null; // "yes" | "no" remembered across files
 
     for (const localFilePath of localPaths) {
+      // Check for user-requested cancel
+      if (this.transferProgress?.cancelled) { aborted = true; break; }
+
       const filename =
         localFilePath.replace(/\\/g, "/").split("/").pop() ?? localFilePath;
       const remotePath = joinPath(this.currentPath, filename);
 
-      this.onStatusMessage?.(`Uploading… ${uploaded + 1} / ${total} ${label}`, false);
+      // ── Overwrite check ──────────────────────────────────────────────────
+      try {
+        const exists = await api.remoteFileExists(profileId, remotePath);
+        if (exists) {
+          let action: OverwriteAction;
 
+          if (applyToAllDecision) {
+            // User already chose "apply to all" → reuse that decision
+            action = applyToAllDecision;
+          } else {
+            const result = await showOverwriteDialog(filename);
+            action = result.action;
+            if (result.applyToAll && action !== "cancel") {
+              applyToAllDecision = action; // remember for subsequent files
+            }
+          }
+
+          if (action === "cancel") { aborted = true; break; }
+          if (action === "no") {
+            skipped++;
+            this.updateTransfer(uploaded + skipped + errors);
+            continue;
+          }
+          // action === "yes" → fall through to upload
+        }
+      } catch {
+        // Existence check failure — proceed with upload (safe default)
+      }
+
+      // ── Upload ───────────────────────────────────────────────────────────
       try {
         await api.uploadFile(profileId, localFilePath, remotePath);
         uploaded++;
       } catch {
         errors++;
       }
+
+      this.updateTransfer(uploaded + skipped + errors);
     }
 
-    if (errors === 0) {
-      this.onStatusMessage?.(`Uploaded ${uploaded} ${uploaded === 1 ? "file" : "files"}`, false);
+    this.endTransfer();
+
+    // Summary status message
+    if (aborted) {
+      const parts: string[] = [];
+      if (uploaded > 0) parts.push(`${uploaded} uploaded`);
+      if (skipped > 0) parts.push(`${skipped} skipped`);
+      this.onStatusMessage?.(`Upload cancelled. ${parts.join(", ")}`, false);
     } else {
-      this.onStatusMessage?.(
-        `Uploaded ${uploaded} ${uploaded === 1 ? "file" : "files"}, ${errors} failed`,
-        true
-      );
+      const parts: string[] = [];
+      if (uploaded > 0) parts.push(`${uploaded} uploaded`);
+      if (skipped > 0) parts.push(`${skipped} skipped`);
+      if (errors > 0) parts.push(`${errors} failed`);
+      this.onStatusMessage?.(parts.join(", ") || "Nothing to upload", errors > 0);
     }
 
     this.setBusy(false);
@@ -697,19 +768,20 @@ export class FileBrowser {
     if (!this.profileId) return;
     const profileId = this.profileId;
     const total = localPaths.length;
-    const label = total === 1 ? "item" : "items";
 
     this.setBusy(true);
+    this.startTransfer("Uploading", total);
+
     let uploaded = 0;
     let errors = 0;
 
     for (const localPath of localPaths) {
+      if (this.transferProgress?.cancelled) break;
+
       const name =
         localPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() ??
         localPath;
       const remotePath = joinPath(this.currentPath, name);
-
-      this.onStatusMessage?.(`Uploading… ${uploaded + 1} / ${total} ${label}`, false);
 
       try {
         await api.uploadPath(profileId, localPath, remotePath);
@@ -717,7 +789,11 @@ export class FileBrowser {
       } catch {
         errors++;
       }
+
+      this.updateTransfer(uploaded + errors);
     }
+
+    this.endTransfer();
 
     if (errors === 0) {
       this.onStatusMessage?.(`Uploaded ${uploaded} ${uploaded === 1 ? "item" : "items"}`, false);
@@ -855,10 +931,14 @@ export class FileBrowser {
 
     const entries = this.selectedEntries;
     this.setBusy(true);
+    this.startTransfer("Downloading", entries.length);
+
     let done = 0;
     let errors = 0;
 
     for (const entry of entries) {
+      if (this.transferProgress?.cancelled) break;
+
       const remotePath = joinPath(this.currentPath, entry.name);
       const localDest = destDir.replace(/\/?$/, "/") + entry.name;
       try {
@@ -871,7 +951,11 @@ export class FileBrowser {
       } catch {
         errors++;
       }
+
+      this.updateTransfer(done + errors);
     }
+
+    this.endTransfer();
 
     if (errors === 0) {
       this.onStatusMessage?.(`Downloaded ${done} items to ${destDir}`, false);
@@ -880,6 +964,7 @@ export class FileBrowser {
     }
 
     this.setBusy(false);
+    await this.refresh();
   }
 
   // ── Rename ────────────────────────────────────────────────────────────────
