@@ -11,6 +11,7 @@ export class ProfileSelector {
         this.profiles = [];
         this.selectedId = null;
         this.isConnected = false;
+        this.isConnecting = false;
         this.onConnectCallback = null;
         this.onNewCallback = null;
         this.onEditCallback = null;
@@ -77,18 +78,34 @@ export class ProfileSelector {
      */
     setConnected(isConnected) {
         this.isConnected = isConnected;
+        if (!isConnected)
+            this.isConnecting = false;
         const hasSelection = this.selectedId !== null && this.profiles.length > 0;
         const connectBtn = document.getElementById("connect-btn");
         const editBtn = document.getElementById("edit-profile-btn");
         const deleteBtn = document.getElementById("delete-profile-btn");
         if (connectBtn) {
-            connectBtn.disabled = isConnected || !hasSelection;
-            connectBtn.textContent = isConnected ? "Connected" : "Connect";
+            connectBtn.disabled = isConnected || this.isConnecting || !hasSelection;
+            connectBtn.textContent = isConnected ? "Connected" : this.isConnecting ? "Connecting…" : "Connect";
         }
         if (editBtn)
-            editBtn.disabled = isConnected || !hasSelection;
+            editBtn.disabled = isConnected || this.isConnecting || !hasSelection;
         if (deleteBtn)
-            deleteBtn.disabled = isConnected || !hasSelection;
+            deleteBtn.disabled = isConnected || this.isConnecting || !hasSelection;
+    }
+    /**
+     * Lock profile actions while a connection attempt is in progress.
+     * Prevents double-connect and profile mutations during "connecting".
+     */
+    setConnecting(isConnecting) {
+        this.isConnecting = isConnecting;
+        if (isConnecting)
+            this.isConnected = false;
+        this.updateButtonStates();
+        const connectBtn = document.getElementById("connect-btn");
+        if (connectBtn) {
+            connectBtn.textContent = this.isConnecting ? "Connecting…" : this.isConnected ? "Connected" : "Connect";
+        }
     }
     /**
      * Update the disabled state of Edit / Delete / Connect buttons to match the
@@ -102,11 +119,13 @@ export class ProfileSelector {
         const connectBtn = document.getElementById("connect-btn");
         // Edit and Delete remain locked while a session is active
         if (editBtn)
-            editBtn.disabled = this.isConnected || !hasSelection;
+            editBtn.disabled = this.isConnected || this.isConnecting || !hasSelection;
         if (deleteBtn)
-            deleteBtn.disabled = this.isConnected || !hasSelection;
-        if (connectBtn)
-            connectBtn.disabled = this.isConnected || !hasSelection;
+            deleteBtn.disabled = this.isConnected || this.isConnecting || !hasSelection;
+        if (connectBtn) {
+            connectBtn.disabled = this.isConnected || this.isConnecting || !hasSelection;
+            connectBtn.textContent = this.isConnected ? "Connected" : this.isConnecting ? "Connecting…" : "Connect";
+        }
     }
     render() {
         const hasProfiles = this.profiles.length > 0;

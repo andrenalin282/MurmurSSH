@@ -1,0 +1,33 @@
+---
+description: Enforces MurmurSSH implementation scope, minimal changes, and delivery reporting
+alwaysApply: true
+---
+
+# MurmurSSH Implementation Rules
+
+## Scope discipline
+- Implement only the requested phase scope.
+- Do not add adjacent features unless explicitly requested.
+- Do not redesign UI outside the defined task.
+
+## Change strategy
+- Prefer minimal-invasive changes.
+- Reuse existing backend commands, APIs, dialogs, and components whenever possible.
+- Do not introduce new dependencies unless clearly necessary.
+
+## Architecture
+- Respect the existing separation between UI, API wrappers, Tauri commands, and Rust services.
+- Do not refactor unrelated files.
+- Do not replace working flows just to make code "cleaner".
+
+## UX behavior
+- Preserve existing working behavior unless the phase explicitly changes it.
+- Prefer pragmatic desktop-like behavior.
+- Keep feedback, errors, and confirmations clear and concrete.
+
+## Delivery
+- Before coding, identify the relevant files and describe the intended approach briefly.
+- After coding, provide:
+  - changed files
+  - what changed in each file
+  - remaining risks or limitations

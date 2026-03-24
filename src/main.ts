@@ -7,6 +7,7 @@ import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
 import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
+import { showOverwriteDialog } from "./components/dialog";
 import {
   showHostKeyDialog,
   showPasswordPrompt,
@@ -126,6 +127,7 @@ const settingsDialog = new SettingsDialog();
 // Centralized connection state — single source of truth for connected profile.
 // Updated in onConnect (after SFTP + file browser ready) and onDisconnect.
 let connectedProfileId: string | null = null;
+let connectingProfileId: string | null = null;
 
 // Surface file browser messages in the status bar
 fileBrowser.setStatusCallback((msg, isError) => {
@@ -333,13 +335,31 @@ listen<UploadReadyPayload>("upload-ready", async (event) => {
     `Upload changes to "${filename}" back to the server?\n${remote_path}`,
     "Upload File"
   );
-  if (confirmed) {
-    try {
-      await api.uploadFile(profile_id, local_path, remote_path);
-      statusBar.set("connected", `Uploaded ${filename}`);
-    } catch (err) {
-      statusBar.set("error", `Upload failed: ${err}`);
+  if (!confirmed) return;
+
+  // Keep overwrite behavior consistent with all other upload paths.
+  try {
+    const exists = await api.remoteFileExists(profile_id, remote_path);
+    if (exists) {
+      const overwrite = await showOverwriteDialog(filename);
+      if (overwrite.action === "cancel") {
+        statusBar.set("connected", "Upload cancelled.");
+        return;
+      }
+      if (overwrite.action === "no") {
+        statusBar.set("connected", "Upload skipped.");
+        return;
+      }
     }
+  } catch {
+    // Non-fatal: if conflict check fails, proceed with upload attempt.
+  }
+
+  try {
+    await api.uploadFile(profile_id, local_path, remote_path);
+    statusBar.set("connected", `Uploaded ${filename}`);
+  } catch (err) {
+    statusBar.set("error", `Upload failed: ${err}`);
   }
 });
 
@@ -359,13 +379,19 @@ profileSelector.onConnect(async (profileId: string) => {
   if (!profile) return;
 
   // Prevent double-connect
-  if (connectedProfileId !== null) return;
+  if (connectedProfileId !== null || connectingProfileId !== null) return;
+  connectingProfileId = profileId;
+  profileSelector.setConnecting(true);
 
   statusBar.set("connecting", "Connecting…");
 
   // Verify SFTP connection (host key + auth) before browsing
   const ok = await verifyConnection(profileId);
-  if (!ok) return;
+  if (!ok) {
+    connectingProfileId = null;
+    profileSelector.setConnecting(false);
+    return;
+  }
 
   // Establish SSH session for terminal SSO (non-fatal if it fails)
   try {
@@ -376,6 +402,8 @@ profileSelector.onConnect(async (profileId: string) => {
 
   // Update centralized connection state
   connectedProfileId = profileId;
+  connectingProfileId = null;
+  profileSelector.setConnecting(false);
   profileSelector.setConnected(true);
 
   // Read current settings before writing to preserve profiles_path, theme, etc.
@@ -402,7 +430,11 @@ profileSelector.onConnect(async (profileId: string) => {
   }
 
   fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null);
-  await fileBrowser.refresh();
+  try {
+    await fileBrowser.refresh();
+  } catch {
+    // Non-fatal: browser refresh reports its own inline error.
+  }
 });
 
 profileSelector.init().then(async (lastUsedId) => {
