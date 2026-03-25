@@ -44,6 +44,7 @@ const de = {
         oneItemSelected: "1 Element ausgewählt",
         itemsSelected: "{count} Elemente ausgewählt",
         // Action buttons
+        openFolder: "Öffnen",
         upload: "Hochladen",
         uploadFolder: "Ordner hochladen",
         download: "Herunterladen",
@@ -54,8 +55,8 @@ const de = {
         edit: "Bearbeiten",
         delete: "Löschen",
         deleteMultiple: "Löschen ({count})",
-        newFile: "＋ Datei",
-        newFolder: "＋ Ordner",
+        newFile: "Neue Datei",
+        newFolder: "Neuer Ordner",
         // Transfer progress
         transferUploading: "Wird hochgeladen",
         transferDownloading: "Wird heruntergeladen",

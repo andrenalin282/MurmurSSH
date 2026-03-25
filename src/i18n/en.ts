@@ -44,6 +44,7 @@ const en = {
     oneItemSelected: "1 item selected",
     itemsSelected: "{count} items selected",
     // Action buttons
+    openFolder: "Open",
     upload: "Upload",
     uploadFolder: "Upload Folder",
     download: "Download",
@@ -54,8 +55,8 @@ const en = {
     edit: "Edit",
     delete: "Delete",
     deleteMultiple: "Delete ({count})",
-    newFile: "＋ File",
-    newFolder: "＋ Folder",
+    newFile: "New File",
+    newFolder: "New Folder",
     // Transfer progress
     transferUploading: "Uploading",
     transferDownloading: "Downloading",

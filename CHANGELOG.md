@@ -12,6 +12,27 @@ No changes yet.
 
 ---
 
+## [1.0.3] - 2026-03-25
+
+### Added
+- **Multilanguage support** — UI is now fully internationalised; English and German available; language is switched in Settings and persisted across sessions
+- **SVG icon system** — all toolbar and file-browser action buttons now carry consistent Lucide-style inline SVG icons (no external dependency, theme-aware via `currentColor`)
+- **File-browser context menus** — right-click on a file, folder, or empty area opens a context menu with the relevant actions (Download, Edit, Rename, Move to…, Delete; Open for folders; Upload, New File, New Folder, Refresh for empty space)
+- **Tooltips on icon buttons** — every toolbar and action button exposes a `title` attribute for keyboard/screen-reader and hover discoverability
+
+### Changed
+- Action bar now wraps across multiple rows at narrow window widths, eliminating horizontal overflow
+- Action buttons are more compact (smaller font, reduced padding, flex layout with icon + label)
+- `＋ File` / `＋ Folder` labels replaced with `New File` / `New Folder` (DE: `Neue Datei` / `Neuer Ordner`) now that dedicated icons carry the visual signal
+- Home, Up, and Refresh toolbar buttons are icon-only (Disconnect and Terminal retain icon + label for prominence)
+
+### Known Issues
+- Terminal may prompt for the SSH key passphrase again even when the session was already authenticated; this is a known limitation of the ControlMaster/key-agent flow and is being investigated
+- AppImage compatibility has not been fully verified across all Linux configurations (Wayland compositors, certain GTK versions); `.deb` is the recommended install format for now
+- Additional testing under both X11 and Wayland is required before these environments can be declared fully supported
+
+---
+
 ## [1.0.2] - 2026-03-24
 
 ### Added

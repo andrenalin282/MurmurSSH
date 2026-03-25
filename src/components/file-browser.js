@@ -12,6 +12,25 @@ function escHtml(s) {
     .replace(/"/g, "&quot;");
 }
 
+// ── Inline SVG icons (Lucide-style, 14×14, currentColor) ──────────────────
+const ICONS = {
+  disconnect:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  terminal:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
+  home:         `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+  up:           `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
+  refresh:      `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>`,
+  upload:       `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>`,
+  uploadFolder: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2z"/><polyline points="12 14 12 18"/><polyline points="10 16 12 14 14 16"/></svg>`,
+  download:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/></svg>`,
+  rename:       `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  moveTo:       `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 14 20 9 15 4"/><path d="M4 20v-7a4 4 0 0 1 4-4h12"/></svg>`,
+  edit:         `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`,
+  delete:       `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+  newFile:      `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`,
+  newFolder:    `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`,
+  openFolder:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+};
+
 function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -148,11 +167,11 @@ export class FileBrowser {
     this.container.innerHTML = `
       <div class="file-browser file-browser--empty">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" disabled>🚫 ${t("fileBrowser.disconnect")}</button>
-          <button id="terminal-btn" disabled>💻 ${t("fileBrowser.terminal")}</button>
-          <button id="home-btn" disabled>🏠 ${t("fileBrowser.home")}</button>
-          <button id="up-btn" disabled>⬆️ ${t("fileBrowser.up")}</button>
-          <button id="refresh-btn" disabled>🔄 ${t("fileBrowser.refresh")}</button>
+          <button id="disconnect-btn" disabled title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
+          <button id="terminal-btn"   disabled title="${t("fileBrowser.terminal")}">${ICONS.terminal}</button>
+          <button id="home-btn"       disabled title="${t("fileBrowser.home")}">${ICONS.home}</button>
+          <button id="up-btn"         disabled title="${t("fileBrowser.up")}">${ICONS.up}</button>
+          <button id="refresh-btn"    disabled title="${t("fileBrowser.refresh")}">${ICONS.refresh}</button>
         </div>
         <p>${t("fileBrowser.connectPrompt")}</p>
       </div>
@@ -230,11 +249,11 @@ export class FileBrowser {
     this.container.innerHTML = `
       <div class="file-browser${this.isDragOver ? " file-browser--dragover" : ""}">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.disconnect")}</button>
-          <button id="terminal-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.terminal")}</button>
-          <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.home")}</button>
-          <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""}>${t("fileBrowser.up")}</button>
-          <button id="refresh-btn"    ${this.busy ? "disabled" : ""}>${t("fileBrowser.refresh")}</button>
+          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
+          <button id="terminal-btn"   ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.terminal")}">${ICONS.terminal} ${t("fileBrowser.terminal")}</button>
+          <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.home")}">${ICONS.home}</button>
+          <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""} title="${t("fileBrowser.up")}">${ICONS.up}</button>
+          <button id="refresh-btn"    ${this.busy ? "disabled" : ""} title="${t("fileBrowser.refresh")}">${ICONS.refresh}</button>
         </div>
         <div class="file-browser__path-row">
           <input id="path-input" type="text" class="file-browser__path-input"
@@ -251,15 +270,15 @@ export class FileBrowser {
         </div>
         ${selectionInfo}
         <div class="file-browser__actions">
-          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.upload")}</button>
-          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.uploadFolder")}</button>
-          <button id="download-btn"      ${downloadDisabled ? "disabled" : ""}>${downloadLabel}</button>
-          <button id="rename-btn"        ${!hasExactlyOne || this.busy ? "disabled" : ""}>${t("fileBrowser.rename")}</button>
-          <button id="move-btn"          ${!hasAny || this.busy ? "disabled" : ""}>${t("fileBrowser.moveTo")}</button>
-          <button id="edit-btn"          ${!hasFile || this.busy ? "disabled" : ""}>${t("fileBrowser.edit")}</button>
-          <button id="delete-btn"        ${!hasAny  || this.busy ? "disabled" : ""}>${deleteLabel}</button>
-          <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.newFile")}</button>
-          <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.newFolder")}</button>
+          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.upload")}">${ICONS.upload} ${t("fileBrowser.upload")}</button>
+          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.uploadFolder")}">${ICONS.uploadFolder} ${t("fileBrowser.uploadFolder")}</button>
+          <button id="download-btn"      ${downloadDisabled ? "disabled" : ""} title="${t("fileBrowser.download")}">${ICONS.download}</button>
+          <button id="rename-btn"        ${!hasExactlyOne || this.busy ? "disabled" : ""} title="${t("fileBrowser.rename")}">${ICONS.rename}</button>
+          <button id="move-btn"          ${!hasAny || this.busy ? "disabled" : ""} title="${t("fileBrowser.moveTo")}">${ICONS.moveTo}</button>
+          <button id="edit-btn"          ${!hasFile || this.busy ? "disabled" : ""} title="${t("fileBrowser.edit")}">${ICONS.edit}</button>
+          <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFile")}">${ICONS.newFile} ${t("fileBrowser.newFile")}</button>
+          <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder} ${t("fileBrowser.newFolder")}</button>
+          <button id="delete-btn"        ${!hasAny  || this.busy ? "disabled" : ""} title="${t("fileBrowser.delete")}">${ICONS.delete}</button>
         </div>
         ${transferProgressHtml}
       </div>
@@ -424,6 +443,45 @@ export class FileBrowser {
       const statusEl = document.getElementById("transfer-status");
       if (statusEl) statusEl.textContent = t("common.cancelling");
     });
+
+    // ── Context menu (right-click) ─────────────────────────────────────────
+    const tbodyCtx = this.container.querySelector("tbody");
+    if (tbodyCtx) {
+      tbodyCtx.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        if (!this.profileId || this.busy) return;
+        const row = e.target.closest("tr.file-entry");
+        if (row && row.dataset.name && row.dataset.name !== "..") {
+          const name = row.dataset.name;
+          const isDir = row.dataset.isdir === "true";
+          // Select clicked entry (lightweight, no re-render)
+          this.selectedNames.clear();
+          this.selectedNames.add(name);
+          this.anchorName = name;
+          this.container.querySelectorAll("tr.file-entry").forEach((r) => {
+            r.classList.toggle("file-entry--selected", r.dataset.name === name);
+          });
+          this.showContextMenu(e.clientX, e.clientY, isDir
+            ? this.buildFolderContextItems(name)
+            : this.buildFileContextItems(name)
+          );
+        } else if (!row) {
+          this.showContextMenu(e.clientX, e.clientY, this.buildEmptyContextItems());
+        }
+      });
+    }
+
+    // Right-click on the scroll area (empty space below rows)
+    const scrollCtx = this.container.querySelector(".file-browser__scroll");
+    if (scrollCtx) {
+      scrollCtx.addEventListener("contextmenu", (e) => {
+        const row = e.target.closest("tr.file-entry");
+        if (!row && this.profileId && !this.busy) {
+          e.preventDefault();
+          this.showContextMenu(e.clientX, e.clientY, this.buildEmptyContextItems());
+        }
+      });
+    }
   }
 
   startTransfer(label, total) {
@@ -1149,5 +1207,94 @@ export class FileBrowser {
     this.clearSelection();
     this.setBusy(false);
     await this.refresh();
+  }
+
+  // ── Context menu ───────────────────────────────────────────────────────────
+
+  buildFileContextItems(name) {
+    return [
+      { icon: ICONS.download, label: t("fileBrowser.download"), action: () => this.handleDownload() },
+      { icon: ICONS.edit,     label: t("fileBrowser.edit"),     action: () => this.handleEdit() },
+      { separator: true },
+      { icon: ICONS.rename,   label: t("fileBrowser.rename"),   action: () => this.handleRename() },
+      { icon: ICONS.moveTo,   label: t("fileBrowser.moveTo"),   action: () => this.handleMoveTo() },
+      { separator: true },
+      { icon: ICONS.delete,   label: t("fileBrowser.delete"),   action: () => this.handleDelete(), danger: true },
+    ];
+  }
+
+  buildFolderContextItems(name) {
+    return [
+      { icon: ICONS.openFolder, label: t("fileBrowser.openFolder"), action: () => this.navigateInto(name) },
+      { icon: ICONS.download,   label: t("fileBrowser.download"),   action: () => this.handleDownload() },
+      { separator: true },
+      { icon: ICONS.rename,     label: t("fileBrowser.rename"),     action: () => this.handleRename() },
+      { icon: ICONS.moveTo,     label: t("fileBrowser.moveTo"),     action: () => this.handleMoveTo() },
+      { separator: true },
+      { icon: ICONS.delete,     label: t("fileBrowser.delete"),     action: () => this.handleDelete(), danger: true },
+    ];
+  }
+
+  buildEmptyContextItems() {
+    return [
+      { icon: ICONS.upload,       label: t("fileBrowser.upload"),       action: () => this.handleUpload() },
+      { icon: ICONS.uploadFolder, label: t("fileBrowser.uploadFolder"), action: () => this.handleUploadFolder() },
+      { separator: true },
+      { icon: ICONS.newFile,      label: t("fileBrowser.newFile"),      action: () => this.handleNewFile() },
+      { icon: ICONS.newFolder,    label: t("fileBrowser.newFolder"),    action: () => this.handleNewFolder() },
+      { separator: true },
+      { icon: ICONS.refresh,      label: t("fileBrowser.refresh"),      action: () => this.refresh() },
+    ];
+  }
+
+  showContextMenu(x, y, items) {
+    this.closeContextMenu();
+
+    const menu = document.createElement("div");
+    menu.className = "ctx-menu";
+    menu.id = "ctx-menu";
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+
+    for (const item of items) {
+      if ("separator" in item) {
+        const sep = document.createElement("div");
+        sep.className = "ctx-menu__sep";
+        menu.appendChild(sep);
+      } else {
+        const btn = document.createElement("button");
+        btn.className = `ctx-menu__item${item.danger ? " ctx-menu__item--danger" : ""}`;
+        btn.innerHTML = `<span class="ctx-menu__icon">${item.icon}</span><span>${escHtml(item.label)}</span>`;
+        btn.addEventListener("click", () => {
+          this.closeContextMenu();
+          item.action();
+        });
+        menu.appendChild(btn);
+      }
+    }
+
+    document.body.appendChild(menu);
+
+    // Adjust so menu stays within viewport
+    const rect = menu.getBoundingClientRect();
+    if (rect.right > window.innerWidth) menu.style.left = `${x - rect.width}px`;
+    if (rect.bottom > window.innerHeight) menu.style.top = `${y - rect.height}px`;
+
+    // Close on any outside click or another right-click
+    const closeHandler = (ev) => {
+      if (!menu.contains(ev.target)) {
+        this.closeContextMenu();
+        document.removeEventListener("click", closeHandler, true);
+        document.removeEventListener("contextmenu", closeHandler, true);
+      }
+    };
+    setTimeout(() => {
+      document.addEventListener("click", closeHandler, true);
+      document.addEventListener("contextmenu", closeHandler, true);
+    }, 0);
+  }
+
+  closeContextMenu() {
+    document.getElementById("ctx-menu")?.remove();
   }
 }

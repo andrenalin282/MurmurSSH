@@ -437,18 +437,88 @@ button:disabled {
 .file-browser__actions {
   display: flex;
   flex-shrink: 0;
-  gap: 8px;
-  margin-top: 16px;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
 }
 
 .file-browser__actions button {
   background: var(--bg-overlay);
   color: var(--fg-text);
   font-weight: 400;
+  font-size: 12px;
+  padding: 5px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .file-browser__actions button:hover:not(:disabled) {
   background: var(--bg-hover);
+}
+
+/* ── Icon buttons (toolbar) ───────────────────────────────── */
+
+.file-browser__toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* ── Context menu ─────────────────────────────────────────── */
+
+.ctx-menu {
+  position: fixed;
+  z-index: 200;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 4px;
+  min-width: 168px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  outline: none;
+}
+
+.ctx-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg-text);
+  font-weight: 400;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.ctx-menu__item:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--fg-text);
+}
+
+.ctx-menu__item--danger {
+  color: var(--err);
+}
+
+.ctx-menu__item--danger:hover:not(:disabled) {
+  background: var(--err-bg);
+  color: var(--err);
+}
+
+.ctx-menu__icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  opacity: 0.85;
+}
+
+.ctx-menu__sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 2px;
 }
 
 /* ── Secondary / danger buttons ──────────────────────────── */
