@@ -12,6 +12,20 @@ No changes yet.
 
 ---
 
+## [1.1.0] - 2026-03-25
+
+### Fixed
+- **Wayland / AppImage compatibility** — added `WEBKIT_DISABLE_DMABUF_RENDERER=1` to the Linux startup path; resolves WebKit crashes on affected Wayland compositors when running via AppImage. X11 was already working correctly and is unaffected.
+
+### Improved
+- Continued UI and language improvements from v1.0.3–v1.0.4 (icon-only action bar, i18n cleanup)
+- General stability and usability polish
+
+### Notes
+- The Wayland fix is applied unconditionally on Linux (including `.deb` installs); it only disables a GPU memory-sharing optimisation and has no visible effect on X11 or unaffected Wayland systems
+
+---
+
 ## [1.0.4] - 2026-03-25
 
 ### Fixed
