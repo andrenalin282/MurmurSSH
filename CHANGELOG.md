@@ -12,6 +12,23 @@ No changes yet.
 
 ---
 
+## [1.0.2] - 2026-03-24
+
+### Added
+- **Transfer progress with cancel** for uploads and downloads (file counter based)
+- **Upload overwrite dialog** (`Yes` / `No` / `Cancel` + `Apply to all`) for conflict-safe batch uploads
+- **SSH config import** in the New Profile dialog from `~/.ssh/config`
+
+### Changed
+- Removed duplicate breadcrumb row in the file browser; path is now shown only in the editable path input
+- Hardened upload flows so overwrite protection is applied consistently across picker, drag-and-drop, and recursive uploads
+- Hardened connect state to block parallel connection attempts during "connecting"
+- SSH import now skips incomplete entries safely and reports created/skipped/failed results clearly
+- Transfer, move, and rename feedback text is now more consistent and robust
+- Small UI/CSS stability fixes for transfer status rendering
+
+---
+
 ## [1.0.0] — 2026-03-23
 
 _First stable release._

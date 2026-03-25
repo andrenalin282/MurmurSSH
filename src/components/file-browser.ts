@@ -191,8 +191,8 @@ export class FileBrowser {
   }
 
   private render(): void {
-    // Preserve scroll position before rebuilding the DOM.
-    const scrollEl = this.container.querySelector<HTMLElement>(".file-browser");
+    // Preserve scroll position before rebuilding the DOM (list region only).
+    const scrollEl = this.container.querySelector<HTMLElement>(".file-browser__scroll");
     const savedScrollTop = scrollEl?.scrollTop ?? 0;
 
     const isAtRoot = this.currentPath === "/";
@@ -275,12 +275,14 @@ export class FileBrowser {
             value="${escHtml(this.currentPath)}" spellcheck="false" autocomplete="off">
         </div>
         ${inlineErrorHtml}
+        <div class="file-browser__scroll">
         <table class="file-browser__table">
           <thead>
             <tr><th>Name</th><th>Size</th></tr>
           </thead>
           <tbody>${upRow}${rows}</tbody>
         </table>
+        </div>
         ${selectionInfo}
         <div class="file-browser__actions">
           <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""}>Upload</button>
@@ -298,7 +300,7 @@ export class FileBrowser {
     `;
 
     // Restore scroll position after DOM rebuild.
-    const newScrollEl = this.container.querySelector<HTMLElement>(".file-browser");
+    const newScrollEl = this.container.querySelector<HTMLElement>(".file-browser__scroll");
     if (newScrollEl && savedScrollTop > 0) {
       newScrollEl.scrollTop = savedScrollTop;
     }

@@ -151,9 +151,9 @@ if (sidebarFooter) {
       <button class="btn-secondary" id="settings-btn" title="Settings">⚙ Settings</button>
     </div>
     <div class="sidebar-footer-btns sidebar-footer-btns--row2">
-      <button class="btn-secondary" id="help-btn" title="About MurmurSSH">? Help</button>
-      <a href="#" id="donate-btn" class="btn-secondary sidebar-donate-btn" title="Spend me a coffee">☕ Donate</a>
-      <button class="btn-secondary btn-quit" id="quit-btn" title="Quit MurmurSSH">✕ Quit</button>
+      <button class="btn-secondary" id="help-btn" title="About MurmurSSH" aria-label="About MurmurSSH">❓</button>
+      <a href="#" id="donate-btn" class="btn-secondary sidebar-donate-btn" title="Spend me a coffee">☕ </a>
+      <button class="btn-secondary btn-quit" id="quit-btn" title="Quit MurmurSSH" aria-label="Quit MurmurSSH">🚪</button>
     </div>
   `;
     document.getElementById("open-folder-btn")?.addEventListener("click", async () => {

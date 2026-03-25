@@ -260,8 +260,16 @@ button:disabled {
 .file-browser {
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 16px;
+}
+
+.file-browser__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .file-browser--empty,
@@ -285,6 +293,7 @@ button:disabled {
 
 .file-browser__toolbar {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 6px;
   margin-bottom: 8px;
@@ -357,6 +366,7 @@ button:disabled {
 /* ── Inline error banner (permission denied etc.) ─────────── */
 
 .file-browser__inline-error {
+  flex-shrink: 0;
   background: var(--err-bg);
   border-left: 3px solid var(--err);
   color: var(--err);
@@ -386,6 +396,10 @@ button:disabled {
   color: var(--fg-subtle);
   border-bottom: 1px solid var(--border);
   font-weight: 500;
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+  z-index: 1;
 }
 
 .file-browser__table td {
@@ -422,6 +436,7 @@ button:disabled {
 
 .file-browser__actions {
   display: flex;
+  flex-shrink: 0;
   gap: 8px;
   margin-top: 16px;
 }
@@ -687,6 +702,7 @@ button:disabled {
 /* ── File browser path input ──────────────────────────────── */
 
 .file-browser__path-row {
+  flex-shrink: 0;
   margin-bottom: 8px;
 }
 
@@ -727,6 +743,7 @@ button:disabled {
 /* ── Selection info bar ───────────────────────────────────── */
 
 .file-browser__selection-info {
+  flex-shrink: 0;
   font-size: 11px;
   color: var(--fg-subtle);
   margin-top: 8px;
@@ -750,6 +767,7 @@ button:disabled {
 
 .transfer-progress {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 12px;
   margin-top: 10px;
