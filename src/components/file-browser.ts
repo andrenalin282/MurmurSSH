@@ -4,6 +4,7 @@ import * as api from "../api/index";
 import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
 import type { OverwriteAction } from "./dialog";
 import type { FileEntry } from "../types";
+import { t } from "../i18n/index";
 
 function escHtml(s: string): string {
   return s
@@ -179,13 +180,13 @@ export class FileBrowser {
     this.container.innerHTML = `
       <div class="file-browser file-browser--empty">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" disabled>Disconnect</button>
-          <button id="terminal-btn" disabled>Terminal</button>
-          <button id="home-btn" disabled>Home</button>
-          <button id="up-btn" disabled>Up</button>
-          <button id="refresh-btn" disabled>Refresh</button>
+          <button id="disconnect-btn" disabled>${t("fileBrowser.disconnect")}</button>
+          <button id="terminal-btn" disabled>${t("fileBrowser.terminal")}</button>
+          <button id="home-btn" disabled>${t("fileBrowser.home")}</button>
+          <button id="up-btn" disabled>${t("fileBrowser.up")}</button>
+          <button id="refresh-btn" disabled>${t("fileBrowser.refresh")}</button>
         </div>
-        <p>Connect to a profile to browse files.</p>
+        <p>${t("fileBrowser.connectPrompt")}</p>
       </div>
     `;
   }
@@ -208,12 +209,12 @@ export class FileBrowser {
     const upRow = isAtRoot
       ? ""
       : `<tr class="file-entry file-entry--dir file-entry--up${this.dropTargetName === ".." ? " file-entry--drop-target" : ""}" data-name=".." data-isdir="true">
-           <td colspan="2">.. (up)</td>
+           <td colspan="2">${t("fileBrowser.upRow")}</td>
          </tr>`;
 
     const rows =
       this.entries.length === 0 && !this.inlineError
-        ? '<tr><td colspan="2" class="empty-dir">Empty directory</td></tr>'
+        ? `<tr><td colspan="2" class="empty-dir">${t("fileBrowser.emptyDir")}</td></tr>`
         : this.entries.length === 0
         ? ""
         : this.entries
@@ -235,9 +236,9 @@ export class FileBrowser {
 
     // Selection count info line
     const selectionInfo = selCount > 1
-      ? `<div class="file-browser__selection-info">${selCount} items selected</div>`
+      ? `<div class="file-browser__selection-info">${t("fileBrowser.itemsSelected", { count: selCount })}</div>`
       : selCount === 1
-      ? `<div class="file-browser__selection-info">1 item selected</div>`
+      ? `<div class="file-browser__selection-info">${t("fileBrowser.oneItemSelected")}</div>`
       : "";
 
     const inlineErrorHtml = this.inlineError
@@ -246,29 +247,34 @@ export class FileBrowser {
 
     // Download button label
     const downloadLabel = selCount > 1
-      ? `Download (${selCount})`
+      ? t("fileBrowser.downloadMultiple", { count: selCount })
       : hasDir
-      ? "Download Folder"
-      : "Download";
+      ? t("fileBrowser.downloadFolder")
+      : t("fileBrowser.download");
     const downloadDisabled = !hasAny || this.busy;
+
+    // Delete button label
+    const deleteLabel = selCount > 1
+      ? t("fileBrowser.deleteMultiple", { count: selCount })
+      : t("fileBrowser.delete");
 
     // Transfer progress bar
     const tp = this.transferProgress;
     const transferProgressHtml = tp
       ? `<div class="transfer-progress" id="transfer-progress">
            <span class="transfer-progress__status" id="transfer-status">${escHtml(tp.label)}: ${tp.current} / ${tp.total} files</span>
-           <button class="transfer-progress__cancel" id="transfer-cancel-btn">Cancel</button>
+           <button class="transfer-progress__cancel" id="transfer-cancel-btn">${t("fileBrowser.transferCancel")}</button>
          </div>`
       : "";
 
     this.container.innerHTML = `
       <div class="file-browser${this.isDragOver ? " file-browser--dragover" : ""}">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""}>Disconnect</button>
-          <button id="terminal-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>Terminal</button>
-          <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""}>Home</button>
-          <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""}>Up</button>
-          <button id="refresh-btn"    ${this.busy ? "disabled" : ""}>Refresh</button>
+          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""}>🚫 ${t("fileBrowser.disconnect")} </button>
+          <button id="terminal-btn"   ${!hasProfile || this.busy ? "disabled" : ""}>💻 ${t("fileBrowser.terminal")}</button>
+          <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""}>🏠 ${t("fileBrowser.home")}</button>
+          <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""}>⬆️ ${t("fileBrowser.up")}</button>
+          <button id="refresh-btn"    ${this.busy ? "disabled" : ""}>🔄 ${t("fileBrowser.refresh")}</button>
         </div>
         <div class="file-browser__path-row">
           <input id="path-input" type="text" class="file-browser__path-input"
@@ -278,22 +284,22 @@ export class FileBrowser {
         <div class="file-browser__scroll">
         <table class="file-browser__table">
           <thead>
-            <tr><th>Name</th><th>Size</th></tr>
+            <tr><th>${t("fileBrowser.columnName")}</th><th>${t("fileBrowser.columnSize")}</th></tr>
           </thead>
           <tbody>${upRow}${rows}</tbody>
         </table>
         </div>
         ${selectionInfo}
         <div class="file-browser__actions">
-          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""}>Upload</button>
-          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""}>Upload Folder</button>
+          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.upload")}</button>
+          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.uploadFolder")}</button>
           <button id="download-btn"      ${downloadDisabled ? "disabled" : ""}>${downloadLabel}</button>
-          <button id="rename-btn"        ${!hasExactlyOne || this.busy ? "disabled" : ""}>Rename</button>
-          <button id="move-btn"          ${!hasAny || this.busy ? "disabled" : ""}>Move to…</button>
-          <button id="edit-btn"          ${!hasFile || this.busy ? "disabled" : ""}>Edit</button>
-          <button id="delete-btn"        ${!hasAny  || this.busy ? "disabled" : ""}>Delete${selCount > 1 ? ` (${selCount})` : ""}</button>
-          <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""}>＋ File</button>
-          <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""}>＋ Folder</button>
+          <button id="rename-btn"        ${!hasExactlyOne || this.busy ? "disabled" : ""}>${t("fileBrowser.rename")}</button>
+          <button id="move-btn"          ${!hasAny || this.busy ? "disabled" : ""}>${t("fileBrowser.moveTo")}</button>
+          <button id="edit-btn"          ${!hasFile || this.busy ? "disabled" : ""}>${t("fileBrowser.edit")}</button>
+          <button id="delete-btn"        ${!hasAny  || this.busy ? "disabled" : ""}>${deleteLabel}</button>
+          <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.newFile")}</button>
+          <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""}>${t("fileBrowser.newFolder")}</button>
         </div>
         ${transferProgressHtml}
       </div>
@@ -514,9 +520,9 @@ export class FileBrowser {
         if (!this.transferProgress) return;
         this.transferProgress.cancelled = true;
         const btn = document.getElementById("transfer-cancel-btn") as HTMLButtonElement | null;
-        if (btn) { btn.disabled = true; btn.textContent = "Cancelling…"; }
+        if (btn) { btn.disabled = true; btn.textContent = t("common.cancelling"); }
         const statusEl = document.getElementById("transfer-status");
-        if (statusEl) statusEl.textContent = "Cancelling…";
+        if (statusEl) statusEl.textContent = t("common.cancelling");
       });
   }
 
@@ -618,7 +624,7 @@ export class FileBrowser {
       this.setBusy(false);
       this.render();
     } catch (err) {
-      const msg = `Cannot open "${dirName}": ${String(err)}`;
+      const msg = t("fileBrowser.cannotOpen", { name: dirName, error: String(err) });
       this.onStatusMessage?.(msg, true);
       this.inlineError = msg;
       this.setBusy(false);
@@ -648,7 +654,7 @@ export class FileBrowser {
       this.setBusy(false);
       this.render();
     } catch (err) {
-      const msg = `Cannot navigate to "${targetPath}": ${String(err)}`;
+      const msg = t("fileBrowser.cannotNavigate", { path: targetPath, error: String(err) });
       this.onStatusMessage?.(msg, true);
       this.inlineError = msg;
       this.setBusy(false);
@@ -666,11 +672,8 @@ export class FileBrowser {
       const needsCopy = await api.checkKeyNeedsCopy(this.profileId);
       if (needsCopy) {
         const accepted = await showConfirm(
-          "The SSH key for this profile has permissions that OpenSSH may reject.\n\n" +
-          "MurmurSSH can create a local runtime copy of the key with correct permissions " +
-          "for this terminal session only. The original key file is not modified.\n\n" +
-          "The copy will be deleted when you disconnect.",
-          "Copy Key Locally for Terminal?"
+          t("fileBrowser.copyKeyMsg"),
+          t("fileBrowser.copyKeyTitle")
         );
         if (accepted) {
           await api.copyKeyForRuntime(this.profileId);
@@ -684,7 +687,7 @@ export class FileBrowser {
     try {
       await api.launchSsh(this.profileId, useRuntimeCopy);
     } catch (err) {
-      this.onStatusMessage?.(`Terminal launch failed: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.terminalFailed", { error: String(err) }), true);
     }
   }
 
@@ -732,7 +735,7 @@ export class FileBrowser {
     const total = localPaths.length;
 
     this.setBusy(true);
-    this.startTransfer("Uploading", total);
+    this.startTransfer(t("fileBrowser.transferUploading"), total);
 
     let uploaded = 0;
     let skipped = 0;
@@ -777,15 +780,21 @@ export class FileBrowser {
     // Summary status message
     if (aborted) {
       const parts: string[] = [];
-      if (uploaded > 0) parts.push(`${uploaded} uploaded`);
-      if (skipped > 0) parts.push(`${skipped} skipped`);
-      this.onStatusMessage?.(`Upload cancelled. ${parts.join(", ") || "No files uploaded."}`, false);
+      if (uploaded > 0) parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
+      if (skipped > 0) parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+      const summary = parts.join(", ");
+      this.onStatusMessage?.(
+        summary
+          ? t("fileBrowser.uploadCancelled", { summary })
+          : t("fileBrowser.uploadCancelledNoFiles"),
+        false
+      );
     } else {
       const parts: string[] = [];
-      if (uploaded > 0) parts.push(`${uploaded} uploaded`);
-      if (skipped > 0) parts.push(`${skipped} skipped`);
-      if (errors > 0) parts.push(`${errors} failed`);
-      this.onStatusMessage?.(parts.join(", ") || "Nothing to upload", errors > 0);
+      if (uploaded > 0) parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
+      if (skipped > 0) parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+      if (errors > 0) parts.push(t("fileBrowser.failedCount", { count: errors }));
+      this.onStatusMessage?.(parts.join(", ") || t("fileBrowser.nothingToUpload"), errors > 0);
     }
 
     this.setBusy(false);
@@ -798,7 +807,7 @@ export class FileBrowser {
     const total = localPaths.length;
 
     this.setBusy(true);
-    this.startTransfer("Uploading", total);
+    this.startTransfer(t("fileBrowser.transferUploading"), total);
 
     let uploaded = 0;
     let skipped = 0;
@@ -840,20 +849,28 @@ export class FileBrowser {
     this.endTransfer();
 
     if (aborted) {
+      const parts: string[] = [];
+      if (uploaded > 0) parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
+      if (skipped > 0) parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+      if (errors > 0) parts.push(t("fileBrowser.failedCount", { count: errors }));
+      const summary = parts.join(", ");
       this.onStatusMessage?.(
-        `Upload cancelled. ${uploaded} uploaded${skipped > 0 ? `, ${skipped} skipped` : ""}${errors > 0 ? `, ${errors} failed` : ""}`,
+        summary
+          ? t("fileBrowser.uploadCancelled", { summary })
+          : t("fileBrowser.uploadCancelledNoFiles"),
         false
       );
     } else if (errors === 0) {
-      this.onStatusMessage?.(
-        `Upload complete. ${uploaded} uploaded${skipped > 0 ? `, ${skipped} skipped` : ""}.`,
-        false
-      );
+      const parts: string[] = [];
+      if (uploaded > 0) parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
+      if (skipped > 0) parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+      this.onStatusMessage?.(parts.join(", ") || t("fileBrowser.nothingToUpload"), false);
     } else {
-      this.onStatusMessage?.(
-        `Upload complete. ${uploaded} uploaded${skipped > 0 ? `, ${skipped} skipped` : ""}, ${errors} failed.`,
-        true
-      );
+      const parts: string[] = [];
+      if (uploaded > 0) parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
+      if (skipped > 0) parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+      if (errors > 0) parts.push(t("fileBrowser.failedCount", { count: errors }));
+      this.onStatusMessage?.(parts.join(", ") || t("fileBrowser.nothingToUpload"), true);
     }
 
     this.setBusy(false);
@@ -866,7 +883,7 @@ export class FileBrowser {
     const localFolderPath = await open({
       multiple: false,
       directory: true,
-      title: "Select folder to upload",
+      title: t("fileBrowser.selectFolderUpload"),
       defaultPath: this.localPath ?? undefined,
     });
 
@@ -880,20 +897,20 @@ export class FileBrowser {
     try {
       const proceed = await this.resolveOverwrite(remotePath, folderName);
       if (!proceed) {
-        this.onStatusMessage?.("Upload skipped.", false);
+        this.onStatusMessage?.(t("fileBrowser.uploadSkipped"), false);
         return;
       }
       this.setBusy(true);
-      this.onStatusMessage?.(`Uploading folder ${folderName}…`, false);
+      this.onStatusMessage?.(t("fileBrowser.uploadingFolder", { name: folderName }), false);
       await api.uploadDirectory(this.profileId, localFolderPath, remotePath);
-      this.onStatusMessage?.(`Uploaded folder ${folderName}`, false);
+      this.onStatusMessage?.(t("fileBrowser.uploadedFolder", { name: folderName }), false);
       await this.refresh();
     } catch (err) {
       if (String(err) === "Error: UPLOAD_CANCELLED") {
-        this.onStatusMessage?.("Upload cancelled.", false);
+        this.onStatusMessage?.(t("fileBrowser.uploadCancelledSimple"), false);
         return;
       }
-      this.onStatusMessage?.(`Folder upload failed: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.folderUploadFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -937,9 +954,9 @@ export class FileBrowser {
     try {
       this.setBusy(true);
       await api.downloadFileTo(this.profileId, this.selectedRemotePath, savePath);
-      this.onStatusMessage?.(`Downloaded to ${savePath}`, false);
+      this.onStatusMessage?.(t("fileBrowser.downloadedTo", { path: savePath }), false);
     } catch (err) {
-      this.onStatusMessage?.(`Download failed: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.downloadFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -965,9 +982,9 @@ export class FileBrowser {
     try {
       this.setBusy(true);
       await api.downloadDirectory(this.profileId, this.selectedRemotePath, localDestPath);
-      this.onStatusMessage?.(`Downloaded folder to ${localDestPath}`, false);
+      this.onStatusMessage?.(t("fileBrowser.downloadedFolderTo", { path: localDestPath }), false);
     } catch (err) {
-      this.onStatusMessage?.(`Folder download failed: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.folderDownloadFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -992,7 +1009,7 @@ export class FileBrowser {
 
     const entries = this.selectedEntries;
     this.setBusy(true);
-    this.startTransfer("Downloading", entries.length);
+    this.startTransfer(t("fileBrowser.transferDownloading"), entries.length);
 
     let done = 0;
     let errors = 0;
@@ -1023,14 +1040,25 @@ export class FileBrowser {
     this.endTransfer();
 
     if (aborted) {
+      const doneStr = t("fileBrowser.downloadedCount", { count: done });
+      const failedStr = errors > 0 ? `, ${t("fileBrowser.failedCount", { count: errors })}` : "";
       this.onStatusMessage?.(
-        `Download cancelled. ${done} downloaded${errors > 0 ? `, ${errors} failed` : ""}.`,
+        t("fileBrowser.downloadCancelledStatus", { done: doneStr, failed: failedStr }),
         false
       );
     } else if (errors === 0) {
-      this.onStatusMessage?.(`Download complete. ${done} downloaded to ${destDir}.`, false);
+      this.onStatusMessage?.(
+        t("fileBrowser.downloadComplete", { done: t("fileBrowser.downloadedCount", { count: done }), dest: destDir }),
+        false
+      );
     } else {
-      this.onStatusMessage?.(`Download complete. ${done} downloaded, ${errors} failed.`, true);
+      this.onStatusMessage?.(
+        t("fileBrowser.downloadCompleteErrors", {
+          done: t("fileBrowser.downloadedCount", { count: done }),
+          failed: t("fileBrowser.failedCount", { count: errors }),
+        }),
+        true
+      );
     }
 
     this.setBusy(false);
@@ -1043,11 +1071,11 @@ export class FileBrowser {
     if (!this.profileId || this.selectedNames.size !== 1) return;
     const name = [...this.selectedNames][0];
 
-    const newName = await showPrompt("Rename", "new name", name);
+    const newName = await showPrompt(t("fileBrowser.renameTitle"), t("fileBrowser.renamePlaceholder"), name);
     if (!newName || newName === name) return;
 
     if (newName.includes("/")) {
-      this.onStatusMessage?.(`Name cannot contain "/"`, true);
+      this.onStatusMessage?.(t("fileBrowser.nameContainsSlash"), true);
       return;
     }
 
@@ -1057,11 +1085,11 @@ export class FileBrowser {
     try {
       this.setBusy(true);
       await api.renameFile(this.profileId, fromPath, toPath);
-      this.onStatusMessage?.(`Renamed to ${newName}`, false);
+      this.onStatusMessage?.(t("fileBrowser.renamedTo", { name: newName }), false);
       this.clearSelection();
       await this.refresh();
     } catch (err) {
-      this.onStatusMessage?.(`Rename failed: ${this.normalizeRemoteError(err)}`, true);
+      this.onStatusMessage?.(t("fileBrowser.renameFailed", { error: this.normalizeRemoteError(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -1076,8 +1104,8 @@ export class FileBrowser {
     const label = names.length === 1 ? `"${names[0]}"` : `${names.length} items`;
 
     const targetDir = await showPrompt(
-      `Move ${label} to directory`,
-      "e.g. /home/user/docs",
+      t("fileBrowser.moveToTitle", { label }),
+      t("fileBrowser.moveToPlaceholder"),
       this.currentPath
     );
     if (!targetDir) return;
@@ -1124,13 +1152,14 @@ export class FileBrowser {
       }
     }
 
-    const itemLabel = moved === 1 ? "item" : "items";
+    const itemLabel = moved === 1 ? t("fileBrowser.itemSingular") : t("fileBrowser.itemPlural");
     if (errors === 0) {
-      this.onStatusMessage?.(`Moved ${moved} ${itemLabel}`, false);
+      this.onStatusMessage?.(t("fileBrowser.movedItems", { count: moved, itemLabel }), false);
     } else {
       const detail = failedItems.slice(0, 2).join("; ");
+      const detailStr = detail ? ` (${detail}${failedItems.length > 2 ? "; …" : ""})` : "";
       this.onStatusMessage?.(
-        `Moved ${moved} ${itemLabel}, ${errors} failed${detail ? ` (${detail}${failedItems.length > 2 ? "; …" : ""})` : ""}`,
+        t("fileBrowser.movedItemsErrors", { count: moved, itemLabel, errors, detail: detailStr }),
         true
       );
     }
@@ -1147,9 +1176,9 @@ export class FileBrowser {
     try {
       this.setBusy(true);
       await api.openForEdit(this.profileId, this.selectedRemotePath);
-      this.onStatusMessage?.(`Opened for editing`, false);
+      this.onStatusMessage?.(t("fileBrowser.editOpened"), false);
     } catch (err) {
-      this.onStatusMessage?.(`Edit failed: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.editFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -1159,17 +1188,17 @@ export class FileBrowser {
 
   private async handleNewFile(): Promise<void> {
     if (!this.profileId) return;
-    const name = await showPrompt("New File", "filename.txt");
+    const name = await showPrompt(t("fileBrowser.newFileTitle"), t("fileBrowser.newFilePlaceholder"));
     if (!name) return;
 
     const remotePath = joinPath(this.currentPath, name);
     try {
       this.setBusy(true);
       await api.uploadFileBytes(this.profileId, remotePath, []);
-      this.onStatusMessage?.(`Created ${name}`, false);
+      this.onStatusMessage?.(t("fileBrowser.createdFile", { name }), false);
       await this.refresh();
     } catch (err) {
-      this.onStatusMessage?.(`Could not create file: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.createFileFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -1177,17 +1206,17 @@ export class FileBrowser {
 
   private async handleNewFolder(): Promise<void> {
     if (!this.profileId) return;
-    const name = await showPrompt("New Folder", "folder-name");
+    const name = await showPrompt(t("fileBrowser.newFolderTitle"), t("fileBrowser.newFolderPlaceholder"));
     if (!name) return;
 
     const remotePath = joinPath(this.currentPath, name);
     try {
       this.setBusy(true);
       await api.createDirectory(this.profileId, remotePath);
-      this.onStatusMessage?.(`Created folder ${name}`, false);
+      this.onStatusMessage?.(t("fileBrowser.createdFolder", { name }), false);
       await this.refresh();
     } catch (err) {
-      this.onStatusMessage?.(`Could not create folder: ${err}`, true);
+      this.onStatusMessage?.(t("fileBrowser.createFolderFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
     }
@@ -1212,37 +1241,37 @@ export class FileBrowser {
 
     if (entry.is_dir) {
       const confirmed = await showConfirm(
-        `"${entry.name}" is a folder. This folder and all of its contents will be deleted recursively. Proceed?`,
-        "Delete Folder"
+        t("fileBrowser.deleteFolderMsg", { name: entry.name }),
+        t("fileBrowser.deleteFolderTitle")
       );
       if (!confirmed) return;
 
       try {
         this.setBusy(true);
         await api.deleteDirectory(this.profileId, remotePath);
-        this.onStatusMessage?.(`Deleted folder ${entry.name}`, false);
+        this.onStatusMessage?.(t("fileBrowser.deletedFolder", { name: entry.name }), false);
         this.clearSelection();
         await this.refresh();
       } catch (err) {
-        this.onStatusMessage?.(`Delete failed: ${err}`, true);
+        this.onStatusMessage?.(t("fileBrowser.deleteFailed", { error: String(err) }), true);
       } finally {
         this.setBusy(false);
       }
     } else {
       const confirmed = await showConfirm(
-        `Delete "${entry.name}" on the remote server? This cannot be undone.`,
-        "Delete File"
+        t("fileBrowser.deleteFileMsg", { name: entry.name }),
+        t("fileBrowser.deleteFileTitle")
       );
       if (!confirmed) return;
 
       try {
         this.setBusy(true);
         await api.deleteFile(this.profileId, remotePath);
-        this.onStatusMessage?.(`Deleted ${entry.name}`, false);
+        this.onStatusMessage?.(t("fileBrowser.deletedFile", { name: entry.name }), false);
         this.clearSelection();
         await this.refresh();
       } catch (err) {
-        this.onStatusMessage?.(`Delete failed: ${err}`, true);
+        this.onStatusMessage?.(t("fileBrowser.deleteFailed", { error: String(err) }), true);
       } finally {
         this.setBusy(false);
       }
@@ -1253,8 +1282,8 @@ export class FileBrowser {
     if (!this.profileId) return;
 
     const confirmed = await showConfirm(
-      `Delete ${names.length} items? Folders will be deleted recursively. This cannot be undone.`,
-      `Delete ${names.length} Items`
+      t("fileBrowser.deleteMultiMsg", { count: names.length }),
+      t("fileBrowser.deleteMultiTitle", { count: names.length })
     );
     if (!confirmed) return;
 
@@ -1279,9 +1308,9 @@ export class FileBrowser {
     }
 
     if (errors === 0) {
-      this.onStatusMessage?.(`Deleted ${deleted} items`, false);
+      this.onStatusMessage?.(t("fileBrowser.deletedItems", { count: deleted }), false);
     } else {
-      this.onStatusMessage?.(`Deleted ${deleted} items, ${errors} failed`, true);
+      this.onStatusMessage?.(t("fileBrowser.deletedItemsErrors", { count: deleted, errors }), true);
     }
 
     this.clearSelection();

@@ -1,3 +1,5 @@
+import { t } from "../i18n/index";
+
 function escHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -22,8 +24,8 @@ export function showPrompt(title: string, placeholder = "", initialValue = ""): 
           <input id="modal-prompt-input" type="text" placeholder="${escHtml(placeholder)}" value="${escHtml(initialValue)}" autocomplete="off">
         </div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="modal-cancel">Cancel</button>
-          <button id="modal-confirm">OK</button>
+          <button class="btn-secondary" id="modal-cancel">${t("dialogs.promptCancel")}</button>
+          <button id="modal-confirm">${t("dialogs.promptOk")}</button>
         </div>
       </div>
     `;
@@ -73,19 +75,19 @@ export function showOverwriteDialog(
     overlay.className = "modal-overlay";
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
-        <div class="modal__title">File Already Exists</div>
+        <div class="modal__title">${t("dialogs.overwriteTitle")}</div>
         <div class="modal__body">
-          <strong>${escHtml(filename)}</strong> already exists on the server.<br>Overwrite?
+          <strong>${escHtml(filename)}</strong> ${t("dialogs.overwriteBodySuffix")}<br>${t("dialogs.overwriteQuestion")}
         </div>
         <div class="modal__check">
           <label>
-            <input type="checkbox" id="overwrite-apply-all"> Apply to all
+            <input type="checkbox" id="overwrite-apply-all"> ${t("dialogs.overwriteApplyToAll")}
           </label>
         </div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="overwrite-cancel">Cancel</button>
-          <button class="btn-secondary" id="overwrite-no">No</button>
-          <button id="overwrite-yes">Yes</button>
+          <button class="btn-secondary" id="overwrite-cancel">${t("dialogs.overwriteCancel")}</button>
+          <button class="btn-secondary" id="overwrite-no">${t("dialogs.overwriteNo")}</button>
+          <button id="overwrite-yes">${t("dialogs.overwriteYes")}</button>
         </div>
       </div>
     `;
@@ -110,17 +112,18 @@ export function showOverwriteDialog(
  * Show a simple in-app confirmation dialog.
  * Returns a promise that resolves to true (confirmed) or false (cancelled).
  */
-export function showConfirm(message: string, title = "Confirm"): Promise<boolean> {
+export function showConfirm(message: string, title?: string): Promise<boolean> {
+  const resolvedTitle = title ?? t("dialogs.confirmConfirm");
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
-        <div class="modal__title">${escHtml(title)}</div>
+        <div class="modal__title">${escHtml(resolvedTitle)}</div>
         <div class="modal__body">${escHtml(message)}</div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="modal-cancel">Cancel</button>
-          <button id="modal-confirm">Confirm</button>
+          <button class="btn-secondary" id="modal-cancel">${t("dialogs.confirmCancel")}</button>
+          <button id="modal-confirm">${t("dialogs.confirmConfirm")}</button>
         </div>
       </div>
     `;

@@ -1,6 +1,7 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
 import type { Settings } from "../types";
+import { t, getLocale, setLocale, getAvailableLocales } from "../i18n/index";
 
 function escHtml(s: string): string {
   return s
@@ -31,15 +32,20 @@ export class SettingsDialog {
     const isCustom = !!(settings.profiles_path && settings.profiles_path.trim());
     const customPath = settings.profiles_path ?? "";
     const currentTheme = settings.theme ?? "system";
+    const currentLocale = getLocale();
+    const availableLocales = getAvailableLocales();
+    const localeOptions = availableLocales
+      .map((l) => `<option value="${l.key}" ${l.key === currentLocale ? "selected" : ""}>${l.label}</option>`)
+      .join("");
 
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     overlay.innerHTML = `
       <div class="modal modal--form" role="dialog" aria-modal="true">
-        <div class="modal__title">Settings</div>
+        <div class="modal__title">${t("settings.title")}</div>
 
         <div class="form-field">
-          <label>Profile Storage Location</label>
+          <label>${t("settings.labelStoragePath")}</label>
           <div class="settings-path-display">${escHtml(activePath)}</div>
         </div>
 
@@ -47,52 +53,59 @@ export class SettingsDialog {
           <div class="save-mode-option">
             <label>
               <input type="radio" name="path-mode" value="default" ${isCustom ? "" : "checked"}>
-              <span>Default location <span class="save-mode-tag save-mode-tag--safe">~/.config/murmurssh/profiles/</span></span>
+              <span>${t("settings.optionDefault")} <span class="save-mode-tag save-mode-tag--safe">${t("settings.defaultPathTag")}</span></span>
             </label>
           </div>
           <div class="save-mode-option">
             <label>
               <input type="radio" name="path-mode" value="custom" ${isCustom ? "checked" : ""}>
-              <span>Custom directory</span>
+              <span>${t("settings.optionCustom")}</span>
             </label>
           </div>
         </div>
 
         <div id="custom-path-row" class="form-field" style="${isCustom ? "" : "display:none"}">
-          <label for="custom-path-input">Custom path</label>
+          <label for="custom-path-input">${t("settings.labelCustomPath")}</label>
           <div class="form-field__row">
-            <input id="custom-path-input" type="text" value="${escHtml(customPath)}" placeholder="/path/to/profiles">
-            <button type="button" id="browse-dir-btn">Browse…</button>
+            <input id="custom-path-input" type="text" value="${escHtml(customPath)}" placeholder="${t("settings.placeholderCustomPath")}">
+            <button type="button" id="browse-dir-btn">${t("common.browse")}</button>
           </div>
         </div>
 
         <div class="form-field">
-          <label>Theme</label>
+          <label>${t("settings.labelTheme")}</label>
           <div class="save-mode-options" style="margin-bottom:0">
             <div class="save-mode-option">
               <label>
                 <input type="radio" name="theme" value="system" ${currentTheme === "system" ? "checked" : ""}>
-                <span>System <span class="save-mode-tag">follow OS preference</span></span>
+                <span>${t("settings.themeSystem")} <span class="save-mode-tag">${t("settings.themeSystemTag")}</span></span>
               </label>
             </div>
             <div class="save-mode-option">
               <label>
                 <input type="radio" name="theme" value="dark" ${currentTheme === "dark" ? "checked" : ""}>
-                <span>Dark</span>
+                <span>${t("settings.themeDark")}</span>
               </label>
             </div>
             <div class="save-mode-option">
               <label>
                 <input type="radio" name="theme" value="light" ${currentTheme === "light" ? "checked" : ""}>
-                <span>Light</span>
+                <span>${t("settings.themeLight")}</span>
               </label>
             </div>
           </div>
         </div>
 
+        <div class="form-field">
+          <label for="lang-select-settings">${t("settings.labelLanguage")}</label>
+          <select id="lang-select-settings" style="width:100%">
+            ${localeOptions}
+          </select>
+        </div>
+
         <div class="modal__actions">
-          <button type="button" class="btn-secondary" id="settings-cancel">Cancel</button>
-          <button type="button" id="settings-apply">Apply</button>
+          <button type="button" class="btn-secondary" id="settings-cancel">${t("common.cancel")}</button>
+          <button type="button" id="settings-apply">${t("common.apply")}</button>
         </div>
       </div>
     `;
@@ -135,6 +148,9 @@ export class SettingsDialog {
         overlay.querySelector<HTMLInputElement>('input[name="theme"]:checked')?.value ?? "system"
       ) as Settings["theme"];
 
+      const newLang = overlay.querySelector<HTMLSelectElement>("#lang-select-settings")?.value ?? "en";
+      const langChanged = newLang !== currentLocale;
+
       const updated: Settings = {
         ...settings,
         profiles_path: newPath ?? null,
@@ -143,6 +159,11 @@ export class SettingsDialog {
 
       try {
         await api.saveSettings(updated);
+        if (langChanged) {
+          setLocale(newLang);
+          window.location.reload();
+          return;
+        }
         overlay.remove();
         await this.onAppliedCallback?.(updated);
       } catch (err) {
@@ -155,7 +176,7 @@ export class SettingsDialog {
             errEl.className = "form-error settings-error";
             actions.before(errEl);
           }
-          errEl.textContent = `Failed to save settings: ${err}`;
+          errEl.textContent = t("settings.errorSaveFailed", { error: String(err) });
         }
       }
     });

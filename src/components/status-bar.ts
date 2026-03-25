@@ -1,11 +1,5 @@
 import type { ConnectionStatus } from "../types";
-
-const STATUS_LABELS: Record<ConnectionStatus, string> = {
-  disconnected: "Not connected",
-  connecting: "Connecting…",
-  connected: "Connected",
-  error: "Error",
-};
+import { t } from "../i18n/index";
 
 export class StatusBar {
   private container: HTMLElement;
@@ -18,7 +12,13 @@ export class StatusBar {
   }
 
   set(status: ConnectionStatus, message?: string): void {
-    const label = message ?? STATUS_LABELS[status];
+    const statusLabels: Record<ConnectionStatus, string> = {
+      disconnected: t("connection.notConnected"),
+      connecting: t("connection.connecting"),
+      connected: t("connection.connected"),
+      error: t("connection.error"),
+    };
+    const label = message ?? statusLabels[status];
     this.container.innerHTML = `
       <div class="status-bar status-${status}">
         <span class="status-indicator"></span>

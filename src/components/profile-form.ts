@@ -2,6 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
 import type { SshConfigEntry } from "../api/index";
 import type { AuthType, Profile, UploadMode } from "../types";
+import { t } from "../i18n/index";
 
 function escHtml(s: string): string {
   return s
@@ -47,15 +48,15 @@ export class ProfileForm {
 
     const modeLabel =
       mode === "local_machine"
-        ? "Saved on this PC (local machine file)"
-        : "Saved in profile file — <strong>less secure / portable</strong>";
+        ? t("profileForm.credLocalMachine")
+        : t("profileForm.credPortable");
 
     return `
       <div class="form-field saved-credential-section">
-        <label>Saved Credential</label>
+        <label>${t("profileForm.labelSavedCredential")}</label>
         <div class="saved-credential-info">
           <span>${modeLabel}</span>
-          <button type="button" class="btn-secondary btn-small" id="pf-clear-cred">Clear</button>
+          <button type="button" class="btn-secondary btn-small" id="pf-clear-cred">${t("profileForm.clearCredential")}</button>
         </div>
       </div>
     `;
@@ -69,79 +70,79 @@ export class ProfileForm {
     this.overlay.className = "modal-overlay";
     this.overlay.innerHTML = `
       <div class="modal modal--form" role="dialog" aria-modal="true">
-        <div class="modal__title">${isEdit ? "Edit Profile" : "New Profile"}</div>
+        <div class="modal__title">${isEdit ? t("profileForm.titleEdit") : t("profileForm.titleNew")}</div>
         <form id="pf-form">
           <div class="form-field">
-            <label for="pf-name">Display Name *</label>
+            <label for="pf-name">${t("profileForm.labelName")}</label>
             <input id="pf-name" type="text" value="${escHtml(profile?.name ?? "")}"
-              placeholder="My Server" autocomplete="off">
+              placeholder="${t("profileForm.placeholderName")}" autocomplete="off">
           </div>
           <div class="form-field">
-            <label for="pf-host">Host *</label>
+            <label for="pf-host">${t("profileForm.labelHost")}</label>
             <input id="pf-host" type="text" value="${escHtml(profile?.host ?? "")}"
-              placeholder="192.168.1.100" autocomplete="off">
+              placeholder="${t("profileForm.placeholderHost")}" autocomplete="off">
           </div>
           <div class="form-field">
-            <label for="pf-port">Port *</label>
+            <label for="pf-port">${t("profileForm.labelPort")}</label>
             <input id="pf-port" type="number" value="${profile?.port ?? 22}"
               min="1" max="65535">
           </div>
           <div class="form-field">
-            <label for="pf-username">Username *</label>
+            <label for="pf-username">${t("profileForm.labelUsername")}</label>
             <input id="pf-username" type="text" value="${escHtml(profile?.username ?? "")}"
               placeholder="user" autocomplete="off">
           </div>
           <div class="form-field">
-            <label for="pf-auth-type">Authentication</label>
+            <label for="pf-auth-type">${t("profileForm.labelAuth")}</label>
             <select id="pf-auth-type">
-              <option value="key" ${authType === "key" ? "selected" : ""}>SSH Key</option>
-              <option value="agent" ${authType === "agent" ? "selected" : ""}>SSH Agent</option>
-              <option value="password" ${authType === "password" ? "selected" : ""}>Password</option>
+              <option value="key" ${authType === "key" ? "selected" : ""}>${t("profileForm.authKey")}</option>
+              <option value="agent" ${authType === "agent" ? "selected" : ""}>${t("profileForm.authAgent")}</option>
+              <option value="password" ${authType === "password" ? "selected" : ""}>${t("profileForm.authPassword")}</option>
             </select>
           </div>
           <div class="form-field" id="pf-key-row"${!requiresKeyPath(authType) ? ' style="display:none"' : ""}>
-            <label for="pf-key-path">Private Key Path *</label>
+            <label for="pf-key-path">${t("profileForm.labelKeyPath")}</label>
             <div class="form-field__row">
               <input id="pf-key-path" type="text" value="${escHtml(profile?.key_path ?? "")}"
-                placeholder="/home/user/.ssh/id_ed25519" autocomplete="off">
-              <button type="button" class="btn-secondary" id="pf-browse">Browse…</button>
+                placeholder="${t("profileForm.placeholderKeyPath")}" autocomplete="off">
+              <button type="button" class="btn-secondary" id="pf-browse">${t("common.browse")}</button>
             </div>
           </div>
           <div class="form-field">
-            <label for="pf-remote-path">Default Remote Path</label>
+            <label for="pf-remote-path">${t("profileForm.labelRemotePath")}</label>
             <input id="pf-remote-path" type="text" value="${escHtml(profile?.default_remote_path ?? "")}"
-              placeholder="/home/user">
+              placeholder="${t("profileForm.placeholderRemotePath")}">
           </div>
           <div class="form-field">
-            <label for="pf-local-path">Local Path</label>
+            <label for="pf-local-path">${t("profileForm.labelLocalPath")}</label>
             <div class="form-field__row">
               <input id="pf-local-path" type="text" value="${escHtml(profile?.local_path ?? "")}"
-                placeholder="/home/user/projects  (optional)">
-              <button type="button" class="btn-secondary" id="pf-browse-local">Browse…</button>
+                placeholder="${t("profileForm.placeholderLocalPath")}">
+              <button type="button" class="btn-secondary" id="pf-browse-local">${t("common.browse")}</button>
             </div>
           </div>
           <div class="form-field">
-            <label for="pf-editor">Editor Command</label>
+            <label for="pf-editor">${t("profileForm.labelEditor")}</label>
             <input id="pf-editor" type="text" value="${escHtml(profile?.editor_command ?? "")}"
-              placeholder="code  (blank = system default)">
+              placeholder="${t("profileForm.placeholderEditor")}">
           </div>
           <div class="form-field">
-            <label for="pf-upload-mode">Upload Mode</label>
+            <label for="pf-upload-mode">${t("profileForm.labelUploadMode")}</label>
             <select id="pf-upload-mode">
               <option value="confirm" ${(profile?.upload_mode ?? "confirm") === "confirm" ? "selected" : ""}>
-                Confirm before upload
+                ${t("profileForm.uploadConfirm")}
               </option>
               <option value="auto" ${profile?.upload_mode === "auto" ? "selected" : ""}>
-                Auto-upload on save
+                ${t("profileForm.uploadAuto")}
               </option>
             </select>
           </div>
           ${isEdit ? this.renderSavedCredentialSection(profile) : ""}
           <div class="form-error" id="pf-error" style="display:none"></div>
           <div class="modal__actions">
-            <button type="button" class="btn-secondary" id="pf-cancel">Cancel</button>
-            ${!isEdit ? '<button type="button" class="btn-secondary" id="pf-import-ssh">Import from SSH config…</button>' : ""}
-            <button type="submit" id="pf-save">Save</button>
+            <button type="button" class="btn-secondary" id="pf-cancel">${t("common.cancel")}</button>
+            ${!isEdit ? `<button type="button" class="btn-secondary" id="pf-import-ssh">${t("profileForm.importSsh")}</button>` : ""}
+            <button type="submit" id="pf-save">${t("common.save")}</button>
           </div>
         </form>
       </div>
@@ -188,7 +189,7 @@ export class ProfileForm {
         this.close();
         this.mount(updated);
       } catch (err) {
-        this.showError(`Failed to clear credential: ${err}`);
+        this.showError(t("profileForm.errorClearFailed", { error: String(err) }));
       }
     });
 
@@ -221,7 +222,7 @@ export class ProfileForm {
 
     if (entries.length === 0) {
       if (errorEl) {
-        errorEl.textContent = "No importable host entries found in ~/.ssh/config.";
+        errorEl.textContent = t("import.noEntries");
         errorEl.style.display = "";
       }
       return;
@@ -245,7 +246,7 @@ export class ProfileForm {
     for (const entry of selected) {
       const name = entry.host;
       if (!entry.user || !entry.user.trim()) {
-        skipped.push(`${name}: missing username`);
+        skipped.push(`${name}: ${t("import.missingUsername")}`);
         continue;
       }
       const baseId = sanitizeId(name);
@@ -278,7 +279,7 @@ export class ProfileForm {
         lastSavedId = id;
         created++;
       } catch {
-        failed.push(`${name}: save failed`);
+        failed.push(`${name}: ${t("import.saveFailed")}`);
       }
     }
 
@@ -302,23 +303,23 @@ export class ProfileForm {
 
       const details: string[] = [];
       if (skipped.length > 0) {
-        details.push(`<div><strong>Skipped:</strong><br>${skipped.map((s) => escHtml(s)).join("<br>")}</div>`);
+        details.push(`<div><strong>${t("import.resultDetailsSkipped")}</strong><br>${skipped.map((s) => escHtml(s)).join("<br>")}</div>`);
       }
       if (failed.length > 0) {
-        details.push(`<div style="margin-top:8px;"><strong>Failed:</strong><br>${failed.map((f) => escHtml(f)).join("<br>")}</div>`);
+        details.push(`<div style="margin-top:8px;"><strong>${t("import.resultDetailsFailed")}</strong><br>${failed.map((f) => escHtml(f)).join("<br>")}</div>`);
       }
 
       modal.innerHTML = `
         <div class="modal" role="dialog" aria-modal="true">
-          <div class="modal__title">SSH Import Result</div>
+          <div class="modal__title">${t("import.resultTitle")}</div>
           <div class="modal__body">
-            Created: ${created}<br>
-            Skipped: ${skipped.length}<br>
-            Failed: ${failed.length}
+            ${t("import.resultCreated", { count: created })}<br>
+            ${t("import.resultSkipped", { count: skipped.length })}<br>
+            ${t("import.resultFailed", { count: failed.length })}
             ${details.length > 0 ? `<div style="margin-top:10px">${details.join("")}</div>` : ""}
           </div>
           <div class="modal__actions">
-            <button id="ssh-import-result-ok">OK</button>
+            <button id="ssh-import-result-ok">${t("common.ok")}</button>
           </div>
         </div>
       `;
@@ -358,17 +359,20 @@ export class ProfileForm {
         })
         .join("");
 
+      const introText = entries.length === 1
+        ? t("import.introOne")
+        : t("import.introMany", { count: entries.length });
+
       modal.innerHTML = `
         <div class="modal modal--form" role="dialog" aria-modal="true">
-          <div class="modal__title">Import from SSH Config</div>
+          <div class="modal__title">${t("import.modalTitle")}</div>
           <div class="modal__body ssh-import__intro">
-            Found ${entries.length} host ${entries.length === 1 ? "entry" : "entries"} in ~/.ssh/config.
-            Select the profiles to create:
+            ${introText}
           </div>
           <div class="ssh-import__list">${rows}</div>
           <div class="modal__actions">
-            <button class="btn-secondary" id="ssh-import-cancel">Cancel</button>
-            <button id="ssh-import-confirm">Import Selected</button>
+            <button class="btn-secondary" id="ssh-import-cancel">${t("common.cancel")}</button>
+            <button id="ssh-import-confirm">${t("import.importSelected")}</button>
           </div>
         </div>
       `;
@@ -407,19 +411,19 @@ export class ProfileForm {
 
     // Validate
     const errors: string[] = [];
-    if (!name) errors.push("Display name is required.");
-    if (!host) errors.push("Host is required.");
+    if (!name) errors.push(t("profileForm.errorNameRequired"));
+    if (!host) errors.push(t("profileForm.errorHostRequired"));
     const port = parseInt(portStr, 10);
     if (isNaN(port) || port < 1 || port > 65535) {
-      errors.push("Port must be a number between 1 and 65535.");
+      errors.push(t("profileForm.errorPortInvalid"));
     }
-    if (!username) errors.push("Username is required.");
+    if (!username) errors.push(t("profileForm.errorUsernameRequired"));
     if (authType === "key") {
       if (!keyPath) {
-        errors.push("Private key path is required for key authentication.");
+        errors.push(t("profileForm.errorKeyRequired"));
       } else {
         const exists = await api.checkPathExists(keyPath);
-        if (!exists) errors.push(`Key file not found: ${keyPath}`);
+        if (!exists) errors.push(t("profileForm.errorKeyNotFound", { path: keyPath }));
       }
     }
 
@@ -434,7 +438,7 @@ export class ProfileForm {
     if (!isEdit) {
       const existing = await api.listProfiles();
       if (existing.some((p) => p.id === id)) {
-        this.showError("A profile with a similar name already exists. Choose a different display name.");
+        this.showError(t("profileForm.errorProfileExists"));
         return;
       }
     }

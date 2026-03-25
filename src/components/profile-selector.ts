@@ -1,5 +1,6 @@
 import * as api from "../api/index";
 import type { Profile, Settings } from "../types";
+import { t } from "../i18n/index";
 
 function escapeHtml(str: string): string {
   return str
@@ -100,7 +101,11 @@ export class ProfileSelector {
 
     if (connectBtn) {
       connectBtn.disabled = isConnected || this.isConnecting || !hasSelection;
-      connectBtn.textContent = isConnected ? "Connected" : this.isConnecting ? "Connecting…" : "Connect";
+      connectBtn.textContent = isConnected
+        ? t("profiles.connected")
+        : this.isConnecting
+        ? t("profiles.connecting")
+        : t("profiles.connect");
     }
     if (editBtn) editBtn.disabled = isConnected || this.isConnecting || !hasSelection;
     if (deleteBtn) deleteBtn.disabled = isConnected || this.isConnecting || !hasSelection;
@@ -116,7 +121,11 @@ export class ProfileSelector {
     this.updateButtonStates();
     const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
     if (connectBtn) {
-      connectBtn.textContent = this.isConnecting ? "Connecting…" : this.isConnected ? "Connected" : "Connect";
+      connectBtn.textContent = this.isConnecting
+        ? t("profiles.connecting")
+        : this.isConnected
+        ? t("profiles.connected")
+        : t("profiles.connect");
     }
   }
 
@@ -135,7 +144,11 @@ export class ProfileSelector {
     if (deleteBtn) deleteBtn.disabled = this.isConnected || this.isConnecting || !hasSelection;
     if (connectBtn) {
       connectBtn.disabled = this.isConnected || this.isConnecting || !hasSelection;
-      connectBtn.textContent = this.isConnected ? "Connected" : this.isConnecting ? "Connecting…" : "Connect";
+      connectBtn.textContent = this.isConnected
+        ? t("profiles.connected")
+        : this.isConnecting
+        ? t("profiles.connecting")
+        : t("profiles.connect");
     }
   }
 
@@ -150,18 +163,18 @@ export class ProfileSelector {
               `<option value="${escapeHtml(p.id)}" ${p.id === this.selectedId ? "selected" : ""}>${escapeHtml(p.name)}</option>`
           )
           .join("")
-      : '<option value="">No profiles saved</option>';
+      : `<option value="">${t("profiles.noProfiles")}</option>`;
 
     this.container.innerHTML = `
       <div class="profile-selector">
-        <label for="profile-select">Profile</label>
+        <label for="profile-select">${t("profiles.label")}</label>
         <select id="profile-select" ${!hasProfiles ? "disabled" : ""}>${options}</select>
         <div class="profile-mgmt-btns">
-          <button class="btn-secondary" id="new-profile-btn">New</button>
-          <button class="btn-secondary" id="edit-profile-btn" ${!hasSelection ? "disabled" : ""}>Edit</button>
-          <button class="btn-secondary btn-danger" id="delete-profile-btn" ${!hasSelection ? "disabled" : ""}>Delete</button>
+          <button class="btn-secondary" id="new-profile-btn">${t("profiles.new")}</button>
+          <button class="btn-secondary" id="edit-profile-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.edit")}</button>
+          <button class="btn-secondary btn-danger" id="delete-profile-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.delete")}</button>
         </div>
-        <button id="connect-btn" ${!hasSelection ? "disabled" : ""}>Connect</button>
+        <button id="connect-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.connect")}</button>
       </div>
     `;
 

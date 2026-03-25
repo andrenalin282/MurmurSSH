@@ -9,6 +9,7 @@ import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
 import { showOverwriteDialog } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
+import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
 // ── Help / About dialog ───────────────────────────────────────────────────────
 async function showHelpDialog() {
     // Fetch the version from the backend (reads tauri.conf.json at build time)
@@ -20,33 +21,28 @@ async function showHelpDialog() {
         // Non-fatal — version display is informational only
     }
     const versionLine = version
-        ? `<p style="color:var(--fg-subtle);font-size:12px;">Version ${version}</p>`
+        ? `<p style="color:var(--fg-subtle);font-size:12px;">${t("app.helpVersion", { version })}</p>`
         : "";
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
     overlay.innerHTML = `
     <div class="modal modal--form" role="dialog" aria-modal="true">
-      <div class="modal__title">About MurmurSSH</div>
+      <div class="modal__title">${t("app.helpTitle")}</div>
       <div class="modal__body">
         ${versionLine}
-        <p><strong>MurmurSSH</strong> is a minimal open-source SSH and SFTP desktop client for Linux.</p>
-        <p>It lets you manage connection profiles, browse remote files over SFTP, and open SSH terminal sessions — all without cloud services or telemetry.</p>
-        <p><strong>Your data stays local.</strong> All profiles, credentials, and files are stored on your machine only. Nothing is sent to any server unless you explicitly upload a file.</p>
-        <p><strong>SSH key compatibility:</strong> If your private key is stored on a mounted or network filesystem, the system SSH client may reject it due to file permission requirements. MurmurSSH can create a local runtime copy of the key (in <code>~/.config/murmurssh/runtime-keys/</code>) with the correct permissions for terminal use. The original key is never modified. The copy is temporary and is deleted when you disconnect.</p>
-        <p><strong>Note:</strong> Terminal windows opened via the Terminal button must be closed manually when you are done.</p>
-        <p>Created by <strong>Kai André Schultka</strong> with <strong>Claude Code</strong>.</p>
+        ${t("app.helpBodyHtml")}
         <p style="margin-top:12px;">
-          <a href="#" id="help-website-link" style="color:var(--accent);">Website</a>
+          <a href="#" id="help-website-link" style="color:var(--accent);">${t("app.helpWebsite")}</a>
           &nbsp;·&nbsp;
-          <a href="#" id="help-github-link" style="color:var(--accent);">GitHub</a>
+          <a href="#" id="help-github-link" style="color:var(--accent);">${t("app.helpGitHub")}</a>
           &nbsp;·&nbsp;
-          <a href="#" id="help-issues-link" style="color:var(--accent);">Report an Issue</a>
+          <a href="#" id="help-issues-link" style="color:var(--accent);">${t("app.helpReportIssue")}</a>
           &nbsp;·&nbsp;
-          <a href="#" id="help-releases-link" style="color:var(--accent);">Releases</a>
+          <a href="#" id="help-releases-link" style="color:var(--accent);">${t("app.helpReleases")}</a>
         </p>
       </div>
       <div class="modal__actions">
-        <button id="help-close">Close</button>
+        <button id="help-close">${t("app.helpClose")}</button>
       </div>
     </div>
   `;
@@ -142,26 +138,64 @@ settingsDialog.onApplied(async (savedSettings) => {
     applyTheme(savedSettings.theme ?? "system");
     await profileSelector.reload();
 });
-// Sidebar footer: folder, settings, help, donate, quit buttons
+// ── Language button ───────────────────────────────────────────────────────────
+function renderLanguageButton(container) {
+    const locales = getAvailableLocales();
+    const current = getLocale();
+    // Build a minimal dropdown or just a status button when only one locale exists
+    if (locales.length <= 1) {
+        container.innerHTML = `
+      <button class="btn-secondary sidebar-lang-btn" id="lang-btn"
+        title="${t("language.tooltip")}" aria-label="${t("language.tooltip")}">
+        ${t("app.languageBtn")}
+      </button>
+    `;
+        // Single locale: button is informational only, no action needed
+        return;
+    }
+    // Multiple locales: render a simple dropdown
+    const options = locales
+        .map((l) => `<option value="${l.key}" ${l.key === current ? "selected" : ""}>${l.label}</option>`)
+        .join("");
+    container.innerHTML = `
+    <div class="sidebar-lang-select">
+      <select id="lang-select" title="${t("language.tooltip")}" aria-label="${t("language.tooltip")}">
+        ${options}
+      </select>
+    </div>
+  `;
+    container.querySelector("#lang-select")?.addEventListener("change", (e) => {
+        const key = e.target.value;
+        setLocale(key);
+        // Reload the page to apply the new locale across all components
+        window.location.reload();
+    });
+}
+// Sidebar footer: folder, settings, language, help, donate, quit buttons
 const sidebarFooter = document.getElementById("sidebar-footer");
 if (sidebarFooter) {
     sidebarFooter.innerHTML = `
     <div class="sidebar-footer-btns">
-      <button class="btn-secondary" id="open-folder-btn" title="Open profile folder">📁 Profiles</button>
-      <button class="btn-secondary" id="settings-btn" title="Settings">⚙ Settings</button>
+      <button class="btn-secondary" id="open-folder-btn" title="${t("app.openProfilesBtnTitle")}">${t("app.openProfilesBtn")}</button>
+      <button class="btn-secondary" id="settings-btn" title="${t("app.settingsBtn")}">${t("app.settingsBtn")}</button>
+      <div id="lang-btn-container"></div>
     </div>
     <div class="sidebar-footer-btns sidebar-footer-btns--row2">
+    <button class="btn-secondary btn-quit" id="quit-btn" title="Quit MurmurSSH" aria-label="Quit MurmurSSH">🚪</button>
       <button class="btn-secondary" id="help-btn" title="About MurmurSSH" aria-label="About MurmurSSH">❓</button>
       <a href="#" id="donate-btn" class="btn-secondary sidebar-donate-btn" title="Spend me a coffee">☕ </a>
-      <button class="btn-secondary btn-quit" id="quit-btn" title="Quit MurmurSSH" aria-label="Quit MurmurSSH">🚪</button>
     </div>
   `;
+    const langContainer = document.getElementById("lang-btn-container");
+    if (langContainer) {
+        renderLanguageButton(langContainer);
+    }
     document.getElementById("open-folder-btn")?.addEventListener("click", async () => {
         try {
             await api.openProfileFolder();
         }
         catch (err) {
-            statusBar.set("error", `Cannot open folder: ${err}`);
+            statusBar.set("error", t("app.cannotOpenFolder", { error: String(err) }));
         }
     });
     document.getElementById("settings-btn")?.addEventListener("click", () => {
@@ -194,7 +228,10 @@ profileSelector.onEdit((profile) => {
 profileSelector.onDelete(async (profileId) => {
     const profile = profileSelector.getSelectedProfile();
     const name = profile?.name ?? profileId;
-    const confirmed = await showConfirm(`Delete profile "${name}"? This only removes the profile, not any workspace files.`, "Delete Profile");
+    const confirmed = await showConfirm(
+        t("profiles.deleteMsg", { name }),
+        t("profiles.deleteTitle")
+    );
     if (!confirmed)
         return;
     try {
@@ -202,7 +239,7 @@ profileSelector.onDelete(async (profileId) => {
         await profileSelector.reload();
     }
     catch (err) {
-        statusBar.set("error", `Could not delete profile: ${err}`);
+        statusBar.set("error", t("profiles.deleteFailed", { error: String(err) }));
     }
 });
 /**
@@ -224,10 +261,10 @@ async function verifyConnection(profileId, password, passphrase) {
             const fingerprint = err.slice("UNKNOWN_HOST:".length);
             const profile = profileSelector.getSelectedProfile();
             const host = profile?.host ?? profileId;
-            statusBar.set("connecting", "Verifying host key…");
+            statusBar.set("connecting", t("connection.verifyingHostKey"));
             const decision = await showHostKeyDialog(host, fingerprint);
             if (decision === "cancel") {
-                statusBar.set("error", "Connection cancelled: host key not trusted.");
+                statusBar.set("error", t("connection.hostKeyNotTrusted"));
                 return false;
             }
             // Record trust — either session-only or persistently in known_hosts
@@ -241,7 +278,7 @@ async function verifyConnection(profileId, password, passphrase) {
                 }
             }
             catch (trustErr) {
-                statusBar.set("error", `Failed to trust host key: ${trustErr}`);
+                statusBar.set("error", t("connection.failedToTrustKey", { error: String(trustErr) }));
                 return false;
             }
             // Retry the same connection with the same credentials — no re-prompt.
@@ -249,7 +286,7 @@ async function verifyConnection(profileId, password, passphrase) {
         }
         if (err === "NEED_PASSWORD") {
             const profile = profileSelector.getSelectedProfile();
-            statusBar.set("connecting", "Awaiting password…");
+            statusBar.set("connecting", t("connection.awaitingPassword"));
             const result = await showPasswordPrompt(profile?.username ?? "", profile?.host ?? profileId);
             if (result === null) {
                 statusBar.set("disconnected");
@@ -268,7 +305,7 @@ async function verifyConnection(profileId, password, passphrase) {
         }
         if (err === "NEED_PASSPHRASE") {
             const profile = profileSelector.getSelectedProfile();
-            statusBar.set("connecting", "Awaiting passphrase…");
+            statusBar.set("connecting", t("connection.awaitingPassphrase"));
             // showPassphrasePrompt returns string | null — no save mode, passphrases are runtime-only
             const pp = await showPassphrasePrompt(profile?.key_path ?? "SSH key");
             if (pp === null) {
@@ -287,7 +324,10 @@ async function verifyConnection(profileId, password, passphrase) {
 listen("upload-ready", async (event) => {
     const { profile_id, local_path, remote_path } = event.payload;
     const filename = remote_path.split("/").pop() ?? remote_path;
-    const confirmed = await showConfirm(`Upload changes to "${filename}" back to the server?\n${remote_path}`, "Upload File");
+    const confirmed = await showConfirm(
+        t("app.uploadReadyMsg", { filename, remotePath: remote_path }),
+        t("app.uploadFileTitle")
+    );
     if (!confirmed)
         return;
     // Keep overwrite behavior consistent with all other upload paths.
@@ -296,11 +336,11 @@ listen("upload-ready", async (event) => {
         if (exists) {
             const overwrite = await showOverwriteDialog(filename);
             if (overwrite.action === "cancel") {
-                statusBar.set("connected", "Upload cancelled.");
+                statusBar.set("connected", t("app.uploadCancelled"));
                 return;
             }
             if (overwrite.action === "no") {
-                statusBar.set("connected", "Upload skipped.");
+                statusBar.set("connected", t("app.uploadSkipped"));
                 return;
             }
         }
@@ -310,20 +350,20 @@ listen("upload-ready", async (event) => {
     }
     try {
         await api.uploadFile(profile_id, local_path, remote_path);
-        statusBar.set("connected", `Uploaded ${filename}`);
+        statusBar.set("connected", t("app.uploadedFile", { filename }));
     }
     catch (err) {
-        statusBar.set("error", `Upload failed: ${err}`);
+        statusBar.set("error", t("app.uploadFailed", { error: String(err) }));
     }
 });
 // Auto-upload mode: backend uploaded without asking, just show confirmation
 listen("upload-complete", (event) => {
     const filename = event.payload.split("/").pop() ?? event.payload;
-    statusBar.set("connected", `Auto-uploaded ${filename}`);
+    statusBar.set("connected", t("app.autoUploaded", { filename }));
 });
 // Auto-upload mode: backend upload failed, surface the error
 listen("upload-error", (event) => {
-    statusBar.set("error", `Auto-upload failed: ${event.payload}`);
+    statusBar.set("error", t("app.autoUploadFailed", { error: event.payload }));
 });
 profileSelector.onConnect(async (profileId) => {
     const profile = profileSelector.getSelectedProfile();
@@ -334,7 +374,7 @@ profileSelector.onConnect(async (profileId) => {
         return;
     connectingProfileId = profileId;
     profileSelector.setConnecting(true);
-    statusBar.set("connecting", "Connecting…");
+    statusBar.set("connecting", t("connection.connectingStatus"));
     // Verify SFTP connection (host key + auth) before browsing
     const ok = await verifyConnection(profileId);
     if (!ok) {
@@ -362,7 +402,7 @@ profileSelector.onConnect(async (profileId) => {
     catch {
         // Non-fatal — last-used profile restore on next launch will just fall back to first
     }
-    statusBar.set("connected", `Connected to ${profile.host}`);
+    statusBar.set("connected", t("connection.connectedTo", { host: profile.host }));
     // Determine the initial remote path for the file browser.
     // If the profile has an explicit remote path configured, use it.
     // Otherwise, ask the SFTP server for its effective start directory (realpath("."))
