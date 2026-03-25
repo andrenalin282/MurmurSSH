@@ -48,13 +48,10 @@ const en = {
     upload: "Upload",
     uploadFolder: "Upload Folder",
     download: "Download",
-    downloadFolder: "Download Folder",
-    downloadMultiple: "Download ({count})",
     rename: "Rename",
     moveTo: "Move to…",
     edit: "Edit",
     delete: "Delete",
-    deleteMultiple: "Delete ({count})",
     newFile: "New File",
     newFolder: "New Folder",
     // Transfer progress

@@ -1,7 +1,8 @@
 import en from "./en";
 import de from "./de";
 
-type Locale = typeof en;
+type DeepStringify<T> = T extends string ? string : { [K in keyof T]: DeepStringify<T[K]> };
+type Locale = DeepStringify<typeof en>;
 
 const locales: Record<string, Locale> = { en, de };
 const STORAGE_KEY = "murmurssh_locale";

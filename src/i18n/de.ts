@@ -48,13 +48,10 @@ const de = {
         upload: "Hochladen",
         uploadFolder: "Ordner hochladen",
         download: "Herunterladen",
-        downloadFolder: "Ordner herunterladen",
-        downloadMultiple: "Herunterladen ({count})",
         rename: "Umbenennen",
         moveTo: "Verschieben nach…",
         edit: "Bearbeiten",
         delete: "Löschen",
-        deleteMultiple: "Löschen ({count})",
         newFile: "Neue Datei",
         newFolder: "Neuer Ordner",
         // Transfer progress

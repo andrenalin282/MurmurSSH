@@ -12,6 +12,20 @@ No changes yet.
 
 ---
 
+## [1.0.4] - 2026-03-25
+
+### Fixed
+- Icon-only button rendering issues resolved — toolbar and action bar buttons now consistently render icon-only across all states (connected, disconnected, empty)
+- Removed redundant visible labels from Upload, Upload Folder, New File, New Folder, and Terminal action buttons after icon migration
+- Language file inconsistencies corrected — removed orphaned keys (`downloadFolder`, `downloadMultiple`, `deleteMultiple`) from EN and DE locales
+- TypeScript locale type widened (`DeepStringify`) so the German locale no longer causes a type mismatch against the English base type
+
+### Improved
+- Better space usage in the action bar — all action buttons are now icon-only, reducing clutter and improving usability at narrow widths
+- More consistent icon-based interface across toolbar and file browser actions
+
+---
+
 ## [1.0.3] - 2026-03-25
 
 ### Added

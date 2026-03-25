@@ -204,7 +204,7 @@ export class FileBrowser {
       <div class="file-browser file-browser--empty">
         <div class="file-browser__toolbar">
           <button id="disconnect-btn" disabled title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
-          <button id="terminal-btn"   disabled title="${t("fileBrowser.terminal")}">${ICONS.terminal} ${t("fileBrowser.terminal")}</button>
+          <button id="terminal-btn"   disabled title="${t("fileBrowser.terminal")}">${ICONS.terminal}</button>
           <button id="home-btn"       disabled title="${t("fileBrowser.home")}">${ICONS.home}</button>
           <button id="up-btn"         disabled title="${t("fileBrowser.up")}">${ICONS.up}</button>
           <button id="refresh-btn"    disabled title="${t("fileBrowser.refresh")}">${ICONS.refresh}</button>
@@ -226,7 +226,6 @@ export class FileBrowser {
     const hasAny = selCount > 0;
     const hasExactlyOne = selCount === 1;
     const hasFile = hasExactlyOne && singleEntry !== null && !singleEntry.is_dir;
-    const hasDir = hasExactlyOne && singleEntry !== null && singleEntry.is_dir;
 
     // ".." row — also a drop target when dragging items
     const upRow = isAtRoot
@@ -268,18 +267,7 @@ export class FileBrowser {
       ? `<div class="file-browser__inline-error">${escHtml(this.inlineError)}</div>`
       : "";
 
-    // Download button label
-    const downloadLabel = selCount > 1
-      ? t("fileBrowser.downloadMultiple", { count: selCount })
-      : hasDir
-      ? t("fileBrowser.downloadFolder")
-      : t("fileBrowser.download");
     const downloadDisabled = !hasAny || this.busy;
-
-    // Delete button label
-    const deleteLabel = selCount > 1
-      ? t("fileBrowser.deleteMultiple", { count: selCount })
-      : t("fileBrowser.delete");
 
     // Transfer progress bar
     const tp = this.transferProgress;
@@ -314,15 +302,15 @@ export class FileBrowser {
         </div>
         ${selectionInfo}
         <div class="file-browser__actions">
-          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.upload")}">${ICONS.upload} ${t("fileBrowser.upload")}</button>
-          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.uploadFolder")}">${ICONS.uploadFolder} ${t("fileBrowser.uploadFolder")}</button>
+          <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.upload")}">${ICONS.upload}</button>
+          <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.uploadFolder")}">${ICONS.uploadFolder}</button>
           <button id="download-btn"      ${downloadDisabled ? "disabled" : ""} title="${t("fileBrowser.download")}">${ICONS.download}</button>
           <button id="rename-btn"        ${!hasExactlyOne || this.busy ? "disabled" : ""} title="${t("fileBrowser.rename")}">${ICONS.rename}</button>
           <button id="move-btn"          ${!hasAny || this.busy ? "disabled" : ""} title="${t("fileBrowser.moveTo")}">${ICONS.moveTo}</button>
           <button id="edit-btn"          ${!hasFile || this.busy ? "disabled" : ""} title="${t("fileBrowser.edit")}">${ICONS.edit}</button>
           <button id="delete-btn"        ${!hasAny  || this.busy ? "disabled" : ""} title="${t("fileBrowser.delete")}">${ICONS.delete}</button>
-          <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFile")}">${ICONS.newFile} ${t("fileBrowser.newFile")}</button>
-          <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder} ${t("fileBrowser.newFolder")}</button>
+          <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFile")}">${ICONS.newFile}</button>
+          <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder}</button>
         </div>
         ${transferProgressHtml}
       </div>
@@ -1382,7 +1370,7 @@ export class FileBrowser {
 
   // ── Context menu ───────────────────────────────────────────────────────────
 
-  private buildFileContextItems(name: string): CtxMenuItem[] {
+  private buildFileContextItems(_name: string): CtxMenuItem[] {
     return [
       { icon: ICONS.download, label: t("fileBrowser.download"), action: () => this.handleDownload() },
       { icon: ICONS.edit,     label: t("fileBrowser.edit"),     action: () => this.handleEdit() },

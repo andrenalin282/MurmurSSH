@@ -12,7 +12,6 @@ const de = {
         applyToAll: "Auf alle anwenden",
         cancelling: "Wird abgebrochen…",
     },
-
     connection: {
         notConnected: "Nicht verbunden",
         connecting: "Verbinde…",
@@ -26,7 +25,6 @@ const de = {
         hostKeyNotTrusted: "Verbindung abgebrochen: Host-Schlüssel nicht vertrauenswürdig.",
         failedToTrustKey: "Host-Schlüssel konnte nicht akzeptiert werden: {error}",
     },
-
     fileBrowser: {
         // Toolbar
         disconnect: "Trennen",
@@ -48,13 +46,10 @@ const de = {
         upload: "Hochladen",
         uploadFolder: "Ordner hochladen",
         download: "Herunterladen",
-        downloadFolder: "Ordner herunterladen",
-        downloadMultiple: "Herunterladen ({count})",
         rename: "Umbenennen",
         moveTo: "Verschieben nach…",
         edit: "Bearbeiten",
         delete: "Löschen",
-        deleteMultiple: "Löschen ({count})",
         newFile: "Neue Datei",
         newFolder: "Neuer Ordner",
         // Transfer progress
@@ -130,7 +125,6 @@ const de = {
         copyKeyTitle: "Schlüssel lokal für Terminal kopieren?",
         copyKeyMsg: "Der SSH-Schlüssel dieses Profils hat Berechtigungen, die OpenSSH möglicherweise ablehnt.\n\nMurmurSSH kann eine lokale Laufzeitkopie des Schlüssels mit korrekten Berechtigungen nur für diese Terminal-Sitzung erstellen. Die Originaldatei wird nicht verändert.\n\nDie Kopie wird beim Trennen der Verbindung gelöscht.",
     },
-
     profiles: {
         label: "Profil",
         noProfiles: "Keine Profile gespeichert",
@@ -144,7 +138,6 @@ const de = {
         deleteMsg: "Profil \"{name}\" löschen? Es werden nur die Profildaten entfernt, keine Workspace-Dateien.",
         deleteFailed: "Profil konnte nicht gelöscht werden: {error}",
     },
-
     profileForm: {
         titleNew: "Neues Profil",
         titleEdit: "Profil bearbeiten",
@@ -183,7 +176,6 @@ const de = {
         errorProfileExists: "Ein Profil mit ähnlichem Namen existiert bereits. Bitte einen anderen Anzeigenamen wählen.",
         errorClearFailed: "Anmeldedaten konnten nicht gelöscht werden: {error}",
     },
-
     settings: {
         title: "Einstellungen",
         labelStoragePath: "Speicherort für Profile",
@@ -200,7 +192,6 @@ const de = {
         labelLanguage: "Sprache",
         errorSaveFailed: "Einstellungen konnten nicht gespeichert werden: {error}",
     },
-
     dialogs: {
         promptCancel: "Abbrechen",
         promptOk: "OK",
@@ -214,7 +205,6 @@ const de = {
         overwriteNo: "Nein",
         overwriteYes: "Ja",
     },
-
     credentials: {
         passwordTitle: "Passwort erforderlich",
         passwordBody: "Passwort für {username}@{host} eingeben",
@@ -240,7 +230,6 @@ const de = {
         hostKeyOnce: "Einmalig akzeptieren",
         hostKeySave: "Akzeptieren und speichern",
     },
-
     import: {
         modalTitle: "Aus SSH-Konfiguration importieren",
         introOne: "1 Host-Eintrag in ~/.ssh/config gefunden. Profile zum Erstellen auswählen:",
@@ -256,7 +245,6 @@ const de = {
         missingUsername: "Benutzername fehlt",
         saveFailed: "Speichern fehlgeschlagen",
     },
-
     app: {
         helpTitle: "Über MurmurSSH",
         helpVersion: "Version {version}",
@@ -287,7 +275,6 @@ const de = {
         autoUploaded: "{filename} automatisch hochgeladen",
         autoUploadFailed: "Automatischer Upload fehlgeschlagen: {error}",
     },
-
     language: {
         current: "DE",
         english: "Englisch",
@@ -295,5 +282,4 @@ const de = {
         tooltip: "Sprache: Deutsch",
     },
 };
-
 export default de;

@@ -1,23 +1,21 @@
 import { t } from "../i18n/index";
-
 function escHtml(s) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
-
 /**
  * Show a simple in-app prompt dialog with a text input.
  * Returns the entered string (trimmed) or null if cancelled / empty.
  * Pass `initialValue` to pre-fill the input (e.g. for rename dialogs).
  */
 export function showPrompt(title, placeholder = "", initialValue = "") {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal__title">${escHtml(title)}</div>
         <div class="form-field" style="margin-bottom:0">
@@ -29,41 +27,43 @@ export function showPrompt(title, placeholder = "", initialValue = "") {
         </div>
       </div>
     `;
-
-    document.body.appendChild(overlay);
-
-    const input = overlay.querySelector("#modal-prompt-input");
-    // Focus the input after a short delay so the modal is rendered; select all if pre-filled
-    setTimeout(() => { input.focus(); if (initialValue) input.select(); }, 10);
-
-    const cleanup = (result) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    const submit = () => {
-      const val = input.value.trim();
-      cleanup(val || null);
-    };
-
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") submit();
-      if (e.key === "Escape") cleanup(null);
+        document.body.appendChild(overlay);
+        const input = overlay.querySelector("#modal-prompt-input");
+        // Focus the input after a short delay so the modal is rendered; select all if pre-filled
+        setTimeout(() => { input.focus(); if (initialValue)
+            input.select(); }, 10);
+        const cleanup = (result) => {
+            overlay.remove();
+            resolve(result);
+        };
+        const submit = () => {
+            const val = input.value.trim();
+            cleanup(val || null);
+        };
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter")
+                submit();
+            if (e.key === "Escape")
+                cleanup(null);
+        });
+        overlay.querySelector("#modal-cancel")?.addEventListener("click", () => cleanup(null));
+        overlay.querySelector("#modal-confirm")?.addEventListener("click", submit);
     });
-
-    overlay.querySelector("#modal-cancel")?.addEventListener("click", () => cleanup(null));
-    overlay.querySelector("#modal-confirm")?.addEventListener("click", submit);
-  });
 }
-
 /**
  * Show the upload-overwrite dialog for a single file conflict.
+ *
+ * Returns the user's chosen action and whether "Apply to all" was checked:
+ * - action "yes"    → overwrite this (and optionally all) files
+ * - action "no"     → skip this (and optionally all) files
+ * - action "cancel" → abort the entire upload batch
+ * - applyToAll      → caller should remember `action` for remaining conflicts
  */
 export function showOverwriteDialog(filename) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal__title">${t("dialogs.overwriteTitle")}</div>
         <div class="modal__body">
@@ -81,33 +81,29 @@ export function showOverwriteDialog(filename) {
         </div>
       </div>
     `;
-    document.body.appendChild(overlay);
-
-    const checkbox = overlay.querySelector("#overwrite-apply-all");
-    const cleanup = (action) => {
-      overlay.remove();
-      resolve({ action, applyToAll: checkbox.checked });
-    };
-
-    overlay.querySelector("#overwrite-cancel")?.addEventListener("click", () => cleanup("cancel"));
-    overlay.querySelector("#overwrite-no")?.addEventListener("click", () => cleanup("no"));
-    overlay.querySelector("#overwrite-yes")?.addEventListener("click", () => cleanup("yes"));
-
-    // Default focus on Yes so Enter confirms
-    setTimeout(() => overlay.querySelector("#overwrite-yes")?.focus(), 10);
-  });
+        document.body.appendChild(overlay);
+        const checkbox = overlay.querySelector("#overwrite-apply-all");
+        const cleanup = (action) => {
+            overlay.remove();
+            resolve({ action, applyToAll: checkbox.checked });
+        };
+        overlay.querySelector("#overwrite-cancel")?.addEventListener("click", () => cleanup("cancel"));
+        overlay.querySelector("#overwrite-no")?.addEventListener("click", () => cleanup("no"));
+        overlay.querySelector("#overwrite-yes")?.addEventListener("click", () => cleanup("yes"));
+        // Default focus on Yes so Enter confirms
+        setTimeout(() => overlay.querySelector("#overwrite-yes")?.focus(), 10);
+    });
 }
-
 /**
  * Show a simple in-app confirmation dialog.
  * Returns a promise that resolves to true (confirmed) or false (cancelled).
  */
 export function showConfirm(message, title) {
-  const resolvedTitle = title ?? t("dialogs.confirmConfirm");
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+    const resolvedTitle = title ?? t("dialogs.confirmConfirm");
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal__title">${escHtml(resolvedTitle)}</div>
         <div class="modal__body">${escHtml(message)}</div>
@@ -117,15 +113,12 @@ export function showConfirm(message, title) {
         </div>
       </div>
     `;
-
-    document.body.appendChild(overlay);
-
-    const cleanup = (result) => {
-      overlay.remove();
-      resolve(result);
-    };
-
-    overlay.querySelector("#modal-cancel")?.addEventListener("click", () => cleanup(false));
-    overlay.querySelector("#modal-confirm")?.addEventListener("click", () => cleanup(true));
-  });
+        document.body.appendChild(overlay);
+        const cleanup = (result) => {
+            overlay.remove();
+            resolve(result);
+        };
+        overlay.querySelector("#modal-cancel")?.addEventListener("click", () => cleanup(false));
+        overlay.querySelector("#modal-confirm")?.addEventListener("click", () => cleanup(true));
+    });
 }

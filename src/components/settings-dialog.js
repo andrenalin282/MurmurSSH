@@ -1,42 +1,41 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
 import { t, getLocale, setLocale, getAvailableLocales } from "../i18n/index";
-
 function escHtml(s) {
-  return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    return s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
 }
-
 export class SettingsDialog {
-  constructor() {
-    this.onAppliedCallback = null;
-  }
-
-  onApplied(cb) {
-    this.onAppliedCallback = cb;
-  }
-
-  async show() {
-    const [settings, activePath] = await Promise.all([
-      api.getSettings(),
-      api.getProfilesPath(),
-    ]);
-
-    const isCustom = !!(settings.profiles_path && settings.profiles_path.trim());
-    const customPath = settings.profiles_path ?? "";
-    const currentTheme = settings.theme ?? "system";
-    const currentLocale = getLocale();
-    const availableLocales = getAvailableLocales();
-    const localeOptions = availableLocales
-      .map((l) => `<option value="${l.key}" ${l.key === currentLocale ? "selected" : ""}>${l.label}</option>`)
-      .join("");
-
-    const overlay = document.createElement("div");
-    overlay.className = "modal-overlay";
-    overlay.innerHTML = `
+    constructor() {
+        /**
+         * Called after settings are saved.
+         * Receives the newly saved Settings so callers can react immediately
+         * (e.g. apply theme without a page reload).
+         */
+        this.onAppliedCallback = null;
+    }
+    onApplied(cb) {
+        this.onAppliedCallback = cb;
+    }
+    async show() {
+        const [settings, activePath] = await Promise.all([
+            api.getSettings(),
+            api.getProfilesPath(),
+        ]);
+        const isCustom = !!(settings.profiles_path && settings.profiles_path.trim());
+        const customPath = settings.profiles_path ?? "";
+        const currentTheme = settings.theme ?? "system";
+        const currentLocale = getLocale();
+        const availableLocales = getAvailableLocales();
+        const localeOptions = availableLocales
+            .map((l) => `<option value="${l.key}" ${l.key === currentLocale ? "selected" : ""}>${l.label}</option>`)
+            .join("");
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        overlay.innerHTML = `
       <div class="modal modal--form" role="dialog" aria-modal="true">
         <div class="modal__title">${t("settings.title")}</div>
 
@@ -105,70 +104,64 @@ export class SettingsDialog {
         </div>
       </div>
     `;
-
-    document.body.appendChild(overlay);
-
-    const pathInput = overlay.querySelector("#custom-path-input");
-    const customRow = overlay.querySelector("#custom-path-row");
-
-    overlay.querySelectorAll('input[name="path-mode"]').forEach((radio) => {
-      radio.addEventListener("change", () => {
-        customRow.style.display = radio.value === "custom" && radio.checked ? "" : "none";
-      });
-    });
-
-    overlay.querySelector("#browse-dir-btn")?.addEventListener("click", async () => {
-      const selected = await open({ directory: true, multiple: false });
-      if (selected && typeof selected === "string") {
-        pathInput.value = selected;
-      }
-    });
-
-    overlay.querySelector("#settings-cancel")?.addEventListener("click", () => {
-      overlay.remove();
-    });
-
-    overlay.querySelector("#settings-apply")?.addEventListener("click", async () => {
-      const mode = overlay.querySelector('input[name="path-mode"]:checked')?.value;
-      const newPath = mode === "custom" ? pathInput.value.trim() : null;
-
-      if (mode === "custom" && !newPath) {
-        pathInput.focus();
-        return;
-      }
-
-      const newTheme = overlay.querySelector('input[name="theme"]:checked')?.value ?? "system";
-
-      const newLang = overlay.querySelector("#lang-select-settings")?.value ?? "en";
-      const langChanged = newLang !== currentLocale;
-
-      const updated = {
-        ...settings,
-        profiles_path: newPath ?? null,
-        theme: newTheme,
-      };
-
-      try {
-        await api.saveSettings(updated);
-        if (langChanged) {
-          setLocale(newLang);
-          window.location.reload();
-          return;
-        }
-        overlay.remove();
-        await this.onAppliedCallback?.(updated);
-      } catch (err) {
-        const actions = overlay.querySelector(".modal__actions");
-        if (actions) {
-          let errEl = overlay.querySelector(".settings-error");
-          if (!errEl) {
-            errEl = document.createElement("div");
-            errEl.className = "form-error settings-error";
-            actions.before(errEl);
-          }
-          errEl.textContent = t("settings.errorSaveFailed", { error: String(err) });
-        }
-      }
-    });
-  }
+        document.body.appendChild(overlay);
+        const pathInput = overlay.querySelector("#custom-path-input");
+        const customRow = overlay.querySelector("#custom-path-row");
+        // Show/hide custom path row based on radio
+        overlay.querySelectorAll('input[name="path-mode"]').forEach((radio) => {
+            radio.addEventListener("change", () => {
+                customRow.style.display = radio.value === "custom" && radio.checked ? "" : "none";
+            });
+        });
+        // Browse for directory
+        overlay.querySelector("#browse-dir-btn")?.addEventListener("click", async () => {
+            const selected = await open({ directory: true, multiple: false });
+            if (selected && typeof selected === "string") {
+                pathInput.value = selected;
+            }
+        });
+        overlay.querySelector("#settings-cancel")?.addEventListener("click", () => {
+            overlay.remove();
+        });
+        overlay.querySelector("#settings-apply")?.addEventListener("click", async () => {
+            const mode = overlay.querySelector('input[name="path-mode"]:checked')?.value;
+            const newPath = mode === "custom" ? pathInput.value.trim() : null;
+            // Validate custom path is not empty when custom mode is selected
+            if (mode === "custom" && !newPath) {
+                pathInput.focus();
+                return;
+            }
+            const newTheme = (overlay.querySelector('input[name="theme"]:checked')?.value ?? "system");
+            const newLang = overlay.querySelector("#lang-select-settings")?.value ?? "en";
+            const langChanged = newLang !== currentLocale;
+            const updated = {
+                ...settings,
+                profiles_path: newPath ?? null,
+                theme: newTheme,
+            };
+            try {
+                await api.saveSettings(updated);
+                if (langChanged) {
+                    setLocale(newLang);
+                    window.location.reload();
+                    return;
+                }
+                overlay.remove();
+                await this.onAppliedCallback?.(updated);
+            }
+            catch (err) {
+                // Show inline error
+                const actions = overlay.querySelector(".modal__actions");
+                if (actions) {
+                    let errEl = overlay.querySelector(".settings-error");
+                    if (!errEl) {
+                        errEl = document.createElement("div");
+                        errEl.className = "form-error settings-error";
+                        actions.before(errEl);
+                    }
+                    errEl.textContent = t("settings.errorSaveFailed", { error: String(err) });
+                }
+            }
+        });
+    }
 }

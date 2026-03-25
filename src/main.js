@@ -228,10 +228,7 @@ profileSelector.onEdit((profile) => {
 profileSelector.onDelete(async (profileId) => {
     const profile = profileSelector.getSelectedProfile();
     const name = profile?.name ?? profileId;
-    const confirmed = await showConfirm(
-        t("profiles.deleteMsg", { name }),
-        t("profiles.deleteTitle")
-    );
+    const confirmed = await showConfirm(t("profiles.deleteMsg", { name }), t("profiles.deleteTitle"));
     if (!confirmed)
         return;
     try {
@@ -324,10 +321,7 @@ async function verifyConnection(profileId, password, passphrase) {
 listen("upload-ready", async (event) => {
     const { profile_id, local_path, remote_path } = event.payload;
     const filename = remote_path.split("/").pop() ?? remote_path;
-    const confirmed = await showConfirm(
-        t("app.uploadReadyMsg", { filename, remotePath: remote_path }),
-        t("app.uploadFileTitle")
-    );
+    const confirmed = await showConfirm(t("app.uploadReadyMsg", { filename, remotePath: remote_path }), t("app.uploadFileTitle"));
     if (!confirmed)
         return;
     // Keep overwrite behavior consistent with all other upload paths.
