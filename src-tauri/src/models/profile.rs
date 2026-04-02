@@ -1,5 +1,17 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum Protocol {
+    /// SSH terminal + SFTP file browser (default for existing profiles).
+    #[default]
+    Ssh,
+    /// SFTP file browser only — no terminal.
+    Sftp,
+    /// FTP file browser only — no terminal, plain FTP protocol.
+    Ftp,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Profile {
     pub id: String,
@@ -13,6 +25,10 @@ pub struct Profile {
     pub default_remote_path: Option<String>,
     pub editor_command: Option<String>,
     pub upload_mode: UploadMode,
+
+    /// Connection protocol. Defaults to Ssh when absent (backward compatible).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub protocol: Option<Protocol>,
 
     /// Optional local working directory for uploads and downloads.
     /// When set: downloads save here directly; upload picker starts here.

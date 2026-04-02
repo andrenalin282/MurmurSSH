@@ -12,6 +12,23 @@ No changes yet.
 
 ---
 
+## [1.2.0] - 2026-04-02
+
+### Added
+- **Multi-protocol support** — profiles now have a Protocol field: SSH (terminal + file browser), SFTP (file browser only), FTP (file browser only)
+- **FTP file browser** — full file browser support over FTP: list, navigate, upload, download, rename, delete, new file/folder, all with the same UI as SFTP
+- **FTP recursive operations** — recursive folder upload, download, and delete via FTP using a single persistent connection
+- **FTP file editing** — remote file editing (open in editor + auto-upload on save) works over FTP in addition to SFTP
+- **Protocol-aware auth** — FTP profiles always use password authentication; the auth selector is hidden for FTP; passphrase-never-saved rule is preserved
+- **Protocol-aware port default** — selecting a protocol auto-fills the port field with 22 (SSH/SFTP) or 21 (FTP) when the field is empty or still at the previous default
+- **Protocol + port in one row** — protocol dropdown and port input appear side by side in the profile form for a cleaner layout
+- **Credential saving for FTP** — FTP passwords can be saved with the same local-machine / portable-profile / never tiers as SSH password auth
+
+### Changed
+- **Terminal button** hidden for SFTP and FTP profiles (terminal only makes sense for SSH)
+
+---
+
 ## [1.1.0] - 2026-03-25
 
 ### Fixed

@@ -103,6 +103,8 @@ const de = {
         // Navigation errors
         cannotOpen: "\"{name}\" kann nicht geöffnet werden: {error}",
         cannotNavigate: "Navigation zu \"{path}\" nicht möglich: {error}",
+        // Connecting state
+        cancelConnect: "Abbrechen",
         // Terminal
         terminalFailed: "Terminal konnte nicht gestartet werden: {error}",
         // Prompt titles / placeholders
@@ -124,6 +126,11 @@ const de = {
         deleteMultiMsg: "{count} Elemente löschen? Ordner werden rekursiv gelöscht. Dies kann nicht rückgängig gemacht werden.",
         copyKeyTitle: "Schlüssel lokal für Terminal kopieren?",
         copyKeyMsg: "Der SSH-Schlüssel dieses Profils hat Berechtigungen, die OpenSSH möglicherweise ablehnt.\n\nMurmurSSH kann eine lokale Laufzeitkopie des Schlüssels mit korrekten Berechtigungen nur für diese Terminal-Sitzung erstellen. Die Originaldatei wird nicht verändert.\n\nDie Kopie wird beim Trennen der Verbindung gelöscht.",
+        // Log panel
+        logListing: "{path} wird aufgelistet…",
+        logListed: "{count} Einträge",
+        logUploading: "{name} wird hochgeladen…",
+        logDownloading: "{name} wird heruntergeladen…",
     },
     profiles: {
         label: "Profil",
@@ -142,6 +149,10 @@ const de = {
         titleNew: "Neues Profil",
         titleEdit: "Profil bearbeiten",
         labelName: "Anzeigename *",
+        labelProtocol: "Protokoll",
+        protocolSsh: "SSH (Terminal + Dateibrowser)",
+        protocolSftp: "SFTP (nur Dateibrowser)",
+        protocolFtp: "FTP (nur Dateibrowser)",
         labelHost: "Host *",
         labelPort: "Port *",
         labelUsername: "Benutzername *",
@@ -215,6 +226,7 @@ const de = {
         saveModeLocalTag: "maschinenlokal, Klartext-Datei",
         saveModePortable: "In Profildatei speichern",
         saveModePortableTag: "weniger sicher — portabel",
+        localMachineWarning: "Das Passwort wird als Klartext-Datei auf diesem Computer gespeichert (Berechtigung 0600). Wer Lesezugriff auf Ihr Home-Verzeichnis hat, kann es lesen.",
         portableWarning: "Warnung: Das Passwort wird als Klartext in der Profil-JSON-Datei gespeichert. Wer diese Datei lesen kann, kann auch das Passwort lesen.",
         connect: "Verbinden",
         passphraseTitle: "Schlüssel-Passphrase erforderlich",

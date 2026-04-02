@@ -34,6 +34,29 @@ pub fn get(profile_id: &str) -> Credentials {
         .unwrap_or_default()
 }
 
+/// Retrieve credentials for a profile. If no runtime password is present, call
+/// `loader` to get one from persistent storage and store it atomically before
+/// returning. This is a single-lock get-or-load that prevents a TOCTOU race
+/// between a separate get() followed by a conditional set().
+pub fn get_or_load<F>(profile_id: &str, loader: F) -> Credentials
+where
+    F: FnOnce() -> Option<String>,
+{
+    if let Ok(mut map) = store().lock() {
+        let entry = map
+            .entry(profile_id.to_string())
+            .or_insert_with(Credentials::default);
+        if entry.password.is_none() {
+            if let Some(pwd) = loader() {
+                entry.password = Some(pwd);
+            }
+        }
+        entry.clone()
+    } else {
+        Credentials::default()
+    }
+}
+
 /// Remove credentials for a profile (call after auth failure to clear bad credentials).
 pub fn clear(profile_id: &str) {
     if let Ok(mut map) = store().lock() {

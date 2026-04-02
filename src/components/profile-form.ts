@@ -1,8 +1,10 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
 import type { SshConfigEntry } from "../api/index";
-import type { AuthType, Profile, UploadMode } from "../types";
+import type { AuthType, Profile, Protocol, UploadMode } from "../types";
 import { t } from "../i18n/index";
+
+const DEFAULT_PORT: Record<Protocol, number> = { ssh: 22, sftp: 22, ftp: 21 };
 
 function escHtml(s: string): string {
   return s
@@ -65,6 +67,7 @@ export class ProfileForm {
   private mount(profile?: Profile): void {
     const isEdit = profile !== undefined;
     const authType: AuthType = profile?.auth_type ?? "key";
+    const protocol: Protocol = profile?.protocol ?? "ssh";
 
     this.overlay = document.createElement("div");
     this.overlay.className = "modal-overlay";
@@ -83,16 +86,23 @@ export class ProfileForm {
               placeholder="${t("profileForm.placeholderHost")}" autocomplete="off">
           </div>
           <div class="form-field">
-            <label for="pf-port">${t("profileForm.labelPort")}</label>
-            <input id="pf-port" type="number" value="${profile?.port ?? 22}"
-              min="1" max="65535">
+            <label>${t("profileForm.labelProtocol")} / ${t("profileForm.labelPort")}</label>
+            <div class="form-field__row">
+              <select id="pf-protocol" style="flex:2">
+                <option value="ssh"  ${protocol === "ssh"  ? "selected" : ""}>${t("profileForm.protocolSsh")}</option>
+                <option value="sftp" ${protocol === "sftp" ? "selected" : ""}>${t("profileForm.protocolSftp")}</option>
+                <option value="ftp"  ${protocol === "ftp"  ? "selected" : ""}>${t("profileForm.protocolFtp")}</option>
+              </select>
+              <input id="pf-port" type="number" value="${profile?.port ?? 22}"
+                min="1" max="65535" style="flex:1;min-width:72px">
+            </div>
           </div>
           <div class="form-field">
             <label for="pf-username">${t("profileForm.labelUsername")}</label>
             <input id="pf-username" type="text" value="${escHtml(profile?.username ?? "")}"
               placeholder="user" autocomplete="off">
           </div>
-          <div class="form-field">
+          <div class="form-field" id="pf-auth-row"${protocol === "ftp" ? ' style="display:none"' : ""}>
             <label for="pf-auth-type">${t("profileForm.labelAuth")}</label>
             <select id="pf-auth-type">
               <option value="key" ${authType === "key" ? "selected" : ""}>${t("profileForm.authKey")}</option>
@@ -149,6 +159,24 @@ export class ProfileForm {
     `;
 
     document.body.appendChild(this.overlay);
+
+    // Protocol selector — auto-fill port and toggle auth visibility.
+    let prevProtocol: Protocol = protocol;
+    this.overlay.querySelector("#pf-protocol")?.addEventListener("change", (e) => {
+      const newProto = (e.target as HTMLSelectElement).value as Protocol;
+      const portInput = this.overlay?.querySelector<HTMLInputElement>("#pf-port");
+      if (portInput) {
+        const currentPort = parseInt(portInput.value, 10);
+        // Auto-fill port only when it's empty, 0, or still the old protocol's default.
+        if (!portInput.value || currentPort === DEFAULT_PORT[prevProtocol]) {
+          portInput.value = String(DEFAULT_PORT[newProto]);
+        }
+      }
+      // FTP always uses password — hide auth type row to avoid confusion.
+      const authRow = this.overlay?.querySelector<HTMLElement>("#pf-auth-row");
+      if (authRow) authRow.style.display = newProto === "ftp" ? "none" : "";
+      prevProtocol = newProto;
+    });
 
     // Auth type toggle — show/hide key path row; hide saved credential section when
     // switching away from password (the actual cleanup happens on save, but hiding
@@ -402,6 +430,7 @@ export class ProfileForm {
     const host = get("pf-host");
     const portStr = get("pf-port");
     const username = get("pf-username");
+    const protocol = get("pf-protocol") as Protocol;
     const authType = get("pf-auth-type") as AuthType;
     const keyPath = get("pf-key-path");
     const remotePath = get("pf-remote-path");
@@ -418,7 +447,8 @@ export class ProfileForm {
       errors.push(t("profileForm.errorPortInvalid"));
     }
     if (!username) errors.push(t("profileForm.errorUsernameRequired"));
-    if (authType === "key") {
+    // Key validation only applies for non-FTP profiles using key auth.
+    if (protocol !== "ftp" && authType === "key") {
       if (!keyPath) {
         errors.push(t("profileForm.errorKeyRequired"));
       } else {
@@ -447,10 +477,14 @@ export class ProfileForm {
     // These are managed via the Clear button and at connect time.
     const existingProfile = isEdit ? await api.getProfile(id).catch(() => null) : null;
 
+    // FTP always uses password auth — the auth row is hidden in the form so authType
+    // may still hold the hidden select's value ("key"). Override it here.
+    const effectiveAuthType: AuthType = protocol === "ftp" ? "password" : authType;
+
     // If auth type is switching away from password, clear any stored password credential.
     // Passphrases are never saved, so a switch in the other direction needs no cleanup.
     const isAuthSwitchAwayFromPassword =
-      existingProfile?.auth_type === "password" && authType !== "password";
+      existingProfile?.auth_type === "password" && effectiveAuthType !== "password";
 
     if (isAuthSwitchAwayFromPassword && this.editingId) {
       try {
@@ -466,12 +500,13 @@ export class ProfileForm {
       host,
       port,
       username,
-      auth_type: authType,
-      key_path: authType === "key" ? keyPath : null,
+      auth_type: effectiveAuthType,
+      key_path: effectiveAuthType === "key" ? keyPath : null,
       default_remote_path: remotePath || null,
       local_path: localPath || null,
       editor_command: editorCommand || null,
       upload_mode: uploadMode,
+      protocol,
       // Carry forward credential fields only when NOT switching away from password auth.
       // When switching away, these fields must be cleared so the saved profile is clean.
       credential_storage_mode: isAuthSwitchAwayFromPassword

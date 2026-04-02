@@ -8,8 +8,12 @@ use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::Emitter;
 
-use crate::models::{Profile, UploadMode};
-use crate::services::sftp_service;
+use crate::models::{Profile, Protocol, UploadMode};
+use crate::services::{ftp_service, sftp_service};
+
+fn is_ftp(profile: &Profile) -> bool {
+    profile.protocol.as_ref() == Some(&Protocol::Ftp)
+}
 
 /// Maximum file size allowed for the edit flow.
 const MAX_EDIT_BYTES: u64 = 1024 * 1024; // 1 MB
@@ -84,9 +88,14 @@ pub fn open_for_edit(
             .map_err(|e| format!("Failed to create workspace directory: {}", e))?;
     }
 
-    // Download the file
-    sftp_service::download_file(profile, remote_path, local_path.to_str().unwrap_or_default())
-        .map_err(|e| format!("Failed to download file for editing: {}", e))?;
+    // Download the file (dispatch based on protocol)
+    let local_str = local_path.to_str().unwrap_or_default();
+    if is_ftp(profile) {
+        ftp_service::download_file_to(profile, remote_path, local_str)
+    } else {
+        sftp_service::download_file(profile, remote_path, local_str)
+    }
+    .map_err(|e| format!("Failed to download file for editing: {}", e))?;
 
     // Reject oversized files
     let file_size = std::fs::metadata(&local_path).map(|m| m.len()).unwrap_or(0);
@@ -216,11 +225,13 @@ fn watch_and_upload(
 
                 match profile.upload_mode {
                     UploadMode::Auto => {
-                        match sftp_service::upload_file(
-                            &profile,
-                            local_path.to_str().unwrap_or_default(),
-                            &remote_path,
-                        ) {
+                        let local_str = local_path.to_str().unwrap_or_default();
+                        let upload_result = if is_ftp(&profile) {
+                            ftp_service::upload_file(&profile, local_str, &remote_path)
+                        } else {
+                            sftp_service::upload_file(&profile, local_str, &remote_path)
+                        };
+                        match upload_result {
                             Ok(()) => {
                                 let _ = app.emit("upload-complete", &remote_path);
                             }

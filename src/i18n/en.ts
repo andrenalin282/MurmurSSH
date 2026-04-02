@@ -105,6 +105,8 @@ const en = {
     // Navigation errors
     cannotOpen: "Cannot open \"{name}\": {error}",
     cannotNavigate: "Cannot navigate to \"{path}\": {error}",
+    // Connecting state
+    cancelConnect: "Cancel",
     // Terminal
     terminalFailed: "Terminal launch failed: {error}",
     // Prompt titles / placeholders
@@ -126,6 +128,11 @@ const en = {
     deleteMultiMsg: "Delete {count} items? Folders will be deleted recursively. This cannot be undone.",
     copyKeyTitle: "Copy Key Locally for Terminal?",
     copyKeyMsg: "The SSH key for this profile has permissions that OpenSSH may reject.\n\nMurmurSSH can create a local runtime copy of the key with correct permissions for this terminal session only. The original key file is not modified.\n\nThe copy will be deleted when you disconnect.",
+    // Log panel
+    logListing: "Listing {path}…",
+    logListed: "{count} items",
+    logUploading: "Uploading {name}…",
+    logDownloading: "Downloading {name}…",
   },
 
   profiles: {
@@ -146,6 +153,10 @@ const en = {
     titleNew: "New Profile",
     titleEdit: "Edit Profile",
     labelName: "Display Name *",
+    labelProtocol: "Protocol",
+    protocolSsh: "SSH (terminal + file browser)",
+    protocolSftp: "SFTP (file browser only)",
+    protocolFtp: "FTP (file browser only)",
     labelHost: "Host *",
     labelPort: "Port *",
     labelUsername: "Username *",
@@ -222,6 +233,7 @@ const en = {
     saveModeLocalTag: "machine-local plaintext file",
     saveModePortable: "Save in profile file",
     saveModePortableTag: "less secure — portable",
+    localMachineWarning: "The password will be stored as a plaintext file on this computer (0600 permissions). Anyone with read access to your home directory can read it.",
     portableWarning: "Warning: the password will be stored as plaintext inside the profile JSON file. Anyone who can read that file can read your password.",
     connect: "Connect",
     passphraseTitle: "Key Passphrase Required",

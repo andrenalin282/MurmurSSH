@@ -3,6 +3,26 @@ use std::process::Command;
 use crate::models::{AuthType, Profile};
 use crate::services::{runtime_key_service, ssh_session_service};
 
+/// Shell wrapper script used when launching SSH in a terminal.
+///
+/// Uses `"$@"` to expand SSH arguments from positional parameters — no argument
+/// value is ever interpolated into the script string, eliminating any injection
+/// risk regardless of argument content (special characters, spaces, quotes, etc.).
+///
+/// Invoked as: bash -c TERMINAL_SCRIPT -- ssh [args...]
+///   "--" becomes $0 (script name placeholder); ssh and its args are $1, $2, …
+///   "$@" expands to all positional params from $1 onward = the ssh invocation.
+///
+/// On success (SSH exits 0) the terminal closes normally.
+/// On failure the terminal shows the exit code and waits for Enter before closing.
+const TERMINAL_SCRIPT: &str = concat!(
+    r#""$@"; _rc=$?; "#,
+    r#"if [ "$_rc" -ne 0 ]; then "#,
+    r#"printf '\nSSH exited with code %d.\n' "$_rc"; "#,
+    r#"read -rp 'Press Enter to close this window.'; "#,
+    r#"fi"#
+);
+
 /// Launch an SSH session in the system terminal emulator.
 ///
 /// If `use_runtime_copy` is true and the profile uses key auth, a previously
@@ -33,15 +53,16 @@ pub fn launch_ssh(profile: &Profile, use_runtime_copy: bool) -> Result<(), Strin
         }
     }
 
-    // Build a shell command string that runs SSH and keeps the terminal open
-    // on failure so the user can read the error before the window closes.
-    // On success (exit code 0) the terminal closes normally when SSH exits.
-    let shell_cmd = build_shell_cmd(&ssh_args);
-
+    // Pass SSH arguments as positional parameters to the static script.
+    // bash -c TERMINAL_SCRIPT -- ssh [args...]:
+    //   "--" is $0 (script name placeholder); ssh and its args are $1, $2, …
+    //   "$@" in the script expands to the full ssh invocation, never interpolated.
     cmd.arg("-e")
         .arg("bash")
         .arg("-c")
-        .arg(&shell_cmd)
+        .arg(TERMINAL_SCRIPT)
+        .arg("--")
+        .args(&ssh_args)
         .spawn()
         .map(|_| ())
         .map_err(|e| {
@@ -92,27 +113,3 @@ fn build_ssh_args(profile: &Profile, use_runtime_copy: bool) -> Vec<String> {
     args
 }
 
-/// Build a bash shell command string that runs SSH and pauses on failure.
-///
-/// If SSH exits with a non-zero code the terminal stays open so the user can
-/// read the error message. On success (exit code 0) the terminal closes when
-/// SSH exits normally (after the remote session ends).
-///
-/// Each argument is single-quoted and internal single-quotes are escaped so
-/// paths with spaces or special characters are handled safely.
-fn build_shell_cmd(ssh_args: &[String]) -> String {
-    let quoted: Vec<String> = ssh_args
-        .iter()
-        .map(|arg| {
-            // Wrap in single-quotes; escape any embedded single-quotes as '\''
-            format!("'{}'", arg.replace('\'', "'\\''"))
-        })
-        .collect();
-    let ssh_invocation = quoted.join(" ");
-
-    // Run SSH; if it fails, show the exit code and wait for Enter before closing.
-    format!(
-        "{ssh}; _rc=$?; if [ $_rc -ne 0 ]; then echo ''; echo \"SSH exited with code $_rc.\"; read -rp 'Press Enter to close this window.'; fi",
-        ssh = ssh_invocation,
-    )
-}

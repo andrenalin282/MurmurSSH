@@ -2,6 +2,9 @@ export type AuthType = "key" | "agent" | "password";
 
 export type UploadMode = "auto" | "confirm";
 
+/** Connection protocol. Absent/undefined means "ssh" (backward compatible). */
+export type Protocol = "ssh" | "sftp" | "ftp";
+
 /**
  * How a credential (password or key passphrase) is persisted between app sessions.
  *
@@ -21,6 +24,8 @@ export interface Profile {
   default_remote_path: string | null;
   editor_command: string | null;
   upload_mode: UploadMode;
+  /** Connection protocol. Absent/undefined means "ssh" (backward compatible). */
+  protocol?: Protocol;
   /** Optional local working directory for uploads and downloads. */
   local_path?: string | null;
   /** How the credential is retained between sessions. Absent/undefined means "never". */

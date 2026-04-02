@@ -1,6 +1,6 @@
-use crate::models::{AuthType, CredentialStorageMode};
+use crate::models::{AuthType, CredentialStorageMode, Protocol};
 use crate::services::{
-    credentials_store, known_hosts_service, profile_service, secrets_service,
+    credentials_store, ftp_service, known_hosts_service, profile_service, secrets_service,
     session_trust_store, sftp_service,
 };
 
@@ -34,33 +34,45 @@ pub fn connect_sftp(
 
     let profile = profile_service::get_profile(&profile_id)?;
 
+    let protocol = profile.protocol.clone().unwrap_or_default();
+
+    // FTP: no host-key check; always uses password auth.
+    // Auto-load a saved password from persistent storage if available.
+    if protocol == Protocol::Ftp {
+        let mode = profile
+            .credential_storage_mode
+            .clone()
+            .unwrap_or(CredentialStorageMode::Never);
+        let portable = profile.stored_secret_portable.clone();
+        let pid_for_loader = profile_id.clone();
+        credentials_store::get_or_load(&profile_id, move || match mode {
+            CredentialStorageMode::LocalMachine => secrets_service::get(&pid_for_loader),
+            CredentialStorageMode::PortableProfile => portable,
+            CredentialStorageMode::Never => None,
+        });
+        return ftp_service::test_connection(&profile);
+    }
+
     // For password auth only: if no runtime credential is in the session store,
-    // try to auto-load a previously saved password from persistent storage.
+    // auto-load a previously saved password from persistent storage.
+    //
+    // Uses get_or_load to atomically check-and-load under a single lock, avoiding
+    // a TOCTOU race between a separate get() and conditional set() pair.
     //
     // Passphrases for SSH key auth are NEVER loaded from storage — they are
     // always prompted at connection time and discarded afterwards.
     if profile.auth_type == AuthType::Password {
-        let session_creds = credentials_store::get(&profile_id);
-        if session_creds.password.is_none() {
-            let mode = profile
-                .credential_storage_mode
-                .as_ref()
-                .unwrap_or(&CredentialStorageMode::Never);
-            let stored_password = match mode {
-                CredentialStorageMode::LocalMachine => secrets_service::get(&profile_id),
-                CredentialStorageMode::PortableProfile => profile.stored_secret_portable.clone(),
-                CredentialStorageMode::Never => None,
-            };
-            if let Some(pwd) = stored_password {
-                credentials_store::set(
-                    &profile_id,
-                    credentials_store::Credentials {
-                        password: Some(pwd),
-                        passphrase: None,
-                    },
-                );
-            }
-        }
+        let mode = profile
+            .credential_storage_mode
+            .clone()
+            .unwrap_or(CredentialStorageMode::Never);
+        let portable = profile.stored_secret_portable.clone();
+        let pid_for_loader = profile_id.clone();
+        credentials_store::get_or_load(&profile_id, move || match mode {
+            CredentialStorageMode::LocalMachine => secrets_service::get(&pid_for_loader),
+            CredentialStorageMode::PortableProfile => portable,
+            CredentialStorageMode::Never => None,
+        });
     }
 
     sftp_service::test_connection(&profile)
@@ -88,9 +100,10 @@ pub fn accept_host_key(profile_id: String, fingerprint: String) -> Result<(), St
 pub fn save_credential(profile_id: String, secret: String, mode: String) -> Result<(), String> {
     let mut profile = profile_service::get_profile(&profile_id)?;
 
-    // Passphrases (SSH key auth) must never be persisted. Only password auth credentials
-    // may be stored. Silently no-op if the profile uses key or agent auth.
-    if profile.auth_type != AuthType::Password {
+    // Passphrases (SSH key auth) must never be persisted. Only password auth and FTP
+    // profiles may have stored credentials. Silently no-op for key/agent SSH profiles.
+    let protocol = profile.protocol.clone().unwrap_or_default();
+    if profile.auth_type != AuthType::Password && protocol != Protocol::Ftp {
         return Ok(());
     }
 

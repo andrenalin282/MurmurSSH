@@ -1,4 +1,5 @@
 pub mod credentials_store;
+pub mod ftp_service;
 pub mod known_hosts_service;
 pub mod ssh_config_service;
 pub mod profile_service;

@@ -6,6 +6,12 @@ function escHtml(s) {
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
 }
+/** Safely parse a radio value into a CredentialStorageMode. Defaults to "never". */
+function toSaveMode(v) {
+    if (v === "local_machine" || v === "portable_profile")
+        return v;
+    return "never";
+}
 /**
  * Show a password prompt with a save-mode choice.
  *
@@ -67,8 +73,20 @@ export function showPasswordPrompt(username, host) {
         overlay.querySelectorAll('input[name="save-mode"]').forEach((radio) => {
             radio.addEventListener("change", () => {
                 const warning = overlay.querySelector("#save-mode-warning");
-                if (warning) {
-                    warning.style.display = radio.value === "portable_profile" && radio.checked ? "" : "none";
+                if (!warning || !radio.checked)
+                    return;
+                if (radio.value === "portable_profile") {
+                    warning.textContent = t("credentials.portableWarning");
+                    warning.className = "save-mode-warning save-mode-warning--danger";
+                    warning.style.display = "";
+                }
+                else if (radio.value === "local_machine") {
+                    warning.textContent = t("credentials.localMachineWarning");
+                    warning.className = "save-mode-warning";
+                    warning.style.display = "";
+                }
+                else {
+                    warning.style.display = "none";
                 }
             });
         });
@@ -78,7 +96,7 @@ export function showPasswordPrompt(username, host) {
             const secret = overlay.querySelector("#cred-input")?.value ?? "";
             if (!secret)
                 return;
-            const saveMode = (overlay.querySelector('input[name="save-mode"]:checked')?.value ?? "never");
+            const saveMode = toSaveMode(overlay.querySelector('input[name="save-mode"]:checked')?.value);
             cleanup({ secret, saveMode });
         });
     });

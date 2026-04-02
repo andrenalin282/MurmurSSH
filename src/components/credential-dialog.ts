@@ -9,6 +9,12 @@ function escHtml(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
+/** Safely parse a radio value into a CredentialStorageMode. Defaults to "never". */
+function toSaveMode(v: string | undefined): CredentialStorageMode {
+  if (v === "local_machine" || v === "portable_profile") return v;
+  return "never";
+}
+
 /** A password credential and the user's chosen save preference. */
 export interface CredentialResult {
   secret: string;
@@ -83,8 +89,17 @@ export function showPasswordPrompt(
     overlay.querySelectorAll<HTMLInputElement>('input[name="save-mode"]').forEach((radio) => {
       radio.addEventListener("change", () => {
         const warning = overlay.querySelector<HTMLElement>("#save-mode-warning");
-        if (warning) {
-          warning.style.display = radio.value === "portable_profile" && radio.checked ? "" : "none";
+        if (!warning || !radio.checked) return;
+        if (radio.value === "portable_profile") {
+          warning.textContent = t("credentials.portableWarning");
+          warning.className = "save-mode-warning save-mode-warning--danger";
+          warning.style.display = "";
+        } else if (radio.value === "local_machine") {
+          warning.textContent = t("credentials.localMachineWarning");
+          warning.className = "save-mode-warning";
+          warning.style.display = "";
+        } else {
+          warning.style.display = "none";
         }
       });
     });
@@ -94,9 +109,9 @@ export function showPasswordPrompt(
       e.preventDefault();
       const secret = overlay.querySelector<HTMLInputElement>("#cred-input")?.value ?? "";
       if (!secret) return;
-      const saveMode = (
-        overlay.querySelector<HTMLInputElement>('input[name="save-mode"]:checked')?.value ?? "never"
-      ) as CredentialStorageMode;
+      const saveMode = toSaveMode(
+        overlay.querySelector<HTMLInputElement>('input[name="save-mode"]:checked')?.value
+      );
       cleanup({ secret, saveMode });
     });
   });
