@@ -1,8 +1,8 @@
 # MurmurSSH
 
-**A minimal, local-first SSH and SFTP client for Linux.**
+**A minimal, local-first SSH, SFTP, and FTP client for Linux.**
 
-MurmurSSH is a lightweight desktop application for managing SSH connections and browsing remote files over SFTP. It is designed for Linux users who want a simple, profile-based tool without cloud accounts, telemetry, or unnecessary complexity.
+MurmurSSH is a lightweight desktop application for managing SSH connections and browsing remote files over SFTP or FTP. It is designed for Linux users who want a simple, profile-based tool without cloud accounts, telemetry, or unnecessary complexity.
 
 Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, free to contribute to.
 
@@ -12,9 +12,12 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 ## What it does
 
+- **Multi-protocol support** — connect via SSH (terminal + file browser), SFTP (file browser only), or FTP (file browser only). Port is pre-filled automatically for each protocol.
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
-- **SFTP file browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, and create files and directories.
+- **SFTP/FTP file browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, and create files and directories. Works identically over SFTP and FTP.
+- **Real-time transfer progress** — progress bar with live speed display (e.g. `2.1 MB/s`) during every upload and download. Byte-level fill for SFTP transfers; per-file updates for FTP and folder operations.
+- **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
@@ -111,16 +114,20 @@ Create a profile for each server you connect to:
 
 1. Click **New** in the sidebar
 2. Enter the display name, host, port, and username
-3. Choose an authentication method:
+3. Select the **Protocol**:
+   - **SSH** — SSH terminal session + SFTP file browser. Port defaults to `22`.
+   - **SFTP** — file browser only (no terminal). Port defaults to `22`.
+   - **FTP** — file browser only, for servers that only support FTP. Port defaults to `21`.
+4. Choose an authentication method (SSH/SFTP only):
    - **SSH Key** — pick your private key file with the Browse button
    - **SSH Agent** — delegates to your running `ssh-agent`
    - **Password** — entered at connection time; you can choose whether to save it
-4. Optionally set:
+5. Optionally set:
    - **Default Remote Path** — the directory opened when you connect
    - **Local Path** — a local folder used as the default for uploads and downloads
    - **Editor Command** — the command used to open files for editing (blank = system default)
    - **Upload Mode** — confirm before upload, or auto-upload on file save
-5. Click **Save**
+6. Click **Save**
 
 The last used profile is restored automatically on startup.
 
@@ -128,12 +135,15 @@ The last used profile is restored automatically on startup.
 
 Select a profile and click **Connect**. MurmurSSH will:
 
-1. Verify the host key (or ask you to trust it on first connect)
-2. Authenticate (prompt for password or passphrase if needed)
-3. Open an SSH session in your system terminal
-4. Load the SFTP file browser
+1. Verify the host key / authenticate (SSH/SFTP — prompts for password or passphrase if needed)
+2. For **SSH** profiles: also open an SSH terminal session in your system terminal
+3. Load the file browser (all protocols)
 
-### SFTP file browser
+While connecting, a cancel button appears in the toolbar so you can abort a slow or unreachable connection.
+
+### File browser (SFTP / FTP)
+
+The file browser works the same way over SFTP and FTP.
 
 | Action | How |
 |---|---|
@@ -145,8 +155,10 @@ Select a profile and click **Connect**. MurmurSSH will:
 | Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
 | Delete file | Select a file → **Delete** → confirm |
 | Delete folder | Select a folder → **Delete** → confirm recursive deletion |
-| New file | Click **＋ File** → enter a name |
-| New folder | Click **＋ Folder** → enter a name |
+| New file | Click **New File** → enter a name |
+| New folder | Click **New Folder** → enter a name |
+
+During transfers, a progress bar shows the current filename, percentage, and live transfer speed (e.g. `1.4 MB/s`). The activity log below the file list shows what happened and any errors.
 
 ### Credential storage
 
@@ -206,7 +218,7 @@ src/                    # Vanilla TypeScript frontend (no framework)
   main.ts               # App entry point
 src-tauri/src/
   models/               # Rust data types (Profile, Settings, FileEntry)
-  services/             # Business logic (SSH, SFTP, profiles, secrets, workspace)
+  services/             # Business logic (SSH, SFTP, FTP, profiles, secrets, workspace)
   commands/             # Tauri IPC handlers
   lib.rs                # Command registration
 ```
@@ -248,6 +260,7 @@ MurmurSSH is released under the [MIT License](LICENSE).
 - Only one profile can be active at a time
 - Folder deletion is recursive and permanent — there is no undo or trash recovery
 - Binary files and files larger than 1 MB cannot be opened for editing
-- Each SFTP operation opens a fresh connection — not optimised for rapid sequential use
+- Each SFTP/FTP operation opens a fresh connection — not optimised for rapid sequential use
+- FTP byte-level progress is not available (suppaftp does not support mid-transfer callbacks); progress updates per file instead
 - No Windows or macOS support — Linux only, by design
 - Please report bugs via the [issue tracker](https://github.com/andrenalin282/MurmurSSH/issues)
