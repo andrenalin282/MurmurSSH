@@ -1,7 +1,21 @@
 use std::path::PathBuf;
 
+use tauri::ipc::Channel;
+
 use crate::models::{FileEntry, Profile, Protocol};
 use crate::services::{ftp_service, profile_service, sftp_service};
+
+/// Progress event streamed back to the frontend during file transfers.
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TransferProgress {
+    /// Bytes transferred so far (cumulative across all files for folder ops).
+    pub bytes_done: u64,
+    /// Total bytes for the current file; 0 means unknown (FTP, or folder op).
+    pub bytes_total: u64,
+    /// Name of the file currently being transferred.
+    pub filename: String,
+}
 
 fn is_ftp(profile: &Profile) -> bool {
     profile.protocol.as_ref() == Some(&Protocol::Ftp)
@@ -61,40 +75,62 @@ pub fn upload_file_bytes(
 }
 
 /// Upload a local file path to a remote path.
-/// Used internally by the workspace confirm flow.
 #[tauri::command]
 pub fn upload_file(
     profile_id: String,
     local_path: String,
     remote_path: String,
+    on_progress: Channel<TransferProgress>,
 ) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;
+    let filename = std::path::Path::new(&remote_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     if is_ftp(&profile) {
-        ftp_service::upload_file(&profile, &local_path, &remote_path)
+        ftp_service::upload_file(&profile, &local_path, &remote_path, &|done, total, name| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: name.to_string() });
+        })
     } else {
-        sftp_service::upload_file(&profile, &local_path, &remote_path)
+        let fname = filename.clone();
+        sftp_service::upload_file(&profile, &local_path, &remote_path, &|done, total| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: fname.clone() });
+        })
     }
 }
 
 /// Download a remote file to a user-specified local path.
-/// Called by the frontend after the user picks a save location via the save dialog.
 #[tauri::command]
 pub fn download_file_to(
     profile_id: String,
     remote_path: String,
     local_path: String,
+    on_progress: Channel<TransferProgress>,
 ) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;
+    let filename = std::path::Path::new(&remote_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     if is_ftp(&profile) {
-        ftp_service::download_file_to(&profile, &remote_path, &local_path)
+        ftp_service::download_file_to(&profile, &remote_path, &local_path, &|done, total, name| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: name.to_string() });
+        })
     } else {
-        sftp_service::download_file(&profile, &remote_path, &local_path)
+        let fname = filename.clone();
+        sftp_service::download_file(&profile, &remote_path, &local_path, &|done, total| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: fname.clone() });
+        })
     }
 }
 
 /// Download a remote file to ~/Downloads/<filename> and return the save path.
 #[tauri::command]
-pub fn download_file(profile_id: String, remote_path: String) -> Result<String, String> {
+pub fn download_file(
+    profile_id: String,
+    remote_path: String,
+    on_progress: Channel<TransferProgress>,
+) -> Result<String, String> {
     let profile = profile_service::get_profile(&profile_id)?;
 
     let filename = std::path::Path::new(&remote_path)
@@ -105,11 +141,16 @@ pub fn download_file(profile_id: String, remote_path: String) -> Result<String, 
     let save_dir = downloads_dir();
     let local_path = save_dir.join(&filename);
     let local_path_str = local_path.to_string_lossy().to_string();
+    let fname = filename.clone();
 
     if is_ftp(&profile) {
-        ftp_service::download_file_to(&profile, &remote_path, &local_path_str)?;
+        ftp_service::download_file_to(&profile, &remote_path, &local_path_str, &|done, total, name| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: name.to_string() });
+        })?;
     } else {
-        sftp_service::download_file(&profile, &remote_path, &local_path_str)?;
+        sftp_service::download_file(&profile, &remote_path, &local_path_str, &|done, total| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: fname.clone() });
+        })?;
     }
     Ok(local_path_str)
 }
@@ -166,31 +207,37 @@ pub fn upload_directory(
     profile_id: String,
     local_path: String,
     remote_path: String,
+    on_progress: Channel<TransferProgress>,
 ) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;
+    let cb = |done: u64, total: u64, name: &str| {
+        let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: name.to_string() });
+    };
     if is_ftp(&profile) {
-        ftp_service::upload_directory(&profile, &local_path, &remote_path)
+        ftp_service::upload_directory(&profile, &local_path, &remote_path, &cb)
     } else {
-        sftp_service::upload_directory(&profile, &local_path, &remote_path)
+        sftp_service::upload_directory(&profile, &local_path, &remote_path, &cb)
     }
 }
 
 /// Upload a local path (file or directory) to a remote destination.
-/// Detects whether the path is a file or directory and calls the appropriate service.
-/// Used by drag-and-drop upload where the item type is not known ahead of time.
 #[tauri::command]
 pub fn upload_path(
     profile_id: String,
     local_path: String,
     remote_path: String,
+    on_progress: Channel<TransferProgress>,
 ) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;
     let path = std::path::Path::new(&local_path);
+    let cb = |done: u64, total: u64, name: &str| {
+        let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: name.to_string() });
+    };
     if is_ftp(&profile) {
         if path.is_dir() {
-            return ftp_service::upload_directory(&profile, &local_path, &remote_path);
+            return ftp_service::upload_directory(&profile, &local_path, &remote_path, &cb);
         } else if path.is_file() {
-            return ftp_service::upload_file(&profile, &local_path, &remote_path);
+            return ftp_service::upload_file(&profile, &local_path, &remote_path, &cb);
         }
         return Err(format!(
             "Cannot upload '{}': path does not exist or is not a file or directory",
@@ -198,9 +245,12 @@ pub fn upload_path(
         ));
     }
     if path.is_dir() {
-        sftp_service::upload_directory(&profile, &local_path, &remote_path)
+        sftp_service::upload_directory(&profile, &local_path, &remote_path, &cb)
     } else if path.is_file() {
-        sftp_service::upload_file(&profile, &local_path, &remote_path)
+        let filename = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        sftp_service::upload_file(&profile, &local_path, &remote_path, &|done, total| {
+            let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: filename.clone() });
+        })
     } else {
         Err(format!(
             "Cannot upload '{}': path does not exist or is not a file or directory",
@@ -215,12 +265,16 @@ pub fn download_directory(
     profile_id: String,
     remote_path: String,
     local_path: String,
+    on_progress: Channel<TransferProgress>,
 ) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;
+    let cb = |done: u64, total: u64, name: &str| {
+        let _ = on_progress.send(TransferProgress { bytes_done: done, bytes_total: total, filename: name.to_string() });
+    };
     if is_ftp(&profile) {
-        ftp_service::download_directory(&profile, &remote_path, &local_path)
+        ftp_service::download_directory(&profile, &remote_path, &local_path, &cb)
     } else {
-        sftp_service::download_directory(&profile, &remote_path, &local_path)
+        sftp_service::download_directory(&profile, &remote_path, &local_path, &cb)
     }
 }
 

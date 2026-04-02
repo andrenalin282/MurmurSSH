@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
+export { Channel };
 export async function listProfiles() {
     return invoke("list_profiles");
 }
@@ -151,8 +152,8 @@ export async function uploadFileBytes(profileId, remotePath, content) {
  * Automatically handles both files and directories.
  * Used by drag-and-drop upload where the item type isn't known ahead of time.
  */
-export async function uploadPath(profileId, localPath, remotePath) {
-    return invoke("upload_path", { profileId, localPath, remotePath });
+export async function uploadPath(profileId, localPath, remotePath, onProgress) {
+    return invoke("upload_path", { profileId, localPath, remotePath, onProgress });
 }
 /**
  * Recursively upload a local directory to a remote destination path.
@@ -160,29 +161,29 @@ export async function uploadPath(profileId, localPath, remotePath) {
  * Creates the directory and its entire contents on the remote server.
  * Existing remote directories are tolerated (not treated as errors).
  */
-export async function uploadDirectory(profileId, localPath, remotePath) {
-    return invoke("upload_directory", { profileId, localPath, remotePath });
+export async function uploadDirectory(profileId, localPath, remotePath, onProgress) {
+    return invoke("upload_directory", { profileId, localPath, remotePath, onProgress });
 }
 /**
  * Upload a local file path to a remote path.
  * Used by the workspace confirm flow after the user approves.
  */
-export async function uploadFile(profileId, localPath, remotePath) {
-    return invoke("upload_file", { profileId, localPath, remotePath });
+export async function uploadFile(profileId, localPath, remotePath, onProgress) {
+    return invoke("upload_file", { profileId, localPath, remotePath, onProgress });
 }
 /**
  * Download a remote file to ~/Downloads/<filename>.
  * Returns the local path where the file was saved.
  */
-export async function downloadFile(profileId, remotePath) {
-    return invoke("download_file", { profileId, remotePath });
+export async function downloadFile(profileId, remotePath, onProgress) {
+    return invoke("download_file", { profileId, remotePath, onProgress });
 }
 /**
  * Download a remote file to a user-specified local path.
  * Used after the user picks a save location via the save dialog.
  */
-export async function downloadFileTo(profileId, remotePath, localPath) {
-    return invoke("download_file_to", { profileId, remotePath, localPath });
+export async function downloadFileTo(profileId, remotePath, localPath, onProgress) {
+    return invoke("download_file_to", { profileId, remotePath, localPath, onProgress });
 }
 export async function deleteFile(profileId, remotePath) {
     return invoke("delete_file", { profileId, remotePath });
@@ -192,8 +193,8 @@ export async function deleteFile(profileId, remotePath) {
  * The local_path is the full destination path (e.g. /home/user/mydir).
  * Creates the directory and its full contents locally.
  */
-export async function downloadDirectory(profileId, remotePath, localPath) {
-    return invoke("download_directory", { profileId, remotePath, localPath });
+export async function downloadDirectory(profileId, remotePath, localPath, onProgress) {
+    return invoke("download_directory", { profileId, remotePath, localPath, onProgress });
 }
 /**
  * Recursively delete a remote directory and all of its contents.

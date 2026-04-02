@@ -360,7 +360,9 @@ listen("upload-ready", async (event) => {
         // Non-fatal: if conflict check fails, proceed with upload attempt.
     }
     try {
-        await api.uploadFile(profile_id, local_path, remote_path);
+        const { Channel } = await import("@tauri-apps/api/core");
+        const ch = new Channel();
+        await api.uploadFile(profile_id, local_path, remote_path, ch);
         statusBar.set("connected", t("app.uploadedFile", { filename }));
     }
     catch (err) {

@@ -1,10 +1,52 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { Channel } from "@tauri-apps/api/core";
 import * as api from "../api/index";
+import type { TransferProgress } from "../api/index";
 import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
 import type { OverwriteAction } from "./dialog";
 import type { FileEntry, Protocol } from "../types";
 import { t } from "../i18n/index";
+
+/** Format bytes/sec as human-readable speed string. */
+function formatSpeed(bps: number): string {
+  if (bps >= 1024 * 1024) return `${(bps / 1024 / 1024).toFixed(1)} MB/s`;
+  if (bps >= 1024) return `${(bps / 1024).toFixed(0)} KB/s`;
+  return `${bps.toFixed(0)} B/s`;
+}
+
+/** Create a Channel and return it along with a speed-tracking message handler. */
+function makeProgressChannel(
+  onEvent: (msg: TransferProgress, speedBps: number) => void
+): Channel<TransferProgress> {
+  const ch = new Channel<TransferProgress>();
+  let prevBytes = 0;
+  let prevTime = 0;
+  let smoothedSpeed = 0;
+
+  ch.onmessage = (msg) => {
+    const now = Date.now();
+    if (prevTime > 0) {
+      const elapsed = (now - prevTime) / 1000;
+      if (elapsed >= 0.08) { // throttle to ~12 updates/s
+        const byteDelta = msg.bytesDone - prevBytes;
+        const instantSpeed = byteDelta / elapsed;
+        // Exponential moving average — smooth out bursts
+        smoothedSpeed = smoothedSpeed > 0
+          ? 0.25 * instantSpeed + 0.75 * smoothedSpeed
+          : instantSpeed;
+        prevBytes = msg.bytesDone;
+        prevTime = now;
+        onEvent(msg, smoothedSpeed);
+      }
+    } else {
+      prevBytes = msg.bytesDone;
+      prevTime = now;
+      onEvent(msg, 0);
+    }
+  };
+  return ch;
+}
 
 function escHtml(s: string): string {
   return s
@@ -89,6 +131,10 @@ export class FileBrowser {
     total: number;
     cancelled: boolean;
     currentFile?: string;
+    /** Smoothed transfer speed in bytes/s (0 = not yet measured). */
+    speedBps: number;
+    /** Byte-level progress within the current file (0–1, used for fill when known). */
+    bytePct: number | null;
   } | null = null;
 
   private onStatusMessage: ((msg: string, isError: boolean) => void) | null = null;
@@ -333,17 +379,21 @@ export class FileBrowser {
 
     // Transfer progress bar
     const tp = this.transferProgress;
-    const transferPct =
-      tp && tp.total > 0 ? Math.min(100, Math.round((tp.current / tp.total) * 100)) : 0;
+    const fillPct = tp
+      ? tp.bytePct !== null
+        ? tp.bytePct
+        : tp.total > 0 ? Math.min(100, (tp.current / tp.total) * 100) : 0
+      : 0;
     const transferProgressHtml = tp
       ? `<div class="transfer-progress" id="transfer-progress">
            <div class="transfer-progress__row">
              <span class="transfer-progress__status" id="transfer-status">${escHtml(tp.label)}: ${tp.current} / ${tp.total}</span>
+             <span class="transfer-progress__speed" id="transfer-speed">${tp.speedBps > 0 ? escHtml(formatSpeed(tp.speedBps)) : ""}</span>
              <span class="transfer-progress__file" id="transfer-current-file" title="${escHtml(tp.currentFile ?? "")}">${escHtml(tp.currentFile ?? "")}</span>
              <button class="transfer-progress__cancel btn-secondary" id="transfer-cancel-btn">${t("fileBrowser.transferCancel")}</button>
            </div>
            <div class="transfer-progress__track">
-             <div class="transfer-progress__fill" id="transfer-bar-fill" style="width:${transferPct}%"></div>
+             <div class="transfer-progress__fill" id="transfer-bar-fill" style="width:${fillPct.toFixed(1)}%"></div>
            </div>
          </div>`
       : "";
@@ -658,12 +708,12 @@ export class FileBrowser {
    * Must be called with busy=true already set.
    */
   private startTransfer(label: string, total: number): void {
-    this.transferProgress = { label, current: 0, total, cancelled: false };
+    this.transferProgress = { label, current: 0, total, cancelled: false, speedBps: 0, bytePct: null };
     this.render();
   }
 
   /**
-   * Update the in-progress counter via direct DOM manipulation.
+   * Update the file-count counter via direct DOM manipulation.
    * Must NOT call render() — that would interrupt the transfer loop visually.
    */
   private updateTransfer(current: number, currentFile?: string): void {
@@ -671,20 +721,52 @@ export class FileBrowser {
     this.transferProgress.current = current;
     if (currentFile !== undefined) {
       this.transferProgress.currentFile = currentFile;
+      this.transferProgress.bytePct = null; // reset byte fill when moving to next file
     }
-    const el = document.getElementById("transfer-status");
-    if (el) el.textContent = `${this.transferProgress.label}: ${current} / ${this.transferProgress.total}`;
-    const fileEl = document.getElementById("transfer-current-file") as HTMLElement | null;
-    if (fileEl && currentFile !== undefined) {
-      fileEl.textContent = currentFile;
-      fileEl.title = currentFile;
+    this._flushTransferDom();
+  }
+
+  /**
+   * Handle a progress event from the Tauri Channel (byte-level).
+   * Updates speed, current file, and byte-level fill bar.
+   */
+  private updateFromChannel(msg: TransferProgress, speedBps: number): void {
+    if (!this.transferProgress) return;
+    this.transferProgress.speedBps = speedBps;
+    if (msg.filename) this.transferProgress.currentFile = msg.filename;
+    this.transferProgress.bytePct =
+      msg.bytesTotal > 0 ? Math.min(100, (msg.bytesDone / msg.bytesTotal) * 100) : null;
+    this._flushTransferDom();
+  }
+
+  /** Write current transferProgress state to the DOM without a full re-render. */
+  private _flushTransferDom(): void {
+    if (!this.transferProgress) return;
+    const tp = this.transferProgress;
+
+    const statusEl = document.getElementById("transfer-status");
+    const speedEl  = document.getElementById("transfer-speed");
+    const fileEl   = document.getElementById("transfer-current-file") as HTMLElement | null;
+    const fillEl   = document.getElementById("transfer-bar-fill") as HTMLElement | null;
+
+    if (statusEl) {
+      statusEl.textContent = `${tp.label}: ${tp.current} / ${tp.total}`;
     }
-    const fillEl = document.getElementById("transfer-bar-fill") as HTMLElement | null;
-    if (fillEl && this.transferProgress) {
-      const pct = this.transferProgress.total > 0
-        ? Math.min(100, Math.round((this.transferProgress.current / this.transferProgress.total) * 100))
-        : 0;
-      fillEl.style.width = `${pct}%`;
+    if (speedEl) {
+      speedEl.textContent = tp.speedBps > 0 ? formatSpeed(tp.speedBps) : "";
+    }
+    if (fileEl && tp.currentFile !== undefined) {
+      fileEl.textContent = tp.currentFile;
+      fileEl.title = tp.currentFile;
+    }
+    if (fillEl) {
+      // Byte-level fill takes priority; fall back to file-count fill
+      const pct = tp.bytePct !== null
+        ? tp.bytePct
+        : tp.total > 0
+          ? Math.min(100, (tp.current / tp.total) * 100)
+          : 0;
+      fillEl.style.width = `${pct.toFixed(1)}%`;
     }
   }
 
@@ -911,7 +993,8 @@ export class FileBrowser {
       // ── Upload ───────────────────────────────────────────────────────────
       try {
         this.log(t("fileBrowser.logUploading", { name: filename }));
-        await api.uploadFile(profileId, localFilePath, remotePath);
+        const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+        await api.uploadFile(profileId, localFilePath, remotePath, ch);
         uploaded++;
       } catch {
         errors++;
@@ -983,7 +1066,8 @@ export class FileBrowser {
 
       try {
         this.log(t("fileBrowser.logUploading", { name }));
-        await api.uploadPath(profileId, localPath, remotePath);
+        const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+        await api.uploadPath(profileId, localPath, remotePath, ch);
         uploaded++;
       } catch {
         errors++;
@@ -1047,9 +1131,12 @@ export class FileBrowser {
         return;
       }
       this.setBusy(true);
+      this.startTransfer(t("fileBrowser.transferUploading"), 1);
       this.log(t("fileBrowser.logUploading", { name: folderName }));
       this.status(t("fileBrowser.uploadingFolder", { name: folderName }), false);
-      await api.uploadDirectory(this.profileId, localFolderPath, remotePath);
+      const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+      await api.uploadDirectory(this.profileId, localFolderPath, remotePath, ch);
+      this.endTransfer();
       this.status(t("fileBrowser.uploadedFolder", { name: folderName }), false);
       await this.refresh();
     } catch (err) {
@@ -1100,10 +1187,14 @@ export class FileBrowser {
 
     try {
       this.setBusy(true);
+      this.startTransfer(t("fileBrowser.transferDownloading"), 1);
       this.log(t("fileBrowser.logDownloading", { name: this.selectedEntry!.name }));
-      await api.downloadFileTo(this.profileId, this.selectedRemotePath, savePath);
+      const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+      await api.downloadFileTo(this.profileId, this.selectedRemotePath, savePath, ch);
+      this.endTransfer();
       this.status(t("fileBrowser.downloadedTo", { path: savePath }), false);
     } catch (err) {
+      this.endTransfer();
       this.status(t("fileBrowser.downloadFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
@@ -1129,10 +1220,14 @@ export class FileBrowser {
 
     try {
       this.setBusy(true);
+      this.startTransfer(t("fileBrowser.transferDownloading"), 1);
       this.log(t("fileBrowser.logDownloading", { name: this.selectedEntry!.name }));
-      await api.downloadDirectory(this.profileId, this.selectedRemotePath, localDestPath);
+      const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+      await api.downloadDirectory(this.profileId, this.selectedRemotePath, localDestPath, ch);
+      this.endTransfer();
       this.status(t("fileBrowser.downloadedFolderTo", { path: localDestPath }), false);
     } catch (err) {
+      this.endTransfer();
       this.status(t("fileBrowser.folderDownloadFailed", { error: String(err) }), true);
     } finally {
       this.setBusy(false);
@@ -1174,10 +1269,11 @@ export class FileBrowser {
       const localDest = destDir.replace(/\/?$/, "/") + entry.name;
       try {
         this.log(t("fileBrowser.logDownloading", { name: entry.name }));
+        const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
         if (entry.is_dir) {
-          await api.downloadDirectory(this.profileId, remotePath, localDest);
+          await api.downloadDirectory(this.profileId, remotePath, localDest, ch);
         } else {
-          await api.downloadFileTo(this.profileId, remotePath, localDest);
+          await api.downloadFileTo(this.profileId, remotePath, localDest, ch);
         }
         done++;
       } catch {

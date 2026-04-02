@@ -115,25 +115,52 @@ pub fn upload_bytes(profile: &Profile, remote_path: &str, content: &[u8]) -> Res
 }
 
 /// Upload a local file to a remote path.
-pub fn upload_file(profile: &Profile, local_path: &str, remote_path: &str) -> Result<(), String> {
+/// `on_progress(bytes_done, bytes_total, filename)` is called at start and end.
+pub fn upload_file(
+    profile: &Profile,
+    local_path: &str,
+    remote_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let content = std::fs::read(local_path)
         .map_err(|e| format!("Cannot read local file '{}': {}", local_path, e))?;
-    upload_bytes(profile, remote_path, &content)
+    let name = std::path::Path::new(remote_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let total = content.len() as u64;
+    on_progress(0, total, &name);
+    upload_bytes(profile, remote_path, &content)?;
+    on_progress(total, total, &name);
+    Ok(())
 }
 
 /// Download a remote file and write it to a local path.
+/// `on_progress(bytes_done, bytes_total, filename)` is called at start and end.
 pub fn download_file_to(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
+    let name = std::path::Path::new(remote_path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let mut ftp = connect(profile)?;
+    // Try to get file size for total; 0 = unknown
+    let total = ftp.size(remote_path).unwrap_or(0) as u64;
+    on_progress(0, total, &name);
     let data = ftp
         .retr_as_buffer(remote_path)
         .map_err(|e| format!("FTP download failed: {}", e))?;
+    let bytes = data.into_inner();
+    let actual = bytes.len() as u64;
     let _ = ftp.quit();
-    std::fs::write(local_path, data.into_inner())
-        .map_err(|e| format!("Cannot write to '{}': {}", local_path, e))
+    std::fs::write(local_path, &bytes)
+        .map_err(|e| format!("Cannot write to '{}': {}", local_path, e))?;
+    on_progress(actual, actual, &name);
+    Ok(())
 }
 
 /// Delete a remote file.
@@ -193,14 +220,26 @@ fn delete_dir_recursive(ftp: &mut FtpStream, path: &str) -> Result<(), String> {
 }
 
 /// Recursively upload a local directory to a remote destination path.
-pub fn upload_directory(profile: &Profile, local_path: &str, remote_path: &str) -> Result<(), String> {
+pub fn upload_directory(
+    profile: &Profile,
+    local_path: &str,
+    remote_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let mut ftp = connect(profile)?;
-    let result = upload_dir_recursive(&mut ftp, std::path::Path::new(local_path), remote_path);
+    let mut bytes_done = 0u64;
+    let result = upload_dir_recursive(&mut ftp, std::path::Path::new(local_path), remote_path, &mut bytes_done, on_progress);
     let _ = ftp.quit();
     result
 }
 
-fn upload_dir_recursive(ftp: &mut FtpStream, local_dir: &std::path::Path, remote_dir: &str) -> Result<(), String> {
+fn upload_dir_recursive(
+    ftp: &mut FtpStream,
+    local_dir: &std::path::Path,
+    remote_dir: &str,
+    bytes_done: &mut u64,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     // Create the remote directory; ignore error if it already exists.
     let _ = ftp.mkdir(remote_dir);
 
@@ -220,13 +259,17 @@ fn upload_dir_recursive(ftp: &mut FtpStream, local_dir: &std::path::Path, remote
         let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
 
         if local_entry.is_dir() {
-            upload_dir_recursive(ftp, &local_entry, &remote_entry)?;
+            upload_dir_recursive(ftp, &local_entry, &remote_entry, bytes_done, on_progress)?;
         } else if local_entry.is_file() {
             let content = std::fs::read(&local_entry)
                 .map_err(|e| format!("Cannot read '{}': {}", local_entry.display(), e))?;
-            let mut cursor = Cursor::new(content);
+            let file_size = content.len() as u64;
+            on_progress(*bytes_done, 0, &name);
+            let mut cursor = Cursor::new(&content);
             ftp.put_file(&remote_entry, &mut cursor)
                 .map_err(|e| format!("FTP upload '{}' failed: {}", remote_entry, e))?;
+            *bytes_done += file_size;
+            on_progress(*bytes_done, 0, &name);
         }
         // Broken symlinks and special files are skipped.
     }
@@ -235,14 +278,26 @@ fn upload_dir_recursive(ftp: &mut FtpStream, local_dir: &std::path::Path, remote
 }
 
 /// Recursively download a remote directory to a local destination path.
-pub fn download_directory(profile: &Profile, remote_path: &str, local_path: &str) -> Result<(), String> {
+pub fn download_directory(
+    profile: &Profile,
+    remote_path: &str,
+    local_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let mut ftp = connect(profile)?;
-    let result = download_dir_recursive(&mut ftp, remote_path, local_path);
+    let mut bytes_done = 0u64;
+    let result = download_dir_recursive(&mut ftp, remote_path, local_path, &mut bytes_done, on_progress);
     let _ = ftp.quit();
     result
 }
 
-fn download_dir_recursive(ftp: &mut FtpStream, remote_dir: &str, local_dir: &str) -> Result<(), String> {
+fn download_dir_recursive(
+    ftp: &mut FtpStream,
+    remote_dir: &str,
+    local_dir: &str,
+    bytes_done: &mut u64,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     std::fs::create_dir_all(local_dir)
         .map_err(|e| format!("Failed to create local directory '{}': {}", local_dir, e))?;
 
@@ -256,13 +311,17 @@ fn download_dir_recursive(ftp: &mut FtpStream, remote_dir: &str, local_dir: &str
             let local_entry = format!("{}/{}", local_dir.trim_end_matches('/'), entry.name);
 
             if entry.is_dir {
-                download_dir_recursive(ftp, &remote_entry, &local_entry)?;
+                download_dir_recursive(ftp, &remote_entry, &local_entry, bytes_done, on_progress)?;
             } else {
+                on_progress(*bytes_done, 0, &entry.name);
                 let data = ftp
                     .retr_as_buffer(&remote_entry)
                     .map_err(|e| format!("FTP download '{}' failed: {}", remote_entry, e))?;
-                std::fs::write(&local_entry, data.into_inner())
+                let bytes = data.into_inner();
+                *bytes_done += bytes.len() as u64;
+                std::fs::write(&local_entry, &bytes)
                     .map_err(|e| format!("Cannot write '{}': {}", local_entry, e))?;
+                on_progress(*bytes_done, 0, &entry.name);
             }
         }
     }

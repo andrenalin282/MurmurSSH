@@ -12,6 +12,19 @@ No changes yet.
 
 ---
 
+## [1.3.1] - 2026-04-02
+
+### Fixed
+- **UI no longer appears frozen during transfers** — progress events are now streamed from Rust to the frontend via Tauri Channels during every file transfer; the UI stays responsive and the progress bar updates continuously
+- **Single-file downloads and folder transfers now show a progress bar** — previously these operations ran silently with only a spinner; they now show the same progress bar as multi-file uploads
+
+### Added
+- **Transfer speed display** — current speed (e.g. `2.1 MB/s`, `340 KB/s`) shown in the progress bar row, updated in real time during uploads and downloads
+- **Byte-level progress fill** for SFTP transfers — the progress bar fill reflects actual bytes transferred within the current file rather than jumping from 0% to 100% per file
+- **Per-file progress for folder operations** — uploading or downloading a folder now updates the current filename and speed continuously as each file is processed
+
+---
+
 ## [1.3.0] - 2026-04-02
 
 ### Added

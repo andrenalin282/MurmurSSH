@@ -1,6 +1,8 @@
-use std::io::Write;
+use std::io::{Read, Write};
 use std::net::TcpStream;
 use std::path::Path;
+
+const TRANSFER_CHUNK: usize = 256 * 1024; // 256 KB chunks for progress granularity
 
 use ssh2::Session;
 
@@ -237,9 +239,16 @@ pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, S
 }
 
 /// Upload a local file to a remote path.
-pub fn upload_file(profile: &Profile, local_path: &str, remote_path: &str) -> Result<(), String> {
+/// `on_progress(bytes_done, bytes_total)` is called after each chunk.
+pub fn upload_file(
+    profile: &Profile,
+    local_path: &str,
+    remote_path: &str,
+    on_progress: &dyn Fn(u64, u64),
+) -> Result<(), String> {
     let mut local = std::fs::File::open(local_path)
         .map_err(|e| format!("Failed to open local file '{}': {}", local_path, e))?;
+    let total = local.metadata().map(|m| m.len()).unwrap_or(0);
 
     let session = connect(profile)?;
     let sftp = session
@@ -250,9 +259,18 @@ pub fn upload_file(profile: &Profile, local_path: &str, remote_path: &str) -> Re
         .create(Path::new(remote_path))
         .map_err(|e| format!("Failed to create remote file '{}': {}", remote_path, e))?;
 
-    std::io::copy(&mut local, &mut remote)
-        .map(|_| ())
-        .map_err(|e| format!("Upload to '{}' failed: {}", remote_path, e))
+    let mut buf = vec![0u8; TRANSFER_CHUNK];
+    let mut done = 0u64;
+    loop {
+        let n = local.read(&mut buf)
+            .map_err(|e| format!("Read '{}' failed: {}", local_path, e))?;
+        if n == 0 { break; }
+        remote.write_all(&buf[..n])
+            .map_err(|e| format!("Upload to '{}' failed: {}", remote_path, e))?;
+        done += n as u64;
+        on_progress(done, total);
+    }
+    Ok(())
 }
 
 /// Upload raw bytes to a remote path. Used by the file browser upload button.
@@ -272,22 +290,40 @@ pub fn upload_bytes(profile: &Profile, remote_path: &str, content: &[u8]) -> Res
 }
 
 /// Download a remote file to a local path.
-pub fn download_file(profile: &Profile, remote_path: &str, local_path: &str) -> Result<(), String> {
+/// `on_progress(bytes_done, bytes_total)` is called after each chunk.
+pub fn download_file(
+    profile: &Profile,
+    remote_path: &str,
+    local_path: &str,
+    on_progress: &dyn Fn(u64, u64),
+) -> Result<(), String> {
     let session = connect(profile)?;
     let sftp = session
         .sftp()
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
 
+    let total = sftp.stat(Path::new(remote_path))
+        .map(|s| s.size.unwrap_or(0))
+        .unwrap_or(0);
+
     let mut remote = sftp
         .open(Path::new(remote_path))
         .map_err(|e| format!("Failed to open remote file '{}': {}", remote_path, e))?;
-
     let mut local = std::fs::File::create(local_path)
         .map_err(|e| format!("Failed to create local file '{}': {}", local_path, e))?;
 
-    std::io::copy(&mut remote, &mut local)
-        .map(|_| ())
-        .map_err(|e| format!("Download of '{}' failed: {}", remote_path, e))
+    let mut buf = vec![0u8; TRANSFER_CHUNK];
+    let mut done = 0u64;
+    loop {
+        let n = remote.read(&mut buf)
+            .map_err(|e| format!("Download of '{}' failed: {}", remote_path, e))?;
+        if n == 0 { break; }
+        local.write_all(&buf[..n])
+            .map_err(|e| format!("Write '{}' failed: {}", local_path, e))?;
+        done += n as u64;
+        on_progress(done, total);
+    }
+    Ok(())
 }
 
 /// Check whether a path exists on the remote server via SFTP stat().
@@ -336,7 +372,12 @@ pub fn create_directory(profile: &Profile, path: &str) -> Result<(), String> {
 ///
 /// Uses a single SFTP session for the entire operation. Creates the local directory
 /// structure mirroring the remote tree. Symlinks to directories are followed.
-pub fn download_directory(profile: &Profile, remote_path: &str, local_path: &str) -> Result<(), String> {
+pub fn download_directory(
+    profile: &Profile,
+    remote_path: &str,
+    local_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let session = connect(profile)?;
     let sftp = session
         .sftp()
@@ -345,13 +386,18 @@ pub fn download_directory(profile: &Profile, remote_path: &str, local_path: &str
     std::fs::create_dir_all(local_path)
         .map_err(|e| format!("Failed to create local directory '{}': {}", local_path, e))?;
 
-    download_directory_recursive(&sftp, remote_path, local_path)
+    let mut bytes_done = 0u64;
+    download_directory_recursive(&sftp, remote_path, local_path, &mut bytes_done, on_progress)
 }
 
 /// Internal recursive helper for directory download — operates on an open SFTP channel.
-fn download_directory_recursive(sftp: &ssh2::Sftp, remote_path: &str, local_path: &str) -> Result<(), String> {
-    use std::io::Read;
-
+fn download_directory_recursive(
+    sftp: &ssh2::Sftp,
+    remote_path: &str,
+    local_path: &str,
+    bytes_done: &mut u64,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let entries = sftp
         .readdir(Path::new(remote_path))
         .map_err(|e| format!("Failed to list '{}': {}", remote_path, e))?;
@@ -378,23 +424,27 @@ fn download_directory_recursive(sftp: &ssh2::Sftp, remote_path: &str, local_path
         if is_dir {
             std::fs::create_dir_all(&local_entry)
                 .map_err(|e| format!("Failed to create local directory '{}': {}", local_entry, e))?;
-            download_directory_recursive(sftp, &entry_path_str, &local_entry)?;
+            download_directory_recursive(sftp, &entry_path_str, &local_entry, bytes_done, on_progress)?;
         } else {
-            // Download file: symlinks to files are opened and read as regular files
+            let file_total = sftp.stat(&entry_path).map(|s| s.size.unwrap_or(0)).unwrap_or(0);
+            on_progress(*bytes_done, 0, &entry_name);
+
             let mut remote_file = sftp
                 .open(&entry_path)
                 .map_err(|e| format!("Failed to open remote file '{}': {}", entry_path_str, e))?;
-
             let mut local_file = std::fs::File::create(&local_entry)
                 .map_err(|e| format!("Failed to create local file '{}': {}", local_entry, e))?;
 
-            let mut buf = Vec::new();
-            remote_file
-                .read_to_end(&mut buf)
-                .map_err(|e| format!("Failed to read remote file '{}': {}", entry_path_str, e))?;
-
-            std::io::Write::write_all(&mut local_file, &buf)
-                .map_err(|e| format!("Failed to write local file '{}': {}", local_entry, e))?;
+            let mut buf = vec![0u8; TRANSFER_CHUNK];
+            loop {
+                let n = remote_file.read(&mut buf)
+                    .map_err(|e| format!("Failed to read '{}': {}", entry_path_str, e))?;
+                if n == 0 { break; }
+                local_file.write_all(&buf[..n])
+                    .map_err(|e| format!("Failed to write '{}': {}", local_entry, e))?;
+                *bytes_done += n as u64;
+                on_progress(*bytes_done, file_total, &entry_name);
+            }
         }
     }
 
@@ -407,14 +457,20 @@ fn download_directory_recursive(sftp: &ssh2::Sftp, remote_path: &str, local_path
 /// structure mirroring the local tree. Existing remote directories are tolerated
 /// so a re-upload of the same folder does not fail on the root mkdir.
 /// Symlinks are followed; broken symlinks and non-regular files are skipped.
-pub fn upload_directory(profile: &Profile, local_path: &str, remote_path: &str) -> Result<(), String> {
+pub fn upload_directory(
+    profile: &Profile,
+    local_path: &str,
+    remote_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let session = connect(profile)?;
     let sftp = session
         .sftp()
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
 
     mkdir_ok_if_exists(&sftp, Path::new(remote_path))?;
-    upload_directory_recursive(&sftp, Path::new(local_path), remote_path)
+    let mut bytes_done = 0u64;
+    upload_directory_recursive(&sftp, Path::new(local_path), remote_path, &mut bytes_done, on_progress)
 }
 
 /// Try to create a remote directory; silently succeed if it already exists.
@@ -431,7 +487,13 @@ fn mkdir_ok_if_exists(sftp: &ssh2::Sftp, path: &Path) -> Result<(), String> {
 }
 
 /// Internal recursive helper for directory upload — operates on an open SFTP channel.
-fn upload_directory_recursive(sftp: &ssh2::Sftp, local_dir: &Path, remote_dir: &str) -> Result<(), String> {
+fn upload_directory_recursive(
+    sftp: &ssh2::Sftp,
+    local_dir: &Path,
+    remote_dir: &str,
+    bytes_done: &mut u64,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let read_dir = std::fs::read_dir(local_dir)
         .map_err(|e| format!("Failed to read local directory '{}': {}", local_dir.display(), e))?;
 
@@ -454,15 +516,27 @@ fn upload_directory_recursive(sftp: &ssh2::Sftp, local_dir: &Path, remote_dir: &
         // Broken symlinks and special files (sockets, devices) are skipped.
         if local_entry.is_dir() {
             mkdir_ok_if_exists(sftp, Path::new(&remote_entry))?;
-            upload_directory_recursive(sftp, &local_entry, &remote_entry)?;
+            upload_directory_recursive(sftp, &local_entry, &remote_entry, bytes_done, on_progress)?;
         } else if local_entry.is_file() {
+            let file_total = local_entry.metadata().map(|m| m.len()).unwrap_or(0);
+            on_progress(*bytes_done, 0, &entry_name);
+
             let mut local_file = std::fs::File::open(&local_entry)
                 .map_err(|e| format!("Failed to open '{}': {}", local_entry.display(), e))?;
             let mut remote_file = sftp
                 .create(Path::new(&remote_entry))
                 .map_err(|e| format!("Failed to create remote file '{}': {}", remote_entry, e))?;
-            std::io::copy(&mut local_file, &mut remote_file)
-                .map_err(|e| format!("Failed to upload '{}': {}", remote_entry, e))?;
+
+            let mut buf = vec![0u8; TRANSFER_CHUNK];
+            loop {
+                let n = local_file.read(&mut buf)
+                    .map_err(|e| format!("Read '{}' failed: {}", local_entry.display(), e))?;
+                if n == 0 { break; }
+                remote_file.write_all(&buf[..n])
+                    .map_err(|e| format!("Upload '{}' failed: {}", remote_entry, e))?;
+                *bytes_done += n as u64;
+                on_progress(*bytes_done, file_total, &entry_name);
+            }
         }
         // Broken symlinks and special files are skipped without error.
     }

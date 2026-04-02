@@ -1,5 +1,14 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import type { FileEntry, Profile, Settings } from "../types";
+
+/** Progress event streamed during file transfers. */
+export interface TransferProgress {
+  bytesDone: number;
+  bytesTotal: number; // 0 = unknown (FTP or folder op)
+  filename: string;
+}
+
+export type TransferChannel = Channel<TransferProgress>;
 
 export async function listProfiles(): Promise<Profile[]> {
   return invoke("list_profiles");
@@ -210,35 +219,34 @@ export async function uploadFileBytes(
 export async function uploadPath(
   profileId: string,
   localPath: string,
-  remotePath: string
+  remotePath: string,
+  onProgress: TransferChannel
 ): Promise<void> {
-  return invoke("upload_path", { profileId, localPath, remotePath });
+  return invoke("upload_path", { profileId, localPath, remotePath, onProgress });
 }
 
 /**
  * Recursively upload a local directory to a remote destination path.
- * The remote_path is the full destination path (e.g. /home/user/mydir).
- * Creates the directory and its entire contents on the remote server.
- * Existing remote directories are tolerated (not treated as errors).
  */
 export async function uploadDirectory(
   profileId: string,
   localPath: string,
-  remotePath: string
+  remotePath: string,
+  onProgress: TransferChannel
 ): Promise<void> {
-  return invoke("upload_directory", { profileId, localPath, remotePath });
+  return invoke("upload_directory", { profileId, localPath, remotePath, onProgress });
 }
 
 /**
  * Upload a local file path to a remote path.
- * Used by the workspace confirm flow after the user approves.
  */
 export async function uploadFile(
   profileId: string,
   localPath: string,
-  remotePath: string
+  remotePath: string,
+  onProgress: TransferChannel
 ): Promise<void> {
-  return invoke("upload_file", { profileId, localPath, remotePath });
+  return invoke("upload_file", { profileId, localPath, remotePath, onProgress });
 }
 
 /**
@@ -247,21 +255,22 @@ export async function uploadFile(
  */
 export async function downloadFile(
   profileId: string,
-  remotePath: string
+  remotePath: string,
+  onProgress: TransferChannel
 ): Promise<string> {
-  return invoke("download_file", { profileId, remotePath });
+  return invoke("download_file", { profileId, remotePath, onProgress });
 }
 
 /**
  * Download a remote file to a user-specified local path.
- * Used after the user picks a save location via the save dialog.
  */
 export async function downloadFileTo(
   profileId: string,
   remotePath: string,
-  localPath: string
+  localPath: string,
+  onProgress: TransferChannel
 ): Promise<void> {
-  return invoke("download_file_to", { profileId, remotePath, localPath });
+  return invoke("download_file_to", { profileId, remotePath, localPath, onProgress });
 }
 
 export async function deleteFile(
@@ -273,15 +282,14 @@ export async function deleteFile(
 
 /**
  * Recursively download a remote directory to a local destination path.
- * The local_path is the full destination path (e.g. /home/user/mydir).
- * Creates the directory and its full contents locally.
  */
 export async function downloadDirectory(
   profileId: string,
   remotePath: string,
-  localPath: string
+  localPath: string,
+  onProgress: TransferChannel
 ): Promise<void> {
-  return invoke("download_directory", { profileId, remotePath, localPath });
+  return invoke("download_directory", { profileId, remotePath, localPath, onProgress });
 }
 
 /**

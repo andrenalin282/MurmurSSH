@@ -409,7 +409,9 @@ listen<UploadReadyPayload>("upload-ready", async (event) => {
   }
 
   try {
-    await api.uploadFile(profile_id, local_path, remote_path);
+    const { Channel } = await import("@tauri-apps/api/core");
+    const ch = new Channel();
+    await api.uploadFile(profile_id, local_path, remote_path, ch);
     statusBar.set("connected", t("app.uploadedFile", { filename }));
   } catch (err) {
     statusBar.set("error", t("app.uploadFailed", { error: String(err) }));

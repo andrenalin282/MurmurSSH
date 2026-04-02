@@ -889,6 +889,15 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.transfer-progress__speed {
+  font-size: 12px;
+  color: var(--accent);
+  font-family: monospace;
+  flex-shrink: 0;
+  min-width: 72px;
+  text-align: right;
+}
+
 .transfer-progress__file {
   flex: 1;
   min-width: 0;
