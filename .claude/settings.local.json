@@ -34,7 +34,8 @@
       "Bash(find /home/kai/Coding/MurmurSSH/.github/workflows -type f -name *.yml -o -name *.yaml)",
       "Bash(find /home/kai/Coding/MurmurSSH/src-tauri/target/release/bundle/appimage -type f -name *.sh)",
       "Bash(find /home/kai/Coding/MurmurSSH -path ./src-tauri/target -prune -o -name *.sh -type f -print)",
-      "Bash(grep -E \"\\\\.sh$|Makefile|\\\\.yml$\")"
+      "Bash(grep -E \"\\\\.sh$|Makefile|\\\\.yml$\")",
+      "Bash(git filter-branch:*)"
     ]
   }
 }
