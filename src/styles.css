@@ -1,36 +1,36 @@
-/* ── CSS custom properties — dark theme (Catppuccin Mocha) ── */
+/* ── CSS custom properties — dark theme (anthracite/grey) ── */
 
 :root {
   color-scheme: dark;
 
-  --bg-base:         #1e1e2e;
-  --bg-surface:      #181825;
-  --bg-overlay:      #313244;
-  --bg-hover:        #45475a;
+  --bg-base:         #1f1f1f;
+  --bg-surface:      #181818;
+  --bg-overlay:      #2c2c2c;
+  --bg-hover:        #393939;
 
-  --fg-text:         #cdd6f4;
-  --fg-subtle:       #a6adc8;
-  --fg-faint:        #6c7086;
+  --fg-text:         #d8d8d8;
+  --fg-subtle:       #9e9e9e;
+  --fg-faint:        #5c5c5c;
 
-  --accent:          #89b4fa;
-  --accent-hover:    #b4befe;
-  --accent-fg:       #1e1e2e;   /* text on accent-colored background */
+  --accent:          #4f9cf5;
+  --accent-hover:    #74b5ff;
+  --accent-fg:       #ffffff;
 
-  --dir:             #89b4fa;
+  --dir:             #4f9cf5;
 
-  --border:          #313244;
-  --border-strong:   #45475a;
+  --border:          #2c2c2c;
+  --border-strong:   #393939;
 
-  --btn-disabled-bg: #45475a;
-  --btn-disabled-fg: #6c7086;
+  --btn-disabled-bg: #353535;
+  --btn-disabled-fg: #5c5c5c;
 
-  --ok:              #a6e3a1;
-  --warn:            #f9e2af;
-  --err:             #f38ba8;
-  --err-bg:          rgba(243, 139, 168, 0.10);
-  --warn-bg:         rgba(249, 226, 175, 0.08);
+  --ok:              #6db56d;
+  --warn:            #d4a44c;
+  --err:             #e06c75;
+  --err-bg:          rgba(224, 108, 117, 0.10);
+  --warn-bg:         rgba(212, 164, 76, 0.08);
 
-  --modal-overlay:   rgba(0, 0, 0, 0.60);
+  --modal-overlay:   rgba(0, 0, 0, 0.65);
 }
 
 /* ── Light theme overrides (Catppuccin Latte) ────────────── */
@@ -675,6 +675,32 @@ button:disabled {
   animation: pulse 1.2s ease-in-out infinite;
 }
 
+/* ── Toolbar connecting state ─────────────────────────────── */
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.connecting-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg-subtle);
+  padding: 0 4px;
+}
+
+.connecting-spinner {
+  display: inline-block;
+  width: 11px;
+  height: 11px;
+  border: 2px solid var(--bg-hover);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
+}
+
 /* ── Host key fingerprint display ────────────────────────── */
 
 .host-fingerprint {
@@ -744,6 +770,12 @@ button:disabled {
   background: var(--warn-bg);
   border-radius: 4px;
   border-left: 3px solid var(--warn);
+}
+
+.save-mode-warning--danger {
+  color: var(--err);
+  background: var(--err-bg);
+  border-left-color: var(--err);
 }
 
 /* ── Saved credential section in profile form ─────────────── */
@@ -836,10 +868,7 @@ button:disabled {
 /* ── Transfer progress bar ────────────────────────────────── */
 
 .transfer-progress {
-  display: flex;
   flex-shrink: 0;
-  align-items: center;
-  gap: 12px;
   margin-top: 10px;
   padding: 8px 12px;
   background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
@@ -847,10 +876,28 @@ button:disabled {
   border-radius: 6px;
 }
 
+.transfer-progress__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
 .transfer-progress__status {
-  flex: 1;
   font-size: 13px;
   color: var(--fg-text);
+  flex-shrink: 0;
+}
+
+.transfer-progress__file {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: monospace;
+  font-size: 11px;
+  color: var(--fg-faint);
 }
 
 .transfer-progress__cancel {
@@ -858,6 +905,41 @@ button:disabled {
   padding: 3px 10px;
   flex-shrink: 0;
 }
+
+.transfer-progress__track {
+  height: 4px;
+  background: var(--bg-hover);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.transfer-progress__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.15s ease;
+  min-width: 4px;
+}
+
+/* ── Log panel ─────────────────────────────────────────────── */
+
+.log-panel {
+  flex-shrink: 0;
+  height: 82px;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  margin-top: 8px;
+  font-family: monospace;
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.log-panel__line--info { color: var(--fg-subtle); }
+.log-panel__line--ok   { color: var(--ok); }
+.log-panel__line--err  { color: var(--err); }
 
 /* ── SSH import modal ─────────────────────────────────────── */
 

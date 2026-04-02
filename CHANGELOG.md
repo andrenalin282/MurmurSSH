@@ -12,6 +12,18 @@ No changes yet.
 
 ---
 
+## [1.3.0] - 2026-04-02
+
+### Added
+- **Activity log panel** — 5-line FileZilla-style log between the file list and action buttons showing live status: listing, uploading, downloading, connection events, errors
+- **Cancel connection button** — spinner and cancel button appear in the toolbar while a connection is being established; disappear once connected or cancelled
+
+### Improved
+- **Transfer progress bar** — visual fill bar with percentage and current filename now shows during uploads and downloads, so long transfers give clear feedback instead of appearing frozen
+- **Dark theme** redesigned with anthracite and neutral grey tones (replaces Catppuccin Mocha purples); light theme unchanged
+
+---
+
 ## [1.2.0] - 2026-04-02
 
 ### Added

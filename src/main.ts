@@ -125,6 +125,11 @@ const settingsDialog = new SettingsDialog();
 let connectedProfileId: string | null = null;
 let connectingProfileId: string | null = null;
 
+// Set to true when the user clicks Cancel during a connection attempt.
+// Checked after every await in verifyConnection so the attempt is abandoned
+// as soon as JS regains control (even if the underlying Tauri invoke is still running).
+let connectionCancelled = false;
+
 // Surface file browser messages in the status bar
 fileBrowser.setStatusCallback((msg, isError) => {
   statusBar.set(isError ? "error" : "connected", msg);
@@ -132,6 +137,7 @@ fileBrowser.setStatusCallback((msg, isError) => {
 
 // Disconnect: stop SSH SSO session, clear session credentials, clean up runtime keys
 fileBrowser.onDisconnect(async () => {
+  fileBrowser.log("Disconnected");
   const profileId = connectedProfileId;
   connectedProfileId = null;
   profileSelector.setConnected(false);
@@ -292,10 +298,13 @@ async function verifyConnection(
   password?: string,
   passphrase?: string
 ): Promise<boolean> {
+  if (connectionCancelled) return false;
   try {
     await api.connectSftp(profileId, password, passphrase);
+    if (connectionCancelled) return false;
     return true;
   } catch (rawErr) {
+    if (connectionCancelled) return false;
     const err = String(rawErr);
 
     if (err.startsWith("UNKNOWN_HOST:")) {
@@ -305,6 +314,7 @@ async function verifyConnection(
 
       statusBar.set("connecting", t("connection.verifyingHostKey"));
       const decision: HostKeyDecision = await showHostKeyDialog(host, fingerprint);
+      if (connectionCancelled) return false;
 
       if (decision === "cancel") {
         statusBar.set("error", t("connection.hostKeyNotTrusted"));
@@ -323,6 +333,7 @@ async function verifyConnection(
         statusBar.set("error", t("connection.failedToTrustKey", { error: String(trustErr) }));
         return false;
       }
+      if (connectionCancelled) return false;
 
       // Retry the same connection with the same credentials — no re-prompt.
       return verifyConnection(profileId, password, passphrase);
@@ -335,8 +346,8 @@ async function verifyConnection(
         profile?.username ?? "",
         profile?.host ?? profileId
       );
-      if (result === null) {
-        statusBar.set("disconnected");
+      if (connectionCancelled || result === null) {
+        if (!connectionCancelled) statusBar.set("disconnected");
         return false;
       }
       const ok = await verifyConnection(profileId, result.secret, passphrase);
@@ -355,8 +366,8 @@ async function verifyConnection(
       statusBar.set("connecting", t("connection.awaitingPassphrase"));
       // showPassphrasePrompt returns string | null — no save mode, passphrases are runtime-only
       const pp = await showPassphrasePrompt(profile?.key_path ?? "SSH key");
-      if (pp === null) {
-        statusBar.set("disconnected");
+      if (connectionCancelled || pp === null) {
+        if (!connectionCancelled) statusBar.set("disconnected");
         return false;
       }
       // Passphrases are never saved — pass to connect and discard after use
@@ -423,12 +434,26 @@ profileSelector.onConnect(async (profileId: string) => {
   // Prevent double-connect
   if (connectedProfileId !== null || connectingProfileId !== null) return;
   connectingProfileId = profileId;
+  connectionCancelled = false;
   profileSelector.setConnecting(true);
 
   statusBar.set("connecting", t("connection.connectingStatus"));
 
-  // Verify SFTP connection (host key + auth) before browsing
+  // Show spinner + Cancel button in the file browser toolbar.
+  // The cancel callback immediately resets the UI and sets the cancel flag;
+  // verifyConnection will abandon its result as soon as JS regains control.
+  fileBrowser.log(`Connecting to ${profile.host}:${profile.port}…`);
+  fileBrowser.setConnectingState(true, t("connection.connectingStatus"), () => {
+    connectionCancelled = true;
+    fileBrowser.setConnectingState(false);
+    profileSelector.setConnecting(false);
+    connectingProfileId = null;
+    statusBar.set("disconnected");
+  });
+
+  // Verify connection (host key + auth) before browsing
   const ok = await verifyConnection(profileId);
+  fileBrowser.setConnectingState(false);
   if (!ok) {
     connectingProfileId = null;
     profileSelector.setConnecting(false);
@@ -455,6 +480,7 @@ profileSelector.onConnect(async (profileId: string) => {
   } catch {
     // Non-fatal — last-used profile restore on next launch will just fall back to first
   }
+  fileBrowser.log(`Connected to ${profile.host}`, "ok");
   statusBar.set("connected", t("connection.connectedTo", { host: profile.host }));
 
   // Determine the initial remote path for the file browser.
@@ -471,7 +497,7 @@ profileSelector.onConnect(async (profileId: string) => {
     }
   }
 
-  fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null);
+  fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null, profile.protocol ?? null);
   try {
     await fileBrowser.refresh();
   } catch {
@@ -499,7 +525,7 @@ profileSelector.init().then(async (lastUsedId) => {
   if (lastUsedId) {
     const profile = profileSelector.getSelectedProfile();
     if (profile) {
-      fileBrowser.setProfile(lastUsedId, profile.default_remote_path ?? "/", profile.local_path ?? null);
+      fileBrowser.setProfile(lastUsedId, profile.default_remote_path ?? "/", profile.local_path ?? null, profile.protocol ?? null);
     }
   }
 });
