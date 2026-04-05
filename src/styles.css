@@ -842,6 +842,31 @@ button:disabled {
   outline-offset: -1px;
 }
 
+/* ── Download drop zone ───────────────────────────────────── */
+
+.file-browser__dl-dropzone {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 7px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 5px;
+  color: var(--fg-subtle);
+  font-size: 12px;
+  cursor: default;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+}
+
+.file-browser__dl-dropzone--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
 /* ── Selection info bar ───────────────────────────────────── */
 
 .file-browser__selection-info {

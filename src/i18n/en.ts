@@ -119,6 +119,8 @@ const en = {
     newFolderTitle: "New Folder",
     newFolderPlaceholder: "folder-name",
     selectFolderUpload: "Select folder to upload",
+    selectFolderDownload: "Select download destination",
+    downloadDropZone: "Drop here to download",
     // Confirm dialog titles/messages
     deleteFolderTitle: "Delete Folder",
     deleteFolderMsg: "\"{name}\" is a folder. This folder and all of its contents will be deleted recursively. Proceed?",
@@ -275,6 +277,16 @@ const en = {
       <p><strong>Your data stays local.</strong> All profiles, credentials, and files are stored on your machine only. Nothing is sent to any server unless you explicitly upload a file.</p>
       <p><strong>SSH key compatibility:</strong> If your private key is stored on a mounted or network filesystem, the system SSH client may reject it due to file permission requirements. MurmurSSH can create a local runtime copy of the key (in <code>~/.config/murmurssh/runtime-keys/</code>) with the correct permissions for terminal use. The original key is never modified. The copy is temporary and is deleted when you disconnect.</p>
       <p><strong>Note:</strong> Terminal windows opened via the Terminal button must be closed manually when you are done.</p>
+      <p><strong>Keyboard shortcuts (file browser):</strong></p>
+      <table style="border-collapse:collapse;font-size:13px;width:100%">
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Refresh directory listing</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Rename selected entry</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Open SSH terminal</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Delete selected entries</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Open folder / edit file</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Select all entries</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Clear selection</td></tr>
+      </table>
       <p>Created by <strong>Kai André Schultka</strong> with <strong>Claude Code</strong>.</p>
     `,
     helpWebsite: "Website",

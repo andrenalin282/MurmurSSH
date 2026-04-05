@@ -147,6 +147,84 @@ export class FileBrowser {
     this.container = el;
     this.renderEmpty();
     this.setupDragDrop();
+    this.setupKeyboardShortcuts();
+  }
+
+  /** Register global keyboard shortcuts. Called once from constructor. */
+  private setupKeyboardShortcuts(): void {
+    document.addEventListener("keydown", (e) => {
+      // Skip when any modal/dialog is open
+      if (document.querySelector(".modal-overlay")) return;
+      // Skip when an input or textarea has focus (user is typing)
+      const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
+      const isInput = tag === "input" || tag === "textarea";
+
+      switch (e.key) {
+        case "F5":
+          if (!isInput && this.profileId && !this.busy) {
+            e.preventDefault();
+            void this.refresh();
+          }
+          break;
+
+        case "F2":
+          if (!isInput && this.profileId && !this.busy && this.selectedNames.size === 1) {
+            e.preventDefault();
+            void this.handleRename();
+          }
+          break;
+
+        case "F11":
+          if (!isInput && this.profileId && !this.busy &&
+              (!this.protocol || this.protocol === "ssh")) {
+            e.preventDefault();
+            void this.handleTerminal();
+          }
+          break;
+
+        case "Delete":
+          if (!isInput && this.profileId && !this.busy && this.selectedNames.size > 0) {
+            e.preventDefault();
+            void this.handleDelete();
+          }
+          break;
+
+        case "a":
+          if (e.ctrlKey && !isInput && this.profileId && !this.busy) {
+            e.preventDefault();
+            this.entries.forEach((entry) => this.selectedNames.add(entry.name));
+            this.render();
+          }
+          break;
+
+        case "Enter":
+          if (!isInput && this.profileId && !this.busy && this.selectedNames.size === 1) {
+            const entry = this.selectedEntry;
+            if (entry?.is_dir) {
+              e.preventDefault();
+              void this.navigateInto(entry.name);
+            } else if (entry && !entry.is_dir) {
+              e.preventDefault();
+              void this.handleEdit();
+            }
+          }
+          break;
+
+        case "Escape": {
+          // Close context menu first; if none open, clear selection
+          const ctxMenu = document.getElementById("ctx-menu");
+          if (ctxMenu) {
+            ctxMenu.remove();
+            return;
+          }
+          if (!isInput && this.selectedNames.size > 0) {
+            this.clearSelection();
+            this.render();
+          }
+          break;
+        }
+      }
+    });
   }
 
   /** Set up the Tauri window drag-and-drop listener (once, for the lifetime of the component). */
@@ -435,6 +513,7 @@ export class FileBrowser {
           <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFile")}">${ICONS.newFile}</button>
           <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder}</button>
         </div>
+        ${hasProfile ? `<div class="file-browser__dl-dropzone" id="dl-dropzone">${ICONS.download} ${t("fileBrowser.downloadDropZone")}</div>` : ""}
         ${transferProgressHtml}
       </div>
     `;
@@ -648,6 +727,29 @@ export class FileBrowser {
     document
       .getElementById("new-folder-btn")
       ?.addEventListener("click", () => this.handleNewFolder());
+
+    // ── Download drop zone ─────────────────────────────────────────────────
+    const dlZone = this.container.querySelector<HTMLElement>("#dl-dropzone");
+    if (dlZone) {
+      dlZone.addEventListener("dragover", (e) => {
+        if (!this.isDraggingInternal || this.dragSourceNames.size === 0 || this.busy) return;
+        e.preventDefault();
+        e.dataTransfer!.dropEffect = "copy";
+        dlZone.classList.add("file-browser__dl-dropzone--active");
+      });
+      dlZone.addEventListener("dragleave", () => {
+        dlZone.classList.remove("file-browser__dl-dropzone--active");
+      });
+      dlZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dlZone.classList.remove("file-browser__dl-dropzone--active");
+        if (!this.isDraggingInternal || this.dragSourceNames.size === 0 || this.busy) return;
+        const names = [...this.dragSourceNames];
+        this.dragSourceNames = new Set();
+        this.setDropTarget(null);
+        void this.downloadNamesToLocal(names);
+      });
+    }
 
     // ── Transfer-progress cancel ───────────────────────────────────────────
     document
@@ -1295,6 +1397,85 @@ export class FileBrowser {
     } else if (errors === 0) {
       this.status(
         t("fileBrowser.downloadComplete", { done: t("fileBrowser.downloadedCount", { count: done }), dest: destDir }),
+        false
+      );
+    } else {
+      this.status(
+        t("fileBrowser.downloadCompleteErrors", {
+          done: t("fileBrowser.downloadedCount", { count: done }),
+          failed: t("fileBrowser.failedCount", { count: errors }),
+        }),
+        true
+      );
+    }
+
+    this.setBusy(false);
+    await this.refresh();
+  }
+
+  /** Download a list of named entries (from the current directory) to a local folder. */
+  private async downloadNamesToLocal(names: string[]): Promise<void> {
+    if (!this.profileId || names.length === 0) return;
+
+    let destDir: string;
+    if (this.localPath) {
+      destDir = this.localPath;
+    } else {
+      const chosen = await open({
+        multiple: false,
+        directory: true,
+        title: t("fileBrowser.selectFolderDownload"),
+      });
+      if (!chosen || typeof chosen !== "string") return;
+      destDir = chosen;
+    }
+
+    const entries = this.entries.filter((e) => names.includes(e.name));
+    if (entries.length === 0) return;
+
+    this.setBusy(true);
+    this.startTransfer(t("fileBrowser.transferDownloading"), entries.length);
+
+    let done = 0;
+    let errors = 0;
+    let aborted = false;
+
+    for (const entry of entries) {
+      if (this.transferProgress?.cancelled) {
+        aborted = true;
+        break;
+      }
+
+      const remotePath = joinPath(this.currentPath, entry.name);
+      const localDest = destDir.replace(/\/?$/, "/") + entry.name;
+      try {
+        this.log(t("fileBrowser.logDownloading", { name: entry.name }));
+        const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+        if (entry.is_dir) {
+          await api.downloadDirectory(this.profileId, remotePath, localDest, ch);
+        } else {
+          await api.downloadFileTo(this.profileId, remotePath, localDest, ch);
+        }
+        done++;
+      } catch {
+        errors++;
+      }
+
+      this.updateTransfer(done + errors, entry.name);
+    }
+
+    this.endTransfer();
+
+    if (aborted) {
+      const doneStr = t("fileBrowser.downloadedCount", { count: done });
+      const failedStr = errors > 0 ? `, ${t("fileBrowser.failedCount", { count: errors })}` : "";
+      this.status(t("fileBrowser.downloadCancelledStatus", { done: doneStr, failed: failedStr }), false);
+    } else if (errors === 0) {
+      this.status(
+        t("fileBrowser.downloadComplete", {
+          done: t("fileBrowser.downloadedCount", { count: done }),
+          dest: destDir,
+        }),
         false
       );
     } else {
