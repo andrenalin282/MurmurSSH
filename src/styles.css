@@ -278,6 +278,17 @@ button:disabled {
   overflow: hidden;
 }
 
+/* Local browser on the right side */
+#browsers-pane.local-right .browsers-pane__local {
+  order: 2;
+  border-right: none;
+  border-left: 1px solid var(--border);
+}
+
+#browsers-pane.local-right .browsers-pane__remote {
+  order: 1;
+}
+
 /* ── File browser container (the #file-browser host div) ──── */
 
 #file-browser {

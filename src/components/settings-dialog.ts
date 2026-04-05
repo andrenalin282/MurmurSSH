@@ -32,6 +32,7 @@ export class SettingsDialog {
     const isCustom = !!(settings.profiles_path && settings.profiles_path.trim());
     const customPath = settings.profiles_path ?? "";
     const currentTheme = settings.theme ?? "system";
+    const currentPosition = settings.local_browser_position ?? "left";
     const currentLocale = getLocale();
     const availableLocales = getAvailableLocales();
     const localeOptions = availableLocales
@@ -97,6 +98,24 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label>${t("settings.labelLocalBrowserPosition")}</label>
+          <div class="save-mode-options" style="margin-bottom:0">
+            <div class="save-mode-option">
+              <label>
+                <input type="radio" name="local-browser-position" value="left" ${currentPosition === "left" ? "checked" : ""}>
+                <span>${t("settings.localBrowserLeft")}</span>
+              </label>
+            </div>
+            <div class="save-mode-option">
+              <label>
+                <input type="radio" name="local-browser-position" value="right" ${currentPosition === "right" ? "checked" : ""}>
+                <span>${t("settings.localBrowserRight")}</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-field">
           <label for="lang-select-settings">${t("settings.labelLanguage")}</label>
           <select id="lang-select-settings" style="width:100%">
             ${localeOptions}
@@ -148,6 +167,10 @@ export class SettingsDialog {
         overlay.querySelector<HTMLInputElement>('input[name="theme"]:checked')?.value ?? "system"
       ) as Settings["theme"];
 
+      const newPosition = (
+        overlay.querySelector<HTMLInputElement>('input[name="local-browser-position"]:checked')?.value ?? "left"
+      ) as "left" | "right";
+
       const newLang = overlay.querySelector<HTMLSelectElement>("#lang-select-settings")?.value ?? "en";
       const langChanged = newLang !== currentLocale;
 
@@ -155,6 +178,7 @@ export class SettingsDialog {
         ...settings,
         profiles_path: newPath ?? null,
         theme: newTheme,
+        local_browser_position: newPosition,
       };
 
       try {

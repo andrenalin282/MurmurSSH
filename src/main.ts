@@ -101,6 +101,11 @@ const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
  * Default (no class) = dark theme. "theme-light" class = light theme.
  * "system" follows the OS prefers-color-scheme media query.
  */
+function applyLocalBrowserPosition(position: "left" | "right" | null | undefined): void {
+  const pane = document.getElementById("browsers-pane");
+  if (pane) pane.classList.toggle("local-right", position === "right");
+}
+
 function applyTheme(theme: Theme): void {
   currentTheme = theme;
   const isDark =
@@ -198,6 +203,7 @@ profileForm.onSaved(async (savedId: string) => {
 // After settings are applied: apply theme immediately, then reload profiles
 settingsDialog.onApplied(async (savedSettings: Settings) => {
   applyTheme((savedSettings.theme as Theme) ?? "system");
+  applyLocalBrowserPosition(savedSettings.local_browser_position);
   await profileSelector.reload();
 });
 
@@ -567,6 +573,7 @@ profileSelector.init().then(async (lastUsedId) => {
   try {
     const settings = await api.getSettings();
     applyTheme((settings.theme as Theme) ?? "system");
+    applyLocalBrowserPosition(settings.local_browser_position);
   } catch {
     // Non-fatal — default theme (dark) stays active
   }

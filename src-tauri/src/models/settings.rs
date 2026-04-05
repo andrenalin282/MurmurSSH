@@ -11,5 +11,9 @@ pub struct Settings {
     /// When None, defaults to "system" on the frontend.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub theme: Option<String>,
+    /// Side the local file browser panel is shown on: "left" or "right".
+    /// When None, defaults to "left".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_browser_position: Option<String>,
 }
 

@@ -49,6 +49,8 @@ export interface Settings {
   profiles_path?: string | null;
   /** UI theme: "dark" | "light" | "system". Null/absent = "system". */
   theme?: "dark" | "light" | "system" | null;
+  /** Side the local file browser panel appears on. Null/absent = "left". */
+  local_browser_position?: "left" | "right" | null;
 }
 
 export interface FileEntry {
