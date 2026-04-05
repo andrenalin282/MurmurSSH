@@ -1,5 +1,6 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
+import { Channel } from "@tauri-apps/api/core";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
 import { LocalFileBrowser } from "./components/local-file-browser";
@@ -443,7 +444,6 @@ listen<UploadReadyPayload>("upload-ready", async (event) => {
   }
 
   try {
-    const { Channel } = await import("@tauri-apps/api/core");
     const ch = new Channel();
     await api.uploadFile(profile_id, local_path, remote_path, ch);
     statusBar.set("connected", t("app.uploadedFile", { filename }));
