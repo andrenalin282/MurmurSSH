@@ -35,6 +35,12 @@ export interface Profile {
    * SECURITY WARNING: plaintext — anyone with access to the file can read it.
    */
   stored_secret_portable?: string;
+  /**
+   * Per-OS-user local browser paths (portable/shared profiles only).
+   * Maps OS username → absolute local directory path.
+   * Local-machine profiles use `local_path` instead.
+   */
+  local_paths_by_user?: Record<string, string>;
 }
 
 export interface Settings {

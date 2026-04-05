@@ -135,6 +135,30 @@ const en = {
     logListed: "{count} items",
     logUploading: "Uploading {name}…",
     logDownloading: "Downloading {name}…",
+    // Toggle button
+    toggleLocalBrowser: "Local",
+  },
+
+  localBrowser: {
+    // Toolbar
+    up: "Up",
+    home: "Home",
+    refresh: "Refresh",
+    // Table
+    columnName: "Name",
+    columnSize: "Size",
+    emptyDir: "Empty folder",
+    notConnected: "Connect to a profile to use the local browser.",
+    // Drag hints
+    dragToUpload: "Drag here to upload",
+    dragToDownload: "Drop remote files here to download",
+    // Status
+    cannotOpen: "Cannot open \"{name}\": {error}",
+    cannotNavigate: "Cannot navigate to \"{path}\": {error}",
+    uploadDone: "{count} uploaded",
+    uploadFailed: "{count} failed",
+    downloadDone: "{count} downloaded",
+    downloadFailed: "{count} failed",
   },
 
   profiles: {

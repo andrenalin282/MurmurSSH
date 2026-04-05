@@ -2,6 +2,7 @@ import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
+import { LocalFileBrowser } from "./components/local-file-browser";
 import { ProfileForm } from "./components/profile-form";
 import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
@@ -117,8 +118,27 @@ systemThemeQuery.addEventListener("change", () => {
 const profileSelector = new ProfileSelector("profile-selector");
 const statusBar = new StatusBar("status-bar");
 const fileBrowser = new FileBrowser("file-browser");
+const localBrowser = new LocalFileBrowser("local-file-browser");
 const profileForm = new ProfileForm();
 const settingsDialog = new SettingsDialog();
+
+// ── Local browser toggle ──────────────────────────────────────────────────────
+
+const localBrowserEl = document.getElementById("local-file-browser") as HTMLElement | null;
+
+function setLocalBrowserVisible(visible: boolean): void {
+  if (!localBrowserEl) return;
+  if (visible) {
+    localBrowserEl.removeAttribute("hidden");
+  } else {
+    localBrowserEl.setAttribute("hidden", "");
+  }
+  fileBrowser.setLocalBrowserVisible(visible);
+}
+
+fileBrowser.onToggleLocalBrowser((visible) => {
+  setLocalBrowserVisible(visible);
+});
 
 // Centralized connection state — single source of truth for connected profile.
 // Updated in onConnect (after SFTP + file browser ready) and onDisconnect.
@@ -143,6 +163,12 @@ fileBrowser.onDisconnect(async () => {
   profileSelector.setConnected(false);
 
   if (profileId) {
+    // Save local browser path before clearing (best-effort, non-fatal)
+    const localPath = localBrowser.getCurrentPath();
+    if (localPath) {
+      api.saveLocalBrowserPath(profileId, localPath).catch(() => {});
+    }
+
     try {
       await api.stopSshSession(profileId);
     } catch {
@@ -159,6 +185,8 @@ fileBrowser.onDisconnect(async () => {
       // Non-fatal — runtime key cleanup is best-effort
     }
   }
+
+  localBrowser.clear();
   statusBar.set("disconnected");
 });
 
@@ -505,6 +533,25 @@ profileSelector.onConnect(async (profileId: string) => {
   } catch {
     // Non-fatal: browser refresh reports its own inline error.
   }
+
+  // Initialize local browser with the saved path for this profile + user
+  localBrowser.setProfile(profileId).catch(() => {
+    // Non-fatal — local browser will fall back to $HOME on its own
+  });
+
+  // Wire cross-browser DnD: local browser drop triggers download in remote browser
+  localBrowser.onDownload(async (remoteNames, localDestDir) => {
+    if (!connectedProfileId) return;
+    localBrowser.setBusy(true);
+    try {
+      await fileBrowser.downloadNamesToLocal(remoteNames, localDestDir);
+    } catch {
+      // Error reported by downloadNamesToLocal via status callback
+    } finally {
+      localBrowser.setBusy(false);
+      await localBrowser.refresh();
+    }
+  });
 });
 
 profileSelector.init().then(async (lastUsedId) => {

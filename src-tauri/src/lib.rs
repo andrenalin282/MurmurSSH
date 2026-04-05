@@ -47,6 +47,11 @@ pub fn run() {
             commands::sftp::rename_file,
             commands::sftp::create_directory,
             commands::workspace::open_for_edit,
+            commands::local::list_local_directory,
+            commands::local::get_home_dir,
+            commands::local::get_current_user,
+            commands::local::get_local_browser_path,
+            commands::local::save_local_browser_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MurmurSSH");

@@ -381,3 +381,36 @@ export async function getAppVersion(): Promise<string> {
 export async function openUrl(url: string): Promise<void> {
   return invoke("open_url", { url });
 }
+
+// ── Local filesystem ──────────────────────────────────────────────────────────
+
+/** List the contents of a local directory. Sorted: dirs first, then files (alphabetical). */
+export async function listLocalDirectory(path: string): Promise<FileEntry[]> {
+  return invoke("list_local_directory", { path });
+}
+
+/** Return the current user's home directory ($HOME). */
+export async function getHomeDir(): Promise<string> {
+  return invoke("get_home_dir");
+}
+
+/** Return the current OS username ($USER / $LOGNAME). */
+export async function getCurrentUser(): Promise<string> {
+  return invoke("get_current_user");
+}
+
+/**
+ * Return the saved local browser start path for a profile + the current OS user.
+ * Falls back to $HOME if nothing is saved or the saved path no longer exists.
+ */
+export async function getLocalBrowserPath(profileId: string): Promise<string> {
+  return invoke("get_local_browser_path", { profileId });
+}
+
+/**
+ * Persist the local browser path for the profile + current OS user.
+ * Portable profiles save per-user; local-machine profiles save to local_path.
+ */
+export async function saveLocalBrowserPath(profileId: string, path: string): Promise<void> {
+  return invoke("save_local_browser_path", { profileId, path });
+}

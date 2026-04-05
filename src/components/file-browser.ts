@@ -7,6 +7,7 @@ import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
 import type { OverwriteAction } from "./dialog";
 import type { FileEntry, Protocol } from "../types";
 import { t } from "../i18n/index";
+import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
 
 /** Format bytes/sec as human-readable speed string. */
 function formatSpeed(bps: number): string {
@@ -58,7 +59,8 @@ function escHtml(s: string): string {
 
 // ── Inline SVG icons (Lucide-style, 14×14, currentColor) ──────────────────
 const ICONS = {
-  disconnect:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+  disconnect:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+  localToggle:  `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>`,
   terminal:     `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
   home:         `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
   up:           `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
@@ -140,6 +142,8 @@ export class FileBrowser {
   private onStatusMessage: ((msg: string, isError: boolean) => void) | null = null;
   private onDisconnectCallback: (() => void) | null = null;
   private uploadApplyToAllDecision: OverwriteAction | null = null;
+  private onToggleLocalBrowserCallback: ((visible: boolean) => void) | null = null;
+  private localBrowserVisible: boolean = false;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -286,6 +290,20 @@ export class FileBrowser {
     this.onDisconnectCallback = callback;
   }
 
+  /** Provide a callback invoked when the local browser toggle button is clicked. */
+  onToggleLocalBrowser(callback: (visible: boolean) => void): void {
+    this.onToggleLocalBrowserCallback = callback;
+  }
+
+  /** Set the current local-browser visibility state (so the icon reflects it). */
+  setLocalBrowserVisible(visible: boolean): void {
+    if (this.localBrowserVisible === visible) return;
+    this.localBrowserVisible = visible;
+    // Update just the toggle button class without a full re-render
+    const btn = document.getElementById("toggle-local-btn");
+    if (btn) btn.classList.toggle("toolbar-btn--active", visible);
+  }
+
   async refresh(): Promise<void> {
     if (!this.profileId) return;
     this.log(t("fileBrowser.logListing", { path: this.currentPath }));
@@ -365,7 +383,8 @@ export class FileBrowser {
     this.container.innerHTML = `
       <div class="file-browser file-browser--empty">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" disabled title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
+          <button id="disconnect-btn" disabled title="${t("fileBrowser.disconnect")}">${ICONS.disconnect}</button>
+          <button id="toggle-local-btn" class="toolbar-btn--toggle${this.localBrowserVisible ? " toolbar-btn--active" : ""}" disabled title="${t("fileBrowser.toggleLocalBrowser")}">${ICONS.localToggle}</button>
           <button id="terminal-btn"   disabled title="${t("fileBrowser.terminal")}">${ICONS.terminal}</button>
           <button id="home-btn"       disabled title="${t("fileBrowser.home")}">${ICONS.home}</button>
           <button id="up-btn"         disabled title="${t("fileBrowser.up")}">${ICONS.up}</button>
@@ -481,7 +500,8 @@ export class FileBrowser {
     this.container.innerHTML = `
       <div class="file-browser${this.isDragOver ? " file-browser--dragover" : ""}">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
+          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.disconnect")}">${ICONS.disconnect}</button>
+          <button id="toggle-local-btn" class="toolbar-btn--toggle${this.localBrowserVisible ? " toolbar-btn--active" : ""}" ${!hasProfile ? "disabled" : ""} title="${t("fileBrowser.toggleLocalBrowser")}">${ICONS.localToggle}</button>
           ${showTerminal ? `<button id="terminal-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.terminal")}">${ICONS.terminal}</button>` : ""}
           <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.home")}">${ICONS.home}</button>
           <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""} title="${t("fileBrowser.up")}">${ICONS.up}</button>
@@ -614,6 +634,15 @@ export class FileBrowser {
         this.isDraggingInternal = true;
         e.dataTransfer!.effectAllowed = "move";
         e.dataTransfer!.setData("text/plain", "internal-move");
+        // Publish to shared DnD state so the local browser can receive the drop
+        if (this.profileId) {
+          setDragSource({
+            type: "remote",
+            profileId: this.profileId,
+            currentPath: this.currentPath,
+            names: [...this.dragSourceNames],
+          });
+        }
       });
 
       tbody.addEventListener("dragover", (e) => {
@@ -667,6 +696,34 @@ export class FileBrowser {
         this.isDraggingInternal = false;
         this.dragSourceNames = new Set();
         this.setDropTarget(null);
+        clearDragSource();
+      });
+    }
+
+    // ── Local→Remote drag: accept drops from local browser ────────────────
+    const scrollArea = this.container.querySelector<HTMLElement>(".file-browser__scroll");
+    if (scrollArea) {
+      scrollArea.addEventListener("dragover", (e) => {
+        const src = getDragSource();
+        if (!src || src.type !== "local" || this.busy || !this.profileId) return;
+        e.preventDefault();
+        e.stopPropagation(); // don't let Tauri's OS-drag handler see it
+        e.dataTransfer!.dropEffect = "copy";
+        scrollArea.classList.add("file-browser--local-dragover");
+      });
+      scrollArea.addEventListener("dragleave", (e) => {
+        if (!scrollArea.contains(e.relatedTarget as Node | null)) {
+          scrollArea.classList.remove("file-browser--local-dragover");
+        }
+      });
+      scrollArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        scrollArea.classList.remove("file-browser--local-dragover");
+        const src = getDragSource();
+        if (!src || src.type !== "local" || this.busy || !this.profileId) return;
+        clearDragSource();
+        void this.uploadFileList(src.paths);
       });
     }
 
@@ -674,6 +731,13 @@ export class FileBrowser {
     document
       .getElementById("disconnect-btn")
       ?.addEventListener("click", () => this.handleDisconnect());
+
+    document.getElementById("toggle-local-btn")?.addEventListener("click", () => {
+      this.localBrowserVisible = !this.localBrowserVisible;
+      const btn = document.getElementById("toggle-local-btn");
+      if (btn) btn.classList.toggle("toolbar-btn--active", this.localBrowserVisible);
+      this.onToggleLocalBrowserCallback?.(this.localBrowserVisible);
+    });
 
     document
       .getElementById("terminal-btn")
@@ -1413,12 +1477,18 @@ export class FileBrowser {
     await this.refresh();
   }
 
-  /** Download a list of named entries (from the current directory) to a local folder. */
-  private async downloadNamesToLocal(names: string[]): Promise<void> {
+  /**
+   * Download a list of named entries (from the current directory) to a local folder.
+   * When `explicitDestDir` is provided (e.g. from the local browser drop), it is used
+   * directly without showing a picker.
+   */
+  async downloadNamesToLocal(names: string[], explicitDestDir?: string): Promise<void> {
     if (!this.profileId || names.length === 0) return;
 
     let destDir: string;
-    if (this.localPath) {
+    if (explicitDestDir) {
+      destDir = explicitDestDir;
+    } else if (this.localPath) {
       destDir = this.localPath;
     } else {
       const chosen = await open({

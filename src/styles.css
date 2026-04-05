@@ -245,6 +245,39 @@ button:disabled {
 .status-connected    .status-indicator { background: var(--ok); }
 .status-error        .status-indicator { background: var(--err); }
 
+/* ── Browsers pane (local + remote side-by-side) ─────────── */
+
+#browsers-pane {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.browsers-pane__local {
+  width: 38%;
+  min-width: 200px;
+  max-width: 480px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.browsers-pane__local[hidden] {
+  display: none;
+}
+
+.browsers-pane__remote {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 /* ── File browser container (the #file-browser host div) ──── */
 
 #file-browser {
@@ -323,6 +356,30 @@ button:disabled {
 
 #disconnect-btn:hover:not(:disabled) {
   background: var(--accent-hover);
+}
+
+/* ── Toggle-local-browser button: inverted when hidden ─────── */
+
+.toolbar-btn--toggle {
+  /* Normal state: subtle, same as other toolbar buttons */
+}
+
+/* When local browser is visible (--active): accent background */
+.toolbar-btn--toggle.toolbar-btn--active {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.toolbar-btn--toggle.toolbar-btn--active:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+
+/* ── Local→Remote drag-over highlight on scroll area ──────── */
+
+.file-browser__scroll.file-browser--local-dragover {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
+  background: color-mix(in srgb, var(--accent) 5%, transparent);
 }
 
 /* ── Breadcrumbs ──────────────────────────────────────────── */
@@ -1033,4 +1090,152 @@ button:disabled {
   align-items: center;
   gap: 8px;
   cursor: pointer;
+}
+
+/* ── Local file browser ───────────────────────────────────── */
+
+.local-browser {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+  font-size: 13px;
+}
+
+.local-browser--empty {
+  align-items: flex-start;
+}
+
+.local-browser__prompt {
+  align-self: center;
+  margin: auto;
+  color: var(--fg-subtle);
+  font-size: 13px;
+  text-align: center;
+  padding: 0 12px;
+}
+
+.local-browser__toolbar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.local-browser__toolbar button {
+  background: var(--bg-overlay);
+  color: var(--fg-text);
+  font-weight: 400;
+  font-size: 12px;
+  padding: 5px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 4px;
+}
+
+.local-browser__toolbar button:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.local-browser__path-row {
+  flex-shrink: 0;
+  display: flex;
+  margin-bottom: 6px;
+}
+
+.local-browser__path-input {
+  flex: 1;
+  font-family: var(--font-mono, monospace);
+  font-size: 12px;
+  padding: 3px 7px;
+  background: var(--bg-surface);
+  color: var(--fg-text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  min-width: 0;
+}
+
+.local-browser__inline-error {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--err);
+  margin-bottom: 6px;
+  word-break: break-word;
+}
+
+.local-browser__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.local-browser__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.local-browser__table th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--fg-subtle);
+  font-size: 11px;
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+}
+
+.local-browser__table td {
+  padding: 3px 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 0;
+}
+
+.local-browser__table tr.lb-entry:hover {
+  background: var(--bg-hover);
+  cursor: pointer;
+}
+
+.local-browser__table tr.lb-entry--dir td:first-child {
+  color: var(--dir);
+}
+
+.local-browser__table tr.lb-entry[draggable="true"]:hover {
+  cursor: grab;
+}
+
+/* Drop hint bar at the bottom of local browser */
+.local-browser__drop-hint {
+  flex-shrink: 0;
+  margin-top: 6px;
+  padding: 5px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 4px;
+  color: var(--fg-subtle);
+  font-size: 11px;
+  text-align: center;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  user-select: none;
+}
+
+.local-browser__drop-hint--active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+  color: var(--accent);
+}
+
+/* Drag-over overlay for the entire local browser */
+.local-browser--dragover {
+  outline: 2px dashed var(--accent);
+  outline-offset: -3px;
 }

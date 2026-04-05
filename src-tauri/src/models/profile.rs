@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -48,6 +49,14 @@ pub struct Profile {
     /// chooses the portable storage option and accepts the security trade-off.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub stored_secret_portable: Option<String>,
+
+    /// Per-OS-user local browser paths, used only for portable (shared) profiles.
+    ///
+    /// Maps OS username (from $USER) → absolute local directory path.
+    /// Each user who opens a shared profile gets their own local browser start path.
+    /// For local-machine profiles `local_path` is used instead.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub local_paths_by_user: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

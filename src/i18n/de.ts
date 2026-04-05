@@ -135,6 +135,30 @@ const de = {
         logListed: "{count} Einträge",
         logUploading: "{name} wird hochgeladen…",
         logDownloading: "{name} wird heruntergeladen…",
+        // Toggle button
+        toggleLocalBrowser: "Lokal",
+    },
+
+    localBrowser: {
+        // Toolbar
+        up: "Hoch",
+        home: "Home",
+        refresh: "Aktualisieren",
+        // Table
+        columnName: "Name",
+        columnSize: "Größe",
+        emptyDir: "Leerer Ordner",
+        notConnected: "Profil verbinden um den lokalen Browser zu nutzen.",
+        // Drag hints
+        dragToUpload: "Zum Hochladen hierher ziehen",
+        dragToDownload: "Remote-Dateien zum Herunterladen ablegen",
+        // Status
+        cannotOpen: "\"{name}\" kann nicht geöffnet werden: {error}",
+        cannotNavigate: "Navigation zu \"{path}\" fehlgeschlagen: {error}",
+        uploadDone: "{count} hochgeladen",
+        uploadFailed: "{count} fehlgeschlagen",
+        downloadDone: "{count} heruntergeladen",
+        downloadFailed: "{count} fehlgeschlagen",
     },
 
     profiles: {

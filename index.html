@@ -13,7 +13,10 @@
       </aside>
       <main id="main">
         <div id="status-bar"></div>
-        <div id="file-browser"></div>
+        <div id="browsers-pane">
+          <div id="local-file-browser" class="browsers-pane__local" hidden></div>
+          <div id="file-browser" class="browsers-pane__remote"></div>
+        </div>
       </main>
     </div>
     <script type="module" src="/src/main.ts"></script>
