@@ -15,13 +15,16 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Multi-protocol support** — connect via SSH (terminal + file browser), SFTP (file browser only), or FTP (file browser only). Port is pre-filled automatically for each protocol.
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
-- **SFTP/FTP file browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, and create files and directories. Works identically over SFTP and FTP.
+- **Split-pane file browser** — a local file browser panel sits alongside the remote browser, so you can see both sides at once. The panel is toggleable and its position (left or right) is configurable in Settings.
+- **SFTP/FTP remote browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, move, and create files and directories. Works identically over SFTP and FTP.
+- **Drag and drop** — drag local files onto the remote browser to upload; drag remote entries onto the local browser to download. Drop files or folders from your OS file manager onto the remote browser to upload.
 - **Real-time transfer progress** — progress bar with live speed display (e.g. `2.1 MB/s`) during every upload and download. Byte-level fill for SFTP transfers; per-file updates for FTP and folder operations.
 - **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
 - **Host key verification** — unknown host keys are shown with their fingerprint before you accept them. Trusted keys are stored locally.
+- **Keyboard shortcuts** — F5 refresh, F2 rename, F11 terminal, Delete, Ctrl+A, Enter, Escape. Full list in the Help dialog.
 - **Fully local** — all profiles, settings, and credentials stay on your machine. No cloud, no sync, no telemetry.
 
 ---
@@ -151,14 +154,33 @@ The file browser works the same way over SFTP and FTP.
 | Go up | Click `..` or the **Up** button |
 | Upload file | Click **Upload** → file picker opens, starts in your configured local path if set |
 | Upload folder | Click **Upload Folder** → folder picker opens, uploads entire directory recursively |
-| Download | Select a file or folder → **Download** → saves to your configured local path, or opens a save dialog |
+| Upload via drag | Drag files from your local browser panel or OS file manager onto the remote file list |
+| Download | Select one or more files/folders → **Download** → saves to your configured local path, or opens a save dialog |
+| Download via drag | Drag remote rows onto the local browser panel, or onto the drop zone below the action bar |
 | Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
+| Rename | Select a single entry → **Rename**, or press **F2** |
+| Move | Drag rows onto a folder row or `..`, or select entries → **Move to…** |
 | Delete file | Select a file → **Delete** → confirm |
 | Delete folder | Select a folder → **Delete** → confirm recursive deletion |
 | New file | Click **New File** → enter a name |
 | New folder | Click **New Folder** → enter a name |
+| Refresh | Click **Refresh** or press **F5** |
+| Open terminal | Click the terminal icon in the toolbar or press **F11** (SSH profiles only) |
 
 During transfers, a progress bar shows the current filename, percentage, and live transfer speed (e.g. `1.4 MB/s`). The activity log below the file list shows what happened and any errors.
+
+### Local file browser
+
+Click the split-pane icon in the toolbar (before the terminal icon) to show or hide the local file browser. When the panel is hidden the icon is highlighted so the state is always visible.
+
+The local browser shows your local filesystem and lets you:
+- Navigate by clicking folders, using the **Up** / **Home** buttons, or typing a path
+- Drag local files onto the remote browser to upload them
+- Receive drops from remote rows (drag remote → drop on local browser = download)
+
+The last visited path is saved per profile. For shared (portable) profiles each OS user gets their own remembered path.
+
+**Panel position** — go to Settings → Local browser position to move the panel to the right side of the remote browser instead of the left.
 
 ### Credential storage
 

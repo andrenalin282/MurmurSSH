@@ -12,6 +12,44 @@ No changes yet.
 
 ---
 
+## [1.4.1] - 2026-04-05
+
+### Changed
+- Documentation updated to reflect v1.4.0 features (README, CHANGELOG, ROADMAP, CLAUDE.md)
+- Website update instructions revised for v1.4.x
+
+---
+
+## [1.4.0] - 2026-04-05
+
+### Added
+- **Local file browser panel** — a second file browser pane shows your local filesystem alongside the remote browser. Toggle it on/off with the new split-pane icon in the toolbar (icon is accent-coloured when the panel is hidden, so the state is always obvious at a glance).
+- **Split-pane layout** — when the local browser is open, the interface splits into local (left) and remote (right) side by side, mirroring the familiar FileZilla layout.
+- **Configurable panel position** — a new setting in Settings → Local browser position lets you put the local panel on the left or right side of the remote browser.
+- **Per-user local path persistence** — the last visited local directory is saved per profile. Shared (portable) profiles store a path per OS username so each user gets their own remembered location; local-machine profiles use the single `local_path` field.
+- **Drag local → remote to upload** — drag a file row from the local browser onto the remote file list to upload it immediately.
+- **Drop remote → local to download** — drag remote file or folder rows onto the local browser panel to download them to the current local directory.
+- **Download drop zone** — a dashed "Drop here to download" zone below the remote browser's action bar accepts dragged remote rows and triggers download.
+- **Keyboard shortcuts in the file browser:**
+
+  | Key | Action |
+  |---|---|
+  | `F5` | Refresh directory listing |
+  | `F2` | Rename selected entry |
+  | `F11` | Open SSH terminal |
+  | `Delete` | Delete selected entries |
+  | `Enter` | Open folder / edit file |
+  | `Ctrl+A` | Select all entries |
+  | `Escape` | Clear selection / close context menu |
+
+- **Keyboard shortcuts listed in Help** — the About dialog now includes the shortcuts table in both English and German.
+
+### Changed
+- **Disconnect button** is now icon-only (logout arrow) — the text label has been removed for a cleaner toolbar.
+- Local filesystem commands use `canonicalize()` path resolution and null-byte rejection for security.
+
+---
+
 ## [1.3.1] - 2026-04-02
 
 ### Fixed
@@ -211,7 +249,13 @@ _First working build._
 
 ---
 
-[Unreleased]: https://github.com/andrenalin282/MurmurSSH/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/andrenalin282/MurmurSSH/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/andrenalin282/MurmurSSH/compare/v1.4.0...v1.4.1
+[1.4.0]: https://github.com/andrenalin282/MurmurSSH/compare/v1.3.1...v1.4.0
+[1.3.1]: https://github.com/andrenalin282/MurmurSSH/compare/v1.3.0...v1.3.1
+[1.3.0]: https://github.com/andrenalin282/MurmurSSH/compare/v1.2.0...v1.3.0
+[1.2.0]: https://github.com/andrenalin282/MurmurSSH/compare/v1.1.0...v1.2.0
+[1.1.0]: https://github.com/andrenalin282/MurmurSSH/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/andrenalin282/MurmurSSH/compare/v0.1.4-beta.1...v1.0.0
 [0.1.4-beta.1]: https://github.com/andrenalin282/MurmurSSH/compare/v0.1.3-beta.2...v0.1.4-beta.1
 [0.1.3-beta]: https://github.com/andrenalin282/MurmurSSH/releases/tag/v0.1.3-beta.2

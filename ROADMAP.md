@@ -6,25 +6,23 @@ This roadmap reflects realistic near-term priorities and longer-term ideas. It w
 
 ---
 
-## Near Term (v1.0 → v1.1)
+## Near Term (v1.4 → v1.5)
 
 These are the next concrete improvements:
 
 - **ARM builds** — additional `.deb` and `.AppImage` for arm64 / Raspberry Pi
-- **Rename via UI** — rename files and directories directly in the file browser (backend already supports it)
 - **Improved error messages** — more actionable SSH and SFTP error descriptions
-- **Keyboard navigation** — arrow keys and Enter in the file browser table
-- **Download progress** — show progress indicator for larger file downloads
+- **Resizable split pane** — drag the divider between local and remote browsers to adjust proportions
+- **Local browser folder support for drag-out** — currently only files can be dragged from the local browser; extend to folders
 
 ---
 
-## Planned (v1.1 → v1.x)
+## Planned (v1.5+)
 
 These features are planned but not yet started:
 
 - **Multiple simultaneous profiles** — connect to more than one server at a time in separate tabs or panels
 - **File permissions display** — show Unix permission bits in the file browser
-- **Drag-and-drop upload** — drag files from the desktop into the browser
 - **Profile import/export** — backup and restore profiles as a single archive
 - **Flatpak packaging** — alternative to `.deb` for broader Linux distribution support
 - **Configurable terminal** — let users choose which terminal emulator to use
