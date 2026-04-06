@@ -55,7 +55,15 @@ export class LocalFileBrowser {
 
   // Callbacks wired from main.ts
   private onDownloadCallback: ((remoteNames: string[], localDestDir: string) => Promise<void>) | null = null;
+  private onUploadCallback: ((localPaths: string[], name: string) => Promise<void>) | null = null;
   private onPathChange: ((path: string) => void) | null = null;
+
+  // Editor command from the connected profile (optional)
+  private editorCommand: string | null = null;
+
+  // Context menu
+  private _contextMenu: HTMLElement | null = null;
+  private _hideContextMenuBound = (e: MouseEvent) => this._hideContextMenu(e);
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -112,6 +120,16 @@ export class LocalFileBrowser {
   /** Register a callback fired whenever the user navigates to a new path. */
   onPathChanged(cb: (path: string) => void): void {
     this.onPathChange = cb;
+  }
+
+  /** Register a callback invoked when the user chooses "Upload to remote" from the context menu. */
+  onUpload(cb: (localPaths: string[], name: string) => Promise<void>): void {
+    this.onUploadCallback = cb;
+  }
+
+  /** Set the editor command from the connected profile (may be null/empty). */
+  setEditorCommand(cmd: string | null): void {
+    this.editorCommand = cmd || null;
   }
 
   // ── Rendering ────────────────────────────────────────────────────────────────
@@ -200,6 +218,82 @@ export class LocalFileBrowser {
     this.wireEvents();
   }
 
+  // ── Context menu ─────────────────────────────────────────────────────────────
+
+  private _showContextMenu(x: number, y: number, name: string, isDir: boolean): void {
+    this._hideContextMenu();
+    const isFile = !isDir;
+    const menu = document.createElement("div");
+    menu.className = "lb-context-menu";
+    menu.innerHTML = `
+      ${isFile ? `<button data-action="open">${t("localBrowser.ctxOpen")}</button>` : ""}
+      ${isFile ? `<button data-action="edit">${t("localBrowser.ctxEdit")}</button>` : ""}
+      ${this.onUploadCallback ? `<button data-action="upload">${t("localBrowser.ctxUpload")}</button>` : ""}
+      <button data-action="rename">${t("localBrowser.ctxRename")}</button>
+    `;
+    document.body.appendChild(menu);
+    // Clamp to viewport
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.min(x, window.innerWidth  - rect.width  - 4)}px`;
+    menu.style.top  = `${Math.min(y, window.innerHeight - rect.height - 4)}px`;
+    this._contextMenu = menu;
+
+    menu.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      this._hideContextMenu();
+      const path = joinPath(this.currentPath, name);
+      if      (action === "open")   void this._ctxOpen(path, null);
+      else if (action === "edit")   void this._ctxOpen(path, this.editorCommand);
+      else if (action === "upload") void this._ctxUpload(path, name);
+      else if (action === "rename") void this._ctxRename(name);
+    });
+
+    setTimeout(() => {
+      document.addEventListener("mousedown", this._hideContextMenuBound, { once: true });
+    }, 0);
+  }
+
+  private _hideContextMenu(e?: MouseEvent): void {
+    if (e && this._contextMenu?.contains(e.target as Node)) return;
+    this._contextMenu?.remove();
+    this._contextMenu = null;
+  }
+
+  private async _ctxOpen(path: string, editor: string | null): Promise<void> {
+    try {
+      await api.openLocalFile(path, editor);
+    } catch (err) {
+      this.inlineError = t("localBrowser.openFailed", { error: String(err) });
+      this.render();
+    }
+  }
+
+  private async _ctxUpload(path: string, name: string): Promise<void> {
+    if (!this.onUploadCallback) return;
+    await this.onUploadCallback([path], name);
+  }
+
+  private async _ctxRename(oldName: string): Promise<void> {
+    const newName = window.prompt(t("localBrowser.renameTitle"), oldName);
+    if (!newName || newName === oldName) return;
+    if (newName.includes("/")) {
+      this.inlineError = t("localBrowser.renameFailed", { error: "Name cannot contain \"/\"" });
+      this.render();
+      return;
+    }
+    const fromPath = joinPath(this.currentPath, oldName);
+    const toPath   = joinPath(this.currentPath, newName);
+    try {
+      await api.renameLocalFile(fromPath, toPath);
+      await this.refresh();
+    } catch (err) {
+      this.inlineError = t("localBrowser.renameFailed", { error: String(err) });
+      this.render();
+    }
+  }
+
   private wireEvents(): void {
     // ── Path input ────────────────────────────────────────────────────────────
     const pathInput = this.container.querySelector<HTMLInputElement>("#lb-path-input");
@@ -234,6 +328,17 @@ export class LocalFileBrowser {
       const isDir = row.dataset.isdir === "true";
       const path = row.dataset.path;
       if (isDir && path) void this.navigateTo(path);
+    });
+
+    // ── Context menu (right-click) ─────────────────────────────────────────────
+    tbody.addEventListener("contextmenu", (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>("tr.lb-entry");
+      if (!row) return;
+      const name = row.dataset.name;
+      if (!name || name === "..") return;
+      e.preventDefault();
+      const isDir = row.dataset.isdir === "true";
+      this._showContextMenu(e.clientX, e.clientY, name, isDir);
     });
 
     // ── Drag source (local files → remote browser = upload) ────────────────────

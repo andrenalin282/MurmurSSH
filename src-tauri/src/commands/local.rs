@@ -36,3 +36,15 @@ pub fn get_local_browser_path(profile_id: String) -> Result<String, String> {
 pub fn save_local_browser_path(profile_id: String, path: String) -> Result<(), String> {
     local_service::save_local_browser_path(&profile_id, &path)
 }
+
+/// Rename a local file or directory (within the same parent directory).
+#[tauri::command]
+pub fn rename_local_file(from_path: String, to_path: String) -> Result<(), String> {
+    local_service::rename_local_file(&from_path, &to_path)
+}
+
+/// Open a local file with the system default app or a custom editor command.
+#[tauri::command]
+pub fn open_local_file(path: String, editor: Option<String>) -> Result<(), String> {
+    local_service::open_local_file(&path, editor.as_deref())
+}

@@ -117,6 +117,8 @@ const de = {
         newFolderTitle: "Neuer Ordner",
         newFolderPlaceholder: "ordner-name",
         selectFolderUpload: "Ordner zum Hochladen auswählen",
+        selectFolderDownload: "Download-Zielordner auswählen",
+        downloadDropZone: "Hier ablegen zum Herunterladen",
         // Confirm dialog titles/messages
         deleteFolderTitle: "Ordner löschen",
         deleteFolderMsg: "\"{name}\" ist ein Ordner. Dieser Ordner und sein gesamter Inhalt werden rekursiv gelöscht. Fortfahren?",
@@ -131,6 +133,42 @@ const de = {
         logListed: "{count} Einträge",
         logUploading: "{name} wird hochgeladen…",
         logDownloading: "{name} wird heruntergeladen…",
+        // Toggle button
+        toggleLocalBrowser: "Lokal",
+    },
+    localBrowser: {
+        // Toolbar
+        up: "Hoch",
+        home: "Home",
+        refresh: "Aktualisieren",
+        // Table
+        columnName: "Name",
+        columnSize: "Größe",
+        emptyDir: "Leerer Ordner",
+        notConnected: "Profil verbinden um den lokalen Browser zu nutzen.",
+        // Drag hints
+        dragToUpload: "Zum Hochladen hierher ziehen",
+        dragToDownload: "Remote-Dateien zum Herunterladen ablegen",
+        // Status
+        cannotOpen: "\"{name}\" kann nicht geöffnet werden: {error}",
+        cannotNavigate: "Navigation zu \"{path}\" fehlgeschlagen: {error}",
+        uploadDone: "{count} hochgeladen",
+        uploadFailed: "{count} fehlgeschlagen",
+        downloadDone: "{count} heruntergeladen",
+        downloadFailed: "{count} fehlgeschlagen",
+        // Context menu
+        ctxOpen: "Öffnen",
+        ctxEdit: "Bearbeiten",
+        ctxUpload: "Auf Remote hochladen",
+        ctxRename: "Umbenennen",
+        renameTitle: "Umbenennen",
+        renamePlaceholder: "Neuer Name",
+        renameFailed: "Umbenennen fehlgeschlagen: {error}",
+        openFailed: "Öffnen fehlgeschlagen: {error}",
+        uploadStarted: "{name} wird hochgeladen…",
+        notConnectedForUpload: "Nicht verbunden — Hochladen nicht möglich.",
+        uploadConfirmTitle: "Auf Remote hochladen?",
+        uploadConfirmMsg: "\"{name}\" nach {remotePath} hochladen?",
     },
     profiles: {
         label: "Profil",
@@ -200,6 +238,9 @@ const de = {
         themeSystemTag: "Betriebssystem-Einstellung folgen",
         themeDark: "Dunkel",
         themeLight: "Hell",
+        labelLocalBrowserPosition: "Lokaler Browser Position",
+        localBrowserLeft: "Links",
+        localBrowserRight: "Rechts",
         labelLanguage: "Sprache",
         errorSaveFailed: "Einstellungen konnten nicht gespeichert werden: {error}",
     },
@@ -266,6 +307,16 @@ const de = {
         <p><strong>Ihre Daten bleiben lokal.</strong> Alle Profile, Anmeldedaten und Dateien werden ausschließlich auf Ihrem Gerät gespeichert. Es werden keine Daten an einen Server gesendet, es sei denn, Sie laden eine Datei explizit hoch.</p>
         <p><strong>SSH-Schlüssel-Kompatibilität:</strong> Wenn Ihr privater Schlüssel auf einem eingehängten oder Netzwerk-Dateisystem gespeichert ist, kann der System-SSH-Client ihn aufgrund von Dateiberechtigungsanforderungen ablehnen. MurmurSSH kann eine lokale Laufzeitkopie des Schlüssels (in <code>~/.config/murmurssh/runtime-keys/</code>) mit den korrekten Berechtigungen für die Terminal-Nutzung erstellen. Der Originalschlüssel wird nicht verändert. Die Kopie ist temporär und wird beim Trennen der Verbindung gelöscht.</p>
         <p><strong>Hinweis:</strong> Über die Terminal-Schaltfläche geöffnete Terminal-Fenster müssen manuell geschlossen werden.</p>
+        <p><strong>Tastenkürzel (Datei-Browser):</strong></p>
+        <table style="border-collapse:collapse;font-size:13px;width:100%">
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Verzeichnis aktualisieren</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Ausgewählten Eintrag umbenennen</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>SSH-Terminal öffnen</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Ausgewählte Einträge löschen</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Ordner öffnen / Datei bearbeiten</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Alle Einträge auswählen</td></tr>
+          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Auswahl aufheben</td></tr>
+        </table>
         <p>Erstellt von <strong>Kai André Schultka</strong> mit <strong>Claude Code</strong>.</p>
       `,
         helpWebsite: "Website",

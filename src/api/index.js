@@ -1,5 +1,4 @@
-import { invoke, Channel } from "@tauri-apps/api/core";
-export { Channel };
+import { invoke } from "@tauri-apps/api/core";
 export async function listProfiles() {
     return invoke("list_profiles");
 }
@@ -157,16 +156,12 @@ export async function uploadPath(profileId, localPath, remotePath, onProgress) {
 }
 /**
  * Recursively upload a local directory to a remote destination path.
- * The remote_path is the full destination path (e.g. /home/user/mydir).
- * Creates the directory and its entire contents on the remote server.
- * Existing remote directories are tolerated (not treated as errors).
  */
 export async function uploadDirectory(profileId, localPath, remotePath, onProgress) {
     return invoke("upload_directory", { profileId, localPath, remotePath, onProgress });
 }
 /**
  * Upload a local file path to a remote path.
- * Used by the workspace confirm flow after the user approves.
  */
 export async function uploadFile(profileId, localPath, remotePath, onProgress) {
     return invoke("upload_file", { profileId, localPath, remotePath, onProgress });
@@ -180,7 +175,6 @@ export async function downloadFile(profileId, remotePath, onProgress) {
 }
 /**
  * Download a remote file to a user-specified local path.
- * Used after the user picks a save location via the save dialog.
  */
 export async function downloadFileTo(profileId, remotePath, localPath, onProgress) {
     return invoke("download_file_to", { profileId, remotePath, localPath, onProgress });
@@ -190,8 +184,6 @@ export async function deleteFile(profileId, remotePath) {
 }
 /**
  * Recursively download a remote directory to a local destination path.
- * The local_path is the full destination path (e.g. /home/user/mydir).
- * Creates the directory and its full contents locally.
  */
 export async function downloadDirectory(profileId, remotePath, localPath, onProgress) {
     return invoke("download_directory", { profileId, remotePath, localPath, onProgress });
@@ -257,4 +249,44 @@ export async function getAppVersion() {
 /** Open a URL in the system default browser using xdg-open. Only https/http allowed. */
 export async function openUrl(url) {
     return invoke("open_url", { url });
+}
+// ── Local filesystem ──────────────────────────────────────────────────────────
+/** List the contents of a local directory. Sorted: dirs first, then files (alphabetical). */
+export async function listLocalDirectory(path) {
+    return invoke("list_local_directory", { path });
+}
+/** Return the current user's home directory ($HOME). */
+export async function getHomeDir() {
+    return invoke("get_home_dir");
+}
+/** Return the current OS username ($USER / $LOGNAME). */
+export async function getCurrentUser() {
+    return invoke("get_current_user");
+}
+/**
+ * Return the saved local browser start path for a profile + the current OS user.
+ * Falls back to $HOME if nothing is saved or the saved path no longer exists.
+ */
+export async function getLocalBrowserPath(profileId) {
+    return invoke("get_local_browser_path", { profileId });
+}
+/**
+ * Persist the local browser path for the profile + current OS user.
+ * Portable profiles save per-user; local-machine profiles save to local_path.
+ */
+export async function saveLocalBrowserPath(profileId, path) {
+    return invoke("save_local_browser_path", { profileId, path });
+}
+/**
+ * Rename a local file or directory within the same parent directory.
+ */
+export async function renameLocalFile(fromPath, toPath) {
+    return invoke("rename_local_file", { fromPath, toPath });
+}
+/**
+ * Open a local file with the system default app, or with a custom editor command.
+ * If editor is null/undefined/"", falls back to xdg-open.
+ */
+export async function openLocalFile(path, editor) {
+    return invoke("open_local_file", { path, editor: editor ?? null });
 }

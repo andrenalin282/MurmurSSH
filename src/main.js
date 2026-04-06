@@ -1,7 +1,9 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
+import { Channel } from "@tauri-apps/api/core";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
+import { LocalFileBrowser } from "./components/local-file-browser";
 import { ProfileForm } from "./components/profile-form";
 import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
@@ -78,6 +80,11 @@ const systemThemeQuery = window.matchMedia("(prefers-color-scheme: dark)");
  * Default (no class) = dark theme. "theme-light" class = light theme.
  * "system" follows the OS prefers-color-scheme media query.
  */
+function applyLocalBrowserPosition(position) {
+    const pane = document.getElementById("browsers-pane");
+    if (pane)
+        pane.classList.toggle("local-right", position === "right");
+}
 function applyTheme(theme) {
     currentTheme = theme;
     const isDark = theme === "dark" || (theme === "system" && systemThemeQuery.matches);
@@ -92,8 +99,61 @@ systemThemeQuery.addEventListener("change", () => {
 const profileSelector = new ProfileSelector("profile-selector");
 const statusBar = new StatusBar("status-bar");
 const fileBrowser = new FileBrowser("file-browser");
+const localBrowser = new LocalFileBrowser("local-file-browser");
 const profileForm = new ProfileForm();
 const settingsDialog = new SettingsDialog();
+// ── Local browser toggle + resizer ───────────────────────────────────────────
+const localBrowserEl = document.getElementById("local-file-browser");
+const resizerEl = document.getElementById("browsers-pane-resizer");
+function setLocalBrowserVisible(visible) {
+    if (!localBrowserEl)
+        return;
+    if (visible) {
+        localBrowserEl.removeAttribute("hidden");
+        resizerEl?.removeAttribute("hidden");
+    }
+    else {
+        localBrowserEl.setAttribute("hidden", "");
+        resizerEl?.setAttribute("hidden", "");
+    }
+    fileBrowser.setLocalBrowserVisible(visible);
+}
+fileBrowser.onToggleLocalBrowser((visible) => {
+    setLocalBrowserVisible(visible);
+});
+// ── Resizable panel drag ──────────────────────────────────────────────────────
+if (resizerEl) {
+    resizerEl.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        const pane = document.getElementById("browsers-pane");
+        const localEl = localBrowserEl;
+        if (!pane || !localEl)
+            return;
+        const isLocalRight = pane.classList.contains("local-right");
+        resizerEl.classList.add("resizing");
+        function onMouseMove(ev) {
+            const paneRect = pane.getBoundingClientRect();
+            let newWidth;
+            if (isLocalRight) {
+                // Local panel is on the right: expand left from right edge
+                newWidth = paneRect.right - ev.clientX;
+            }
+            else {
+                // Local panel is on the left: expand right from left edge
+                newWidth = ev.clientX - paneRect.left;
+            }
+            newWidth = Math.max(160, Math.min(newWidth, paneRect.width - 200));
+            localEl.style.width = `${newWidth}px`;
+        }
+        function onMouseUp() {
+            resizerEl.classList.remove("resizing");
+            document.removeEventListener("mousemove", onMouseMove);
+            document.removeEventListener("mouseup", onMouseUp);
+        }
+        document.addEventListener("mousemove", onMouseMove);
+        document.addEventListener("mouseup", onMouseUp);
+    });
+}
 // Centralized connection state — single source of truth for connected profile.
 // Updated in onConnect (after SFTP + file browser ready) and onDisconnect.
 let connectedProfileId = null;
@@ -113,6 +173,11 @@ fileBrowser.onDisconnect(async () => {
     connectedProfileId = null;
     profileSelector.setConnected(false);
     if (profileId) {
+        // Save local browser path before clearing (best-effort, non-fatal)
+        const localPath = localBrowser.getCurrentPath();
+        if (localPath) {
+            api.saveLocalBrowserPath(profileId, localPath).catch(() => { });
+        }
         try {
             await api.stopSshSession(profileId);
         }
@@ -132,6 +197,7 @@ fileBrowser.onDisconnect(async () => {
             // Non-fatal — runtime key cleanup is best-effort
         }
     }
+    localBrowser.clear();
     statusBar.set("disconnected");
 });
 // After a profile is saved, reload the selector and select the saved profile
@@ -141,6 +207,7 @@ profileForm.onSaved(async (savedId) => {
 // After settings are applied: apply theme immediately, then reload profiles
 settingsDialog.onApplied(async (savedSettings) => {
     applyTheme(savedSettings.theme ?? "system");
+    applyLocalBrowserPosition(savedSettings.local_browser_position);
     await profileSelector.reload();
 });
 // ── Language button ───────────────────────────────────────────────────────────
@@ -360,7 +427,6 @@ listen("upload-ready", async (event) => {
         // Non-fatal: if conflict check fails, proceed with upload attempt.
     }
     try {
-        const { Channel } = await import("@tauri-apps/api/core");
         const ch = new Channel();
         await api.uploadFile(profile_id, local_path, remote_path, ch);
         statusBar.set("connected", t("app.uploadedFile", { filename }));
@@ -451,6 +517,42 @@ profileSelector.onConnect(async (profileId) => {
     catch {
         // Non-fatal: browser refresh reports its own inline error.
     }
+    // Initialize local browser with the saved path for this profile + user
+    localBrowser.setProfile(profileId).catch(() => {
+        // Non-fatal — local browser will fall back to $HOME on its own
+    });
+    // Pass the editor command from the profile so the context menu "Edit" action uses it
+    localBrowser.setEditorCommand(profile.editor_command ?? null);
+    // Wire context menu "Upload to remote": confirm then upload to current remote dir
+    localBrowser.onUpload(async (localPaths, entryName) => {
+        if (!connectedProfileId)
+            return;
+        const remotePath = fileBrowser.getCurrentPath();
+        const name = entryName ?? localPaths[0]?.split("/").pop() ?? "";
+        const confirmed = await showConfirm(
+            t("localBrowser.uploadConfirmMsg", { name, remotePath }),
+            t("localBrowser.uploadConfirmTitle")
+        );
+        if (!confirmed)
+            return;
+        await fileBrowser.uploadFileList(localPaths);
+    });
+    // Wire cross-browser DnD: local browser drop triggers download in remote browser
+    localBrowser.onDownload(async (remoteNames, localDestDir) => {
+        if (!connectedProfileId)
+            return;
+        localBrowser.setBusy(true);
+        try {
+            await fileBrowser.downloadNamesToLocal(remoteNames, localDestDir);
+        }
+        catch {
+            // Error reported by downloadNamesToLocal via status callback
+        }
+        finally {
+            localBrowser.setBusy(false);
+            await localBrowser.refresh();
+        }
+    });
 });
 profileSelector.init().then(async (lastUsedId) => {
     // Clean up any leftover runtime keys from a previous session that crashed
@@ -465,6 +567,7 @@ profileSelector.init().then(async (lastUsedId) => {
     try {
         const settings = await api.getSettings();
         applyTheme(settings.theme ?? "system");
+        applyLocalBrowserPosition(settings.local_browser_position);
     }
     catch {
         // Non-fatal — default theme (dark) stays active

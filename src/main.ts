@@ -128,16 +128,19 @@ const localBrowser = new LocalFileBrowser("local-file-browser");
 const profileForm = new ProfileForm();
 const settingsDialog = new SettingsDialog();
 
-// ── Local browser toggle ──────────────────────────────────────────────────────
+// ── Local browser toggle + resizer ───────────────────────────────────────────
 
 const localBrowserEl = document.getElementById("local-file-browser") as HTMLElement | null;
+const resizerEl = document.getElementById("browsers-pane-resizer") as HTMLElement | null;
 
 function setLocalBrowserVisible(visible: boolean): void {
   if (!localBrowserEl) return;
   if (visible) {
     localBrowserEl.removeAttribute("hidden");
+    resizerEl?.removeAttribute("hidden");
   } else {
     localBrowserEl.setAttribute("hidden", "");
+    resizerEl?.setAttribute("hidden", "");
   }
   fileBrowser.setLocalBrowserVisible(visible);
 }
@@ -145,6 +148,36 @@ function setLocalBrowserVisible(visible: boolean): void {
 fileBrowser.onToggleLocalBrowser((visible) => {
   setLocalBrowserVisible(visible);
 });
+
+// ── Resizable panel drag ──────────────────────────────────────────────────────
+
+if (resizerEl) {
+  resizerEl.addEventListener("mousedown", (e: MouseEvent) => {
+    e.preventDefault();
+    const pane = document.getElementById("browsers-pane");
+    if (!pane || !localBrowserEl) return;
+    const isLocalRight = pane.classList.contains("local-right");
+    resizerEl.classList.add("resizing");
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const paneRect = pane.getBoundingClientRect();
+      let newWidth = isLocalRight
+        ? paneRect.right - ev.clientX   // local on right: grow leftward
+        : ev.clientX - paneRect.left;   // local on left:  grow rightward
+      newWidth = Math.max(160, Math.min(newWidth, paneRect.width - 200));
+      localBrowserEl.style.width = `${newWidth}px`;
+    };
+
+    const onMouseUp = () => {
+      resizerEl.classList.remove("resizing");
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  });
+}
 
 // Centralized connection state — single source of truth for connected profile.
 // Updated in onConnect (after SFTP + file browser ready) and onDisconnect.
@@ -543,6 +576,21 @@ profileSelector.onConnect(async (profileId: string) => {
   // Initialize local browser with the saved path for this profile + user
   localBrowser.setProfile(profileId).catch(() => {
     // Non-fatal — local browser will fall back to $HOME on its own
+  });
+
+  // Pass editor command so context menu "Edit" uses the profile's configured editor
+  localBrowser.setEditorCommand(profile.editor_command ?? null);
+
+  // Context menu "Upload to remote": confirm, then upload to current remote directory
+  localBrowser.onUpload(async (localPaths, entryName) => {
+    if (!connectedProfileId) return;
+    const remotePath = fileBrowser.getCurrentPath();
+    const confirmed = await showConfirm(
+      t("localBrowser.uploadConfirmMsg", { name: entryName, remotePath }),
+      t("localBrowser.uploadConfirmTitle"),
+    );
+    if (!confirmed) return;
+    await fileBrowser.uploadFileList(localPaths);
   });
 
   // Wire cross-browser DnD: local browser drop triggers download in remote browser

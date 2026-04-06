@@ -414,3 +414,16 @@ export async function getLocalBrowserPath(profileId: string): Promise<string> {
 export async function saveLocalBrowserPath(profileId: string, path: string): Promise<void> {
   return invoke("save_local_browser_path", { profileId, path });
 }
+
+/** Rename a local file or directory within the same parent directory. */
+export async function renameLocalFile(fromPath: string, toPath: string): Promise<void> {
+  return invoke("rename_local_file", { fromPath, toPath });
+}
+
+/**
+ * Open a local file with the system default app, or with a custom editor command.
+ * If editor is null/"", falls back to xdg-open.
+ */
+export async function openLocalFile(path: string, editor: string | null): Promise<void> {
+  return invoke("open_local_file", { path, editor: editor ?? null });
+}

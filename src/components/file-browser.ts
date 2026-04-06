@@ -280,6 +280,11 @@ export class FileBrowser {
     this.clearSelection();
   }
 
+  /** Return the current remote path being browsed. */
+  getCurrentPath(): string {
+    return this.currentPath;
+  }
+
   /** Provide a callback to surface status messages (download path, errors, etc.) */
   setStatusCallback(cb: (msg: string, isError: boolean) => void): void {
     this.onStatusMessage = cb;
@@ -1121,7 +1126,7 @@ export class FileBrowser {
     await this.uploadFileList(paths);
   }
 
-  private async uploadFileList(localPaths: string[]): Promise<void> {
+  async uploadFileList(localPaths: string[]): Promise<void> {
     if (!this.profileId) return;
     const profileId = this.profileId;
     const total = localPaths.length;

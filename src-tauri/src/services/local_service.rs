@@ -142,6 +142,56 @@ pub fn get_local_browser_path(profile_id: &str) -> Result<String, String> {
     Ok(home)
 }
 
+/// Rename (or move within the same directory) a local file or directory.
+///
+/// Both paths must be absolute, free of null bytes, and share the same parent directory.
+pub fn rename_local_file(from_path: &str, to_path: &str) -> Result<(), String> {
+    reject_null_bytes(from_path)?;
+    reject_null_bytes(to_path)?;
+
+    if !from_path.starts_with('/') || !to_path.starts_with('/') {
+        return Err("Only absolute paths are accepted".to_string());
+    }
+
+    let from = Path::new(from_path);
+    let to = Path::new(to_path);
+
+    if from.parent() != to.parent() {
+        return Err("Rename may only change the file name, not the directory".to_string());
+    }
+
+    if !from.exists() {
+        return Err(format!("'{}' does not exist", from_path));
+    }
+
+    std::fs::rename(from, to)
+        .map_err(|e| format!("Rename failed: {}", e))
+}
+
+/// Open a local file with xdg-open or a custom editor command.
+///
+/// If `editor` is Some and non-empty, launches `<editor> <path>`.
+/// Otherwise falls back to `xdg-open <path>`.
+pub fn open_local_file(path: &str, editor: Option<&str>) -> Result<(), String> {
+    reject_null_bytes(path)?;
+
+    if !path.starts_with('/') {
+        return Err("Only absolute paths are accepted".to_string());
+    }
+
+    let (cmd, args): (&str, Vec<&str>) = match editor {
+        Some(e) if !e.trim().is_empty() => (e.trim(), vec![path]),
+        _ => ("xdg-open", vec![path]),
+    };
+
+    std::process::Command::new(cmd)
+        .args(&args)
+        .spawn()
+        .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
+
+    Ok(())
+}
+
 /// Persist the local browser path for the current user and profile.
 ///
 /// - Portable profiles: written into `local_paths_by_user[$USER]`

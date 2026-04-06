@@ -4,11 +4,16 @@ import { Channel } from "@tauri-apps/api/core";
 import * as api from "../api/index";
 import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
 import { t } from "../i18n/index";
+import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
+/** Format bytes/sec as human-readable speed string. */
 function formatSpeed(bps) {
-    if (bps >= 1024 * 1024) return `${(bps / 1024 / 1024).toFixed(1)} MB/s`;
-    if (bps >= 1024) return `${(bps / 1024).toFixed(0)} KB/s`;
+    if (bps >= 1024 * 1024)
+        return `${(bps / 1024 / 1024).toFixed(1)} MB/s`;
+    if (bps >= 1024)
+        return `${(bps / 1024).toFixed(0)} KB/s`;
     return `${bps.toFixed(0)} B/s`;
 }
+/** Create a Channel and return it along with a speed-tracking message handler. */
 function makeProgressChannel(onEvent) {
     const ch = new Channel();
     let prevBytes = 0;
@@ -18,9 +23,10 @@ function makeProgressChannel(onEvent) {
         const now = Date.now();
         if (prevTime > 0) {
             const elapsed = (now - prevTime) / 1000;
-            if (elapsed >= 0.08) {
+            if (elapsed >= 0.08) { // throttle to ~12 updates/s
                 const byteDelta = msg.bytesDone - prevBytes;
                 const instantSpeed = byteDelta / elapsed;
+                // Exponential moving average — smooth out bursts
                 smoothedSpeed = smoothedSpeed > 0
                     ? 0.25 * instantSpeed + 0.75 * smoothedSpeed
                     : instantSpeed;
@@ -28,7 +34,8 @@ function makeProgressChannel(onEvent) {
                 prevTime = now;
                 onEvent(msg, smoothedSpeed);
             }
-        } else {
+        }
+        else {
             prevBytes = msg.bytesDone;
             prevTime = now;
             onEvent(msg, 0);
@@ -45,7 +52,8 @@ function escHtml(s) {
 }
 // ── Inline SVG icons (Lucide-style, 14×14, currentColor) ──────────────────
 const ICONS = {
-    disconnect: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+    disconnect: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>`,
+    localToggle: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="9" height="18" rx="1"/><rect x="13" y="3" width="9" height="18" rx="1"/></svg>`,
     terminal: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>`,
     home: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
     up: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`,
@@ -104,12 +112,86 @@ export class FileBrowser {
         this.onStatusMessage = null;
         this.onDisconnectCallback = null;
         this.uploadApplyToAllDecision = null;
+        this.onToggleLocalBrowserCallback = null;
+        this.localBrowserVisible = false;
         const el = document.getElementById(containerId);
         if (!el)
             throw new Error(`Element #${containerId} not found`);
         this.container = el;
         this.renderEmpty();
         this.setupDragDrop();
+        this.setupKeyboardShortcuts();
+    }
+    /** Register global keyboard shortcuts. Called once from constructor. */
+    setupKeyboardShortcuts() {
+        document.addEventListener("keydown", (e) => {
+            // Skip when any modal/dialog is open
+            if (document.querySelector(".modal-overlay"))
+                return;
+            // Skip when an input or textarea has focus (user is typing)
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            const isInput = tag === "input" || tag === "textarea";
+            switch (e.key) {
+                case "F5":
+                    if (!isInput && this.profileId && !this.busy) {
+                        e.preventDefault();
+                        void this.refresh();
+                    }
+                    break;
+                case "F2":
+                    if (!isInput && this.profileId && !this.busy && this.selectedNames.size === 1) {
+                        e.preventDefault();
+                        void this.handleRename();
+                    }
+                    break;
+                case "F11":
+                    if (!isInput && this.profileId && !this.busy &&
+                        (!this.protocol || this.protocol === "ssh")) {
+                        e.preventDefault();
+                        void this.handleTerminal();
+                    }
+                    break;
+                case "Delete":
+                    if (!isInput && this.profileId && !this.busy && this.selectedNames.size > 0) {
+                        e.preventDefault();
+                        void this.handleDelete();
+                    }
+                    break;
+                case "a":
+                    if (e.ctrlKey && !isInput && this.profileId && !this.busy) {
+                        e.preventDefault();
+                        this.entries.forEach((entry) => this.selectedNames.add(entry.name));
+                        this.render();
+                    }
+                    break;
+                case "Enter":
+                    if (!isInput && this.profileId && !this.busy && this.selectedNames.size === 1) {
+                        const entry = this.selectedEntry;
+                        if (entry?.is_dir) {
+                            e.preventDefault();
+                            void this.navigateInto(entry.name);
+                        }
+                        else if (entry && !entry.is_dir) {
+                            e.preventDefault();
+                            void this.handleEdit();
+                        }
+                    }
+                    break;
+                case "Escape": {
+                    // Close context menu first; if none open, clear selection
+                    const ctxMenu = document.getElementById("ctx-menu");
+                    if (ctxMenu) {
+                        ctxMenu.remove();
+                        return;
+                    }
+                    if (!isInput && this.selectedNames.size > 0) {
+                        this.clearSelection();
+                        this.render();
+                    }
+                    break;
+                }
+            }
+        });
     }
     /** Set up the Tauri window drag-and-drop listener (once, for the lifetime of the component). */
     setupDragDrop() {
@@ -160,6 +242,10 @@ export class FileBrowser {
         this.homePath = defaultPath;
         this.clearSelection();
     }
+    /** Return the current remote path being browsed. */
+    getCurrentPath() {
+        return this.currentPath;
+    }
     /** Provide a callback to surface status messages (download path, errors, etc.) */
     setStatusCallback(cb) {
         this.onStatusMessage = cb;
@@ -167,6 +253,20 @@ export class FileBrowser {
     /** Provide a callback invoked when the user clicks Disconnect. */
     onDisconnect(callback) {
         this.onDisconnectCallback = callback;
+    }
+    /** Provide a callback invoked when the local browser toggle button is clicked. */
+    onToggleLocalBrowser(callback) {
+        this.onToggleLocalBrowserCallback = callback;
+    }
+    /** Set the current local-browser visibility state (so the icon reflects it). */
+    setLocalBrowserVisible(visible) {
+        if (this.localBrowserVisible === visible)
+            return;
+        this.localBrowserVisible = visible;
+        // Update just the toggle button class without a full re-render
+        const btn = document.getElementById("toggle-local-btn");
+        if (btn)
+            btn.classList.toggle("toolbar-btn--active", visible);
     }
     async refresh() {
         if (!this.profileId)
@@ -240,7 +340,8 @@ export class FileBrowser {
         this.container.innerHTML = `
       <div class="file-browser file-browser--empty">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" disabled title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
+          <button id="disconnect-btn" disabled title="${t("fileBrowser.disconnect")}">${ICONS.disconnect}</button>
+          <button id="toggle-local-btn" class="toolbar-btn--toggle${this.localBrowserVisible ? " toolbar-btn--active" : ""}" disabled title="${t("fileBrowser.toggleLocalBrowser")}">${ICONS.localToggle}</button>
           <button id="terminal-btn"   disabled title="${t("fileBrowser.terminal")}">${ICONS.terminal}</button>
           <button id="home-btn"       disabled title="${t("fileBrowser.home")}">${ICONS.home}</button>
           <button id="up-btn"         disabled title="${t("fileBrowser.up")}">${ICONS.up}</button>
@@ -348,7 +449,8 @@ export class FileBrowser {
         this.container.innerHTML = `
       <div class="file-browser${this.isDragOver ? " file-browser--dragover" : ""}">
         <div class="file-browser__toolbar">
-          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.disconnect")}">${ICONS.disconnect} ${t("fileBrowser.disconnect")}</button>
+          <button id="disconnect-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.disconnect")}">${ICONS.disconnect}</button>
+          <button id="toggle-local-btn" class="toolbar-btn--toggle${this.localBrowserVisible ? " toolbar-btn--active" : ""}" ${!hasProfile ? "disabled" : ""} title="${t("fileBrowser.toggleLocalBrowser")}">${ICONS.localToggle}</button>
           ${showTerminal ? `<button id="terminal-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.terminal")}">${ICONS.terminal}</button>` : ""}
           <button id="home-btn"       ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.home")}">${ICONS.home}</button>
           <button id="up-btn"         ${isAtRoot || this.busy ? "disabled" : ""} title="${t("fileBrowser.up")}">${ICONS.up}</button>
@@ -380,6 +482,7 @@ export class FileBrowser {
           <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFile")}">${ICONS.newFile}</button>
           <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder}</button>
         </div>
+        ${hasProfile ? `<div class="file-browser__dl-dropzone" id="dl-dropzone">${ICONS.download} ${t("fileBrowser.downloadDropZone")}</div>` : ""}
         ${transferProgressHtml}
       </div>
     `;
@@ -483,6 +586,15 @@ export class FileBrowser {
                 this.isDraggingInternal = true;
                 e.dataTransfer.effectAllowed = "move";
                 e.dataTransfer.setData("text/plain", "internal-move");
+                // Publish to shared DnD state so the local browser can receive the drop
+                if (this.profileId) {
+                    setDragSource({
+                        type: "remote",
+                        profileId: this.profileId,
+                        currentPath: this.currentPath,
+                        names: [...this.dragSourceNames],
+                    });
+                }
             });
             tbody.addEventListener("dragover", (e) => {
                 if (!this.isDraggingInternal)
@@ -535,12 +647,48 @@ export class FileBrowser {
                 this.isDraggingInternal = false;
                 this.dragSourceNames = new Set();
                 this.setDropTarget(null);
+                clearDragSource();
+            });
+        }
+        // ── Local→Remote drag: accept drops from local browser ────────────────
+        const scrollArea = this.container.querySelector(".file-browser__scroll");
+        if (scrollArea) {
+            scrollArea.addEventListener("dragover", (e) => {
+                const src = getDragSource();
+                if (!src || src.type !== "local" || this.busy || !this.profileId)
+                    return;
+                e.preventDefault();
+                e.stopPropagation(); // don't let Tauri's OS-drag handler see it
+                e.dataTransfer.dropEffect = "copy";
+                scrollArea.classList.add("file-browser--local-dragover");
+            });
+            scrollArea.addEventListener("dragleave", (e) => {
+                if (!scrollArea.contains(e.relatedTarget)) {
+                    scrollArea.classList.remove("file-browser--local-dragover");
+                }
+            });
+            scrollArea.addEventListener("drop", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                scrollArea.classList.remove("file-browser--local-dragover");
+                const src = getDragSource();
+                if (!src || src.type !== "local" || this.busy || !this.profileId)
+                    return;
+                clearDragSource();
+                void this.uploadFileList(src.paths);
             });
         }
         // ── Toolbar buttons ────────────────────────────────────────────────────
         document
             .getElementById("disconnect-btn")
             ?.addEventListener("click", () => this.handleDisconnect());
+        document.getElementById("toggle-local-btn")?.addEventListener("click", () => {
+            this.localBrowserVisible = !this.localBrowserVisible;
+            const btn = document.getElementById("toggle-local-btn");
+            if (btn)
+                btn.classList.toggle("toolbar-btn--active", this.localBrowserVisible);
+            this.onToggleLocalBrowserCallback?.(this.localBrowserVisible);
+        });
         document
             .getElementById("terminal-btn")
             ?.addEventListener("click", () => this.handleTerminal());
@@ -581,6 +729,30 @@ export class FileBrowser {
         document
             .getElementById("new-folder-btn")
             ?.addEventListener("click", () => this.handleNewFolder());
+        // ── Download drop zone ─────────────────────────────────────────────────
+        const dlZone = this.container.querySelector("#dl-dropzone");
+        if (dlZone) {
+            dlZone.addEventListener("dragover", (e) => {
+                if (!this.isDraggingInternal || this.dragSourceNames.size === 0 || this.busy)
+                    return;
+                e.preventDefault();
+                e.dataTransfer.dropEffect = "copy";
+                dlZone.classList.add("file-browser__dl-dropzone--active");
+            });
+            dlZone.addEventListener("dragleave", () => {
+                dlZone.classList.remove("file-browser__dl-dropzone--active");
+            });
+            dlZone.addEventListener("drop", (e) => {
+                e.preventDefault();
+                dlZone.classList.remove("file-browser__dl-dropzone--active");
+                if (!this.isDraggingInternal || this.dragSourceNames.size === 0 || this.busy)
+                    return;
+                const names = [...this.dragSourceNames];
+                this.dragSourceNames = new Set();
+                this.setDropTarget(null);
+                void this.downloadNamesToLocal(names);
+            });
+        }
         // ── Transfer-progress cancel ───────────────────────────────────────────
         document
             .getElementById("transfer-cancel-btn")
@@ -645,43 +817,67 @@ export class FileBrowser {
         this.transferProgress = { label, current: 0, total, cancelled: false, speedBps: 0, bytePct: null };
         this.render();
     }
+    /**
+     * Update the file-count counter via direct DOM manipulation.
+     * Must NOT call render() — that would interrupt the transfer loop visually.
+     */
     updateTransfer(current, currentFile) {
-        if (!this.transferProgress) return;
+        if (!this.transferProgress)
+            return;
         this.transferProgress.current = current;
         if (currentFile !== undefined) {
             this.transferProgress.currentFile = currentFile;
-            this.transferProgress.bytePct = null;
+            this.transferProgress.bytePct = null; // reset byte fill when moving to next file
         }
         this._flushTransferDom();
     }
+    /**
+     * Handle a progress event from the Tauri Channel (byte-level).
+     * Updates speed, current file, and byte-level fill bar.
+     */
     updateFromChannel(msg, speedBps) {
-        if (!this.transferProgress) return;
+        if (!this.transferProgress)
+            return;
         this.transferProgress.speedBps = speedBps;
-        if (msg.filename) this.transferProgress.currentFile = msg.filename;
+        if (msg.filename)
+            this.transferProgress.currentFile = msg.filename;
         this.transferProgress.bytePct =
             msg.bytesTotal > 0 ? Math.min(100, (msg.bytesDone / msg.bytesTotal) * 100) : null;
         this._flushTransferDom();
     }
+    /** Write current transferProgress state to the DOM without a full re-render. */
     _flushTransferDom() {
-        if (!this.transferProgress) return;
+        if (!this.transferProgress)
+            return;
         const tp = this.transferProgress;
         const statusEl = document.getElementById("transfer-status");
-        const speedEl  = document.getElementById("transfer-speed");
-        const fileEl   = document.getElementById("transfer-current-file");
-        const fillEl   = document.getElementById("transfer-bar-fill");
-        if (statusEl) statusEl.textContent = `${tp.label}: ${tp.current} / ${tp.total}`;
-        if (speedEl) speedEl.textContent = tp.speedBps > 0 ? formatSpeed(tp.speedBps) : "";
+        const speedEl = document.getElementById("transfer-speed");
+        const fileEl = document.getElementById("transfer-current-file");
+        const fillEl = document.getElementById("transfer-bar-fill");
+        if (statusEl) {
+            statusEl.textContent = `${tp.label}: ${tp.current} / ${tp.total}`;
+        }
+        if (speedEl) {
+            speedEl.textContent = tp.speedBps > 0 ? formatSpeed(tp.speedBps) : "";
+        }
         if (fileEl && tp.currentFile !== undefined) {
             fileEl.textContent = tp.currentFile;
             fileEl.title = tp.currentFile;
         }
         if (fillEl) {
+            // Byte-level fill takes priority; fall back to file-count fill
             const pct = tp.bytePct !== null
                 ? tp.bytePct
-                : tp.total > 0 ? Math.min(100, (tp.current / tp.total) * 100) : 0;
+                : tp.total > 0
+                    ? Math.min(100, (tp.current / tp.total) * 100)
+                    : 0;
             fillEl.style.width = `${pct.toFixed(1)}%`;
         }
     }
+    /**
+     * Mark the transfer as done and remove the progress bar state.
+     * render() will be called by the following refresh(), removing the element.
+     */
     endTransfer() {
         this.transferProgress = null;
         this.uploadApplyToAllDecision = null;
@@ -1190,6 +1386,83 @@ export class FileBrowser {
         }
         else if (errors === 0) {
             this.status(t("fileBrowser.downloadComplete", { done: t("fileBrowser.downloadedCount", { count: done }), dest: destDir }), false);
+        }
+        else {
+            this.status(t("fileBrowser.downloadCompleteErrors", {
+                done: t("fileBrowser.downloadedCount", { count: done }),
+                failed: t("fileBrowser.failedCount", { count: errors }),
+            }), true);
+        }
+        this.setBusy(false);
+        await this.refresh();
+    }
+    /**
+     * Download a list of named entries (from the current directory) to a local folder.
+     * When `explicitDestDir` is provided (e.g. from the local browser drop), it is used
+     * directly without showing a picker.
+     */
+    async downloadNamesToLocal(names, explicitDestDir) {
+        if (!this.profileId || names.length === 0)
+            return;
+        let destDir;
+        if (explicitDestDir) {
+            destDir = explicitDestDir;
+        }
+        else if (this.localPath) {
+            destDir = this.localPath;
+        }
+        else {
+            const chosen = await open({
+                multiple: false,
+                directory: true,
+                title: t("fileBrowser.selectFolderDownload"),
+            });
+            if (!chosen || typeof chosen !== "string")
+                return;
+            destDir = chosen;
+        }
+        const entries = this.entries.filter((e) => names.includes(e.name));
+        if (entries.length === 0)
+            return;
+        this.setBusy(true);
+        this.startTransfer(t("fileBrowser.transferDownloading"), entries.length);
+        let done = 0;
+        let errors = 0;
+        let aborted = false;
+        for (const entry of entries) {
+            if (this.transferProgress?.cancelled) {
+                aborted = true;
+                break;
+            }
+            const remotePath = joinPath(this.currentPath, entry.name);
+            const localDest = destDir.replace(/\/?$/, "/") + entry.name;
+            try {
+                this.log(t("fileBrowser.logDownloading", { name: entry.name }));
+                const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
+                if (entry.is_dir) {
+                    await api.downloadDirectory(this.profileId, remotePath, localDest, ch);
+                }
+                else {
+                    await api.downloadFileTo(this.profileId, remotePath, localDest, ch);
+                }
+                done++;
+            }
+            catch {
+                errors++;
+            }
+            this.updateTransfer(done + errors, entry.name);
+        }
+        this.endTransfer();
+        if (aborted) {
+            const doneStr = t("fileBrowser.downloadedCount", { count: done });
+            const failedStr = errors > 0 ? `, ${t("fileBrowser.failedCount", { count: errors })}` : "";
+            this.status(t("fileBrowser.downloadCancelledStatus", { done: doneStr, failed: failedStr }), false);
+        }
+        else if (errors === 0) {
+            this.status(t("fileBrowser.downloadComplete", {
+                done: t("fileBrowser.downloadedCount", { count: done }),
+                dest: destDir,
+            }), false);
         }
         else {
             this.status(t("fileBrowser.downloadCompleteErrors", {

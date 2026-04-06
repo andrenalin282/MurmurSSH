@@ -52,6 +52,8 @@ pub fn run() {
             commands::local::get_current_user,
             commands::local::get_local_browser_path,
             commands::local::save_local_browser_path,
+            commands::local::rename_local_file,
+            commands::local::open_local_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running MurmurSSH");

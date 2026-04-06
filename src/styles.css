@@ -257,16 +257,33 @@ button:disabled {
 
 .browsers-pane__local {
   width: 38%;
-  min-width: 200px;
-  max-width: 480px;
+  min-width: 160px;
+  max-width: 800px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .browsers-pane__local[hidden] {
+  display: none;
+}
+
+.browsers-pane__resizer {
+  width: 5px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--border);
+  transition: background 0.15s;
+  z-index: 1;
+}
+
+.browsers-pane__resizer:hover,
+.browsers-pane__resizer.resizing {
+  background: var(--accent);
+}
+
+.browsers-pane__resizer[hidden] {
   display: none;
 }
 
@@ -280,13 +297,45 @@ button:disabled {
 
 /* Local browser on the right side */
 #browsers-pane.local-right .browsers-pane__local {
+  order: 3;
+}
+
+#browsers-pane.local-right .browsers-pane__resizer {
   order: 2;
-  border-right: none;
-  border-left: 1px solid var(--border);
 }
 
 #browsers-pane.local-right .browsers-pane__remote {
   order: 1;
+}
+
+/* ── Local browser context menu ──────────────────────────── */
+
+.lb-context-menu {
+  position: fixed;
+  z-index: 9999;
+  background: var(--bg-overlay);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+  padding: 4px 0;
+  min-width: 160px;
+}
+
+.lb-context-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  padding: 7px 14px;
+  font-size: 13px;
+  color: var(--fg);
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.lb-context-menu button:hover {
+  background: var(--bg-hover);
 }
 
 /* ── File browser container (the #file-browser host div) ──── */
