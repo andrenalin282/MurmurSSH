@@ -277,15 +277,13 @@ export async function getLocalBrowserPath(profileId) {
 export async function saveLocalBrowserPath(profileId, path) {
     return invoke("save_local_browser_path", { profileId, path });
 }
-/**
- * Rename a local file or directory within the same parent directory.
- */
+/** Rename a local file or directory within the same parent directory. */
 export async function renameLocalFile(fromPath, toPath) {
     return invoke("rename_local_file", { fromPath, toPath });
 }
 /**
  * Open a local file with the system default app, or with a custom editor command.
- * If editor is null/undefined/"", falls back to xdg-open.
+ * If editor is null/"", falls back to xdg-open.
  */
 export async function openLocalFile(path, editor) {
     return invoke("open_local_file", { path, editor: editor ?? null });
