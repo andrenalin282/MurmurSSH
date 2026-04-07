@@ -156,6 +156,18 @@ const de = {
         uploadFailed: "{count} fehlgeschlagen",
         downloadDone: "{count} heruntergeladen",
         downloadFailed: "{count} fehlgeschlagen",
+        // Kontextmenü
+        ctxOpen: "Öffnen",
+        ctxEdit: "Bearbeiten",
+        ctxUpload: "Auf Remote hochladen",
+        ctxRename: "Umbenennen",
+        renameTitle: "Umbenennen",
+        renamePlaceholder: "Neuer Name",
+        renameFailed: "Umbenennen fehlgeschlagen: {error}",
+        openFailed: "Öffnen fehlgeschlagen: {error}",
+        notConnectedForUpload: "Nicht verbunden — Hochladen nicht möglich.",
+        uploadConfirmTitle: "Auf Remote hochladen?",
+        uploadConfirmMsg: "\"{name}\" nach {remotePath} hochladen?",
     },
     profiles: {
         label: "Profil",

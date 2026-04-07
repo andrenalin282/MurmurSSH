@@ -156,6 +156,18 @@ const en = {
         uploadFailed: "{count} failed",
         downloadDone: "{count} downloaded",
         downloadFailed: "{count} failed",
+        // Context menu
+        ctxOpen: "Open",
+        ctxEdit: "Edit",
+        ctxUpload: "Upload to remote",
+        ctxRename: "Rename",
+        renameTitle: "Rename",
+        renamePlaceholder: "new name",
+        renameFailed: "Rename failed: {error}",
+        openFailed: "Cannot open: {error}",
+        notConnectedForUpload: "Not connected — cannot upload.",
+        uploadConfirmTitle: "Upload to remote?",
+        uploadConfirmMsg: "Upload \"{name}\" to {remotePath}?",
     },
     profiles: {
         label: "Profile",
