@@ -8,6 +8,8 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 **Website:** [murmurssh.kai-schultka.de](https://murmurssh.kai-schultka.de)
 
+**Available languages:** English, German, Netherland, France.
+
 ---
 
 ## What it does
