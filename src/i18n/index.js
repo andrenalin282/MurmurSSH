@@ -2,7 +2,10 @@ import en from "./en";
 import de from "./de";
 import fr from "./fr";
 import nl from "./nl";
-const locales = { en, de, fr, nl };
+import ru from "./ru";
+import pl from "./pl";
+
+const locales = { en, de, fr, nl, ru, pl };
 const STORAGE_KEY = "murmurssh_locale";
 let currentLocaleKey = "en";
 function loadLocale() {
@@ -36,6 +39,8 @@ export function getAvailableLocales() {
         { key: "de", label: "Deutsch" },
         { key: "fr", label: "Français" },
         { key: "nl", label: "Nederlands" },
+        { key: "ru", label: "Русский" },
+        { key: "pl", label: "Polski" },
     ];
 }
 /**

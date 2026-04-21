@@ -2,10 +2,12 @@ import en from "./en";
 import de from "./de";
 import fr from "./fr";
 import nl from "./nl";
+import ru from "./ru";
+import pl from "./pl";
 type DeepStringify<T> = T extends string ? string : { [K in keyof T]: DeepStringify<T[K]> };
 type Locale = DeepStringify<typeof en>;
 
-const locales: Record<string, Locale> = { en, de, fr, nl };
+const locales: Record<string, Locale> = { en, de, fr, nl, ru, pl };
 const STORAGE_KEY = "murmurssh_locale";
 
 let currentLocaleKey: string = "en";
@@ -42,6 +44,8 @@ export function getAvailableLocales(): Array<{ key: string; label: string }> {
     { key: "de", label: "Deutsch" },
     { key: "fr", label: "Français" },
     { key: "nl", label: "Nederlands" },
+    { key: "ru", label: "Русский" },
+    { key: "pl", label: "Polski" },
   ];
 }
 

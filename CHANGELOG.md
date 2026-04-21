@@ -12,6 +12,13 @@ No changes yet.
 
 ---
 
+## [1.4.6] - 2026-04-21
+
+### Added
+- Polish (pl) and Russian (ru) translations for the full UI.
+
+---
+
 ## [1.4.5] - 2026-04-21
 
 ### Added
