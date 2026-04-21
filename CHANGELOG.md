@@ -12,6 +12,13 @@ No changes yet.
 
 ---
 
+## [1.4.5] - 2026-04-21
+
+### Added
+- Dutch (nl) and French (fr) translations for the full UI.
+
+---
+
 ## [1.4.4] - 2026-04-21
 
 ### Changed

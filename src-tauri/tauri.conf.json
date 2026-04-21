@@ -1,6 +1,6 @@
 {
   "productName": "MurmurSSH",
-  "version": "1.4.4",
+  "version": "1.4.5",
   "identifier": "de.kai-schultka.murmurssh",
   "build": {
     "frontendDist": "../dist",
