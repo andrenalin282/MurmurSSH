@@ -9,6 +9,7 @@ pub mod secrets_service;
 pub mod session_trust_store;
 pub mod settings_service;
 pub mod sftp_service;
+pub mod transfer_cancel;
 pub mod ssh_service;
 pub mod ssh_session_service;
 pub mod workspace_service;

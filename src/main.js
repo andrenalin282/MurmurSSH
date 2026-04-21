@@ -126,30 +126,23 @@ if (resizerEl) {
     resizerEl.addEventListener("mousedown", (e) => {
         e.preventDefault();
         const pane = document.getElementById("browsers-pane");
-        const localEl = localBrowserEl;
-        if (!pane || !localEl)
+        if (!pane || !localBrowserEl)
             return;
         const isLocalRight = pane.classList.contains("local-right");
         resizerEl.classList.add("resizing");
-        function onMouseMove(ev) {
+        const onMouseMove = (ev) => {
             const paneRect = pane.getBoundingClientRect();
-            let newWidth;
-            if (isLocalRight) {
-                // Local panel is on the right: expand left from right edge
-                newWidth = paneRect.right - ev.clientX;
-            }
-            else {
-                // Local panel is on the left: expand right from left edge
-                newWidth = ev.clientX - paneRect.left;
-            }
+            let newWidth = isLocalRight
+                ? paneRect.right - ev.clientX // local on right: grow leftward
+                : ev.clientX - paneRect.left; // local on left:  grow rightward
             newWidth = Math.max(160, Math.min(newWidth, paneRect.width - 200));
-            localEl.style.width = `${newWidth}px`;
-        }
-        function onMouseUp() {
+            localBrowserEl.style.width = `${newWidth}px`;
+        };
+        const onMouseUp = () => {
             resizerEl.classList.remove("resizing");
             document.removeEventListener("mousemove", onMouseMove);
             document.removeEventListener("mouseup", onMouseUp);
-        }
+        };
         document.addEventListener("mousemove", onMouseMove);
         document.addEventListener("mouseup", onMouseUp);
     });
@@ -464,6 +457,10 @@ profileSelector.onConnect(async (profileId) => {
         fileBrowser.setConnectingState(false);
         profileSelector.setConnecting(false);
         connectingProfileId = null;
+        // Clear any credential that a prior in-flight connectSftp call may have
+        // stored before authentication completed. Prevents the session cache from
+        // silently reusing a credential the user chose to abandon (audit F10).
+        api.clearSessionCredentials(profileId).catch(() => { });
         statusBar.set("disconnected");
     });
     // Verify connection (host key + auth) before browsing
@@ -521,18 +518,14 @@ profileSelector.onConnect(async (profileId) => {
     localBrowser.setProfile(profileId).catch(() => {
         // Non-fatal — local browser will fall back to $HOME on its own
     });
-    // Pass the editor command from the profile so the context menu "Edit" action uses it
+    // Pass editor command so context menu "Edit" uses the profile's configured editor
     localBrowser.setEditorCommand(profile.editor_command ?? null);
-    // Wire context menu "Upload to remote": confirm then upload to current remote dir
+    // Context menu "Upload to remote": confirm, then upload to current remote directory
     localBrowser.onUpload(async (localPaths, entryName) => {
         if (!connectedProfileId)
             return;
         const remotePath = fileBrowser.getCurrentPath();
-        const name = entryName ?? localPaths[0]?.split("/").pop() ?? "";
-        const confirmed = await showConfirm(
-            t("localBrowser.uploadConfirmMsg", { name, remotePath }),
-            t("localBrowser.uploadConfirmTitle")
-        );
+        const confirmed = await showConfirm(t("localBrowser.uploadConfirmMsg", { name: entryName, remotePath }), t("localBrowser.uploadConfirmTitle"));
         if (!confirmed)
             return;
         await fileBrowser.uploadFileList(localPaths);

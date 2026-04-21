@@ -12,6 +12,23 @@ No changes yet.
 
 ---
 
+## [1.4.3] - 2026-04-21
+
+### Fixed
+- SFTP transfers no longer abort after 15 s on slow links (timeout split into a short handshake/auth phase and a long transfer phase).
+- Cancel now actually interrupts in-flight SFTP/FTP transfers (single file + recursive folder). Partial remote/local files are cleaned up on cancel or error.
+- Recursive folder progress events now use per-file `bytes_done` / `bytes_total`, so the progress bar no longer pins at 100% after the first file.
+- Download to an already-occupied local path now prompts an overwrite dialog instead of silently clobbering.
+- FTP uploads and downloads now stream chunk-by-chunk instead of loading the whole file into RAM.
+- Several panic-on-unset-`HOME` / poisoned-mutex paths hardened so the app surfaces a readable error instead of aborting under `panic = "abort"`.
+- Local editor command (`open_local_file`) is now parsed consistently with the workspace service so values like `"code --new-window"` work.
+
+### Security
+- SSH ControlMaster socket moved from world-writable `$TMPDIR` to `~/.config/murmurssh/run/` with `0700` permissions.
+- Session credentials are cleared when a user cancels a connection attempt so a cancelled password does not linger in the session cache.
+
+---
+
 ## [1.4.1] - 2026-04-05
 
 ### Changed

@@ -18,7 +18,9 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
 fn runtime_keys_dir() -> PathBuf {
-    let home = std::env::var("HOME").expect("HOME environment variable not set");
+    // Fall back to "/" rather than panicking — with panic=abort in release,
+    // an unset $HOME would otherwise terminate the entire app.
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
     PathBuf::from(home)
         .join(".config")
         .join("murmurssh")

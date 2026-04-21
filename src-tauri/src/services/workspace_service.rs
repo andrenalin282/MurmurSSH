@@ -30,7 +30,9 @@ pub struct UploadReadyPayload {
 }
 
 fn workspace_base() -> PathBuf {
-    let home = std::env::var("HOME").expect("HOME environment variable not set");
+    // Fall back to "/" rather than panicking — with panic=abort in release,
+    // an unset $HOME would otherwise terminate the entire app.
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
     PathBuf::from(home)
         .join(".config")
         .join("murmurssh")

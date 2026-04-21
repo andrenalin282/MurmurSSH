@@ -318,6 +318,20 @@ export async function createDirectory(
   return invoke("create_directory", { profileId, path });
 }
 
+/**
+ * Request cancellation of the currently running transfer for the given profile.
+ * The backend's chunk loops poll the cancel flag between chunks and unwind
+ * with a `TRANSFER_CANCELLED` error that the frontend can display as "cancelled".
+ */
+export async function cancelTransfer(profileId: string): Promise<void> {
+  return invoke("cancel_transfer", { profileId });
+}
+
+/** Check whether a local path already exists (file or directory). */
+export async function localFileExists(path: string): Promise<boolean> {
+  return invoke("local_file_exists", { path });
+}
+
 export async function openForEdit(
   profileId: string,
   remotePath: string

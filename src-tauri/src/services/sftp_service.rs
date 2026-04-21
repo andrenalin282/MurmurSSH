@@ -4,10 +4,20 @@ use std::path::Path;
 
 const TRANSFER_CHUNK: usize = 256 * 1024; // 256 KB chunks for progress granularity
 
+/// Timeout applied during handshake + authentication. Kept short so a broken
+/// host fails quickly instead of hanging the UI.
+const HANDSHAKE_TIMEOUT_MS: u32 = 15_000;
+
+/// Timeout applied after authentication to every subsequent blocking libssh2
+/// operation (SFTP open/read/write). Large on purpose: a single 256 KB chunk
+/// stalling beyond this means the link is effectively dead, not slow. Covers
+/// legitimate slow-link transfers without silently dropping them (audit F6).
+const TRANSFER_TIMEOUT_MS: u32 = 120_000;
+
 use ssh2::Session;
 
 use crate::models::{AuthType, FileEntry, Profile};
-use crate::services::{credentials_store, known_hosts_service};
+use crate::services::{credentials_store, known_hosts_service, transfer_cancel};
 
 /// Compute a SHA-256 fingerprint of the server host key as colon-separated hex.
 fn host_fingerprint(session: &Session) -> String {
@@ -50,8 +60,11 @@ fn connect(profile: &Profile) -> Result<Session, String> {
     let mut session =
         Session::new().map_err(|e| format!("Failed to create SSH session: {}", e))?;
 
-    // Timeout covers handshake and all subsequent channel operations
-    session.set_timeout(15_000);
+    // Short timeout for handshake + authentication so an unresponsive or
+    // misconfigured server fails fast. The per-SFTP-op timeout is relaxed
+    // below after authentication so large transfers on slow links do not
+    // abort mid-chunk (audit F6).
+    session.set_timeout(HANDSHAKE_TIMEOUT_MS);
     session.set_tcp_stream(tcp);
     session
         .handshake()
@@ -161,6 +174,10 @@ fn connect(profile: &Profile) -> Result<Session, String> {
         return Err("Authentication failed".to_string());
     }
 
+    // Relax the per-op timeout now that auth is done so multi-minute transfers
+    // over slow links are not aborted mid-chunk (audit F6).
+    session.set_timeout(TRANSFER_TIMEOUT_MS);
+
     Ok(session)
 }
 
@@ -240,7 +257,22 @@ pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, S
 
 /// Upload a local file to a remote path.
 /// `on_progress(bytes_done, bytes_total)` is called after each chunk.
+///
+/// On any read/write failure the partially written remote file is removed on a
+/// best-effort basis (F5) so a retry starts from a clean state.
 pub fn upload_file(
+    profile: &Profile,
+    local_path: &str,
+    remote_path: &str,
+    on_progress: &dyn Fn(u64, u64),
+) -> Result<(), String> {
+    transfer_cancel::clear(&profile.id);
+    let result = upload_file_inner(profile, local_path, remote_path, on_progress);
+    transfer_cancel::clear(&profile.id);
+    result
+}
+
+fn upload_file_inner(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
@@ -261,14 +293,25 @@ pub fn upload_file(
 
     let mut buf = vec![0u8; TRANSFER_CHUNK];
     let mut done = 0u64;
-    loop {
-        let n = local.read(&mut buf)
-            .map_err(|e| format!("Read '{}' failed: {}", local_path, e))?;
-        if n == 0 { break; }
-        remote.write_all(&buf[..n])
-            .map_err(|e| format!("Upload to '{}' failed: {}", remote_path, e))?;
+    let write_result: Result<(), String> = loop {
+        if transfer_cancel::is_cancelled(&profile.id) {
+            break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+        }
+        let n = match local.read(&mut buf) {
+            Ok(v) => v,
+            Err(e) => break Err(format!("Read '{}' failed: {}", local_path, e)),
+        };
+        if n == 0 { break Ok(()); }
+        if let Err(e) = remote.write_all(&buf[..n]) {
+            break Err(format!("Upload to '{}' failed: {}", remote_path, e));
+        }
         done += n as u64;
         on_progress(done, total);
+    };
+    if let Err(e) = write_result {
+        drop(remote);
+        let _ = sftp.unlink(Path::new(remote_path));
+        return Err(e);
     }
     Ok(())
 }
@@ -291,7 +334,22 @@ pub fn upload_bytes(profile: &Profile, remote_path: &str, content: &[u8]) -> Res
 
 /// Download a remote file to a local path.
 /// `on_progress(bytes_done, bytes_total)` is called after each chunk.
+///
+/// On any read/write failure the partially written local file is removed on a
+/// best-effort basis (F5) so the user does not end up with a truncated file.
 pub fn download_file(
+    profile: &Profile,
+    remote_path: &str,
+    local_path: &str,
+    on_progress: &dyn Fn(u64, u64),
+) -> Result<(), String> {
+    transfer_cancel::clear(&profile.id);
+    let result = download_file_inner(profile, remote_path, local_path, on_progress);
+    transfer_cancel::clear(&profile.id);
+    result
+}
+
+fn download_file_inner(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
@@ -314,14 +372,25 @@ pub fn download_file(
 
     let mut buf = vec![0u8; TRANSFER_CHUNK];
     let mut done = 0u64;
-    loop {
-        let n = remote.read(&mut buf)
-            .map_err(|e| format!("Download of '{}' failed: {}", remote_path, e))?;
-        if n == 0 { break; }
-        local.write_all(&buf[..n])
-            .map_err(|e| format!("Write '{}' failed: {}", local_path, e))?;
+    let write_result: Result<(), String> = loop {
+        if transfer_cancel::is_cancelled(&profile.id) {
+            break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+        }
+        let n = match remote.read(&mut buf) {
+            Ok(v) => v,
+            Err(e) => break Err(format!("Download of '{}' failed: {}", remote_path, e)),
+        };
+        if n == 0 { break Ok(()); }
+        if let Err(e) = local.write_all(&buf[..n]) {
+            break Err(format!("Write '{}' failed: {}", local_path, e));
+        }
         done += n as u64;
         on_progress(done, total);
+    };
+    if let Err(e) = write_result {
+        drop(local);
+        let _ = std::fs::remove_file(local_path);
+        return Err(e);
     }
     Ok(())
 }
@@ -372,7 +441,23 @@ pub fn create_directory(profile: &Profile, path: &str) -> Result<(), String> {
 ///
 /// Uses a single SFTP session for the entire operation. Creates the local directory
 /// structure mirroring the remote tree. Symlinks to directories are followed.
+///
+/// Progress callback semantics: `bytes_done` is **per current file** (resets to 0
+/// at the start of each file), `bytes_total` is the size of that file, `filename`
+/// is the current entry name. This matches the single-file progress shape.
 pub fn download_directory(
+    profile: &Profile,
+    remote_path: &str,
+    local_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
+    transfer_cancel::clear(&profile.id);
+    let result = download_directory_inner(profile, remote_path, local_path, on_progress);
+    transfer_cancel::clear(&profile.id);
+    result
+}
+
+fn download_directory_inner(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
@@ -386,18 +471,20 @@ pub fn download_directory(
     std::fs::create_dir_all(local_path)
         .map_err(|e| format!("Failed to create local directory '{}': {}", local_path, e))?;
 
-    let mut bytes_done = 0u64;
-    download_directory_recursive(&sftp, remote_path, local_path, &mut bytes_done, on_progress)
+    download_directory_recursive(&profile.id, &sftp, remote_path, local_path, on_progress)
 }
 
 /// Internal recursive helper for directory download — operates on an open SFTP channel.
 fn download_directory_recursive(
+    profile_id: &str,
     sftp: &ssh2::Sftp,
     remote_path: &str,
     local_path: &str,
-    bytes_done: &mut u64,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
+    if transfer_cancel::is_cancelled(profile_id) {
+        return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+    }
     let entries = sftp
         .readdir(Path::new(remote_path))
         .map_err(|e| format!("Failed to list '{}': {}", remote_path, e))?;
@@ -424,10 +511,10 @@ fn download_directory_recursive(
         if is_dir {
             std::fs::create_dir_all(&local_entry)
                 .map_err(|e| format!("Failed to create local directory '{}': {}", local_entry, e))?;
-            download_directory_recursive(sftp, &entry_path_str, &local_entry, bytes_done, on_progress)?;
+            download_directory_recursive(profile_id, sftp, &entry_path_str, &local_entry, on_progress)?;
         } else {
             let file_total = sftp.stat(&entry_path).map(|s| s.size.unwrap_or(0)).unwrap_or(0);
-            on_progress(*bytes_done, 0, &entry_name);
+            on_progress(0, file_total, &entry_name);
 
             let mut remote_file = sftp
                 .open(&entry_path)
@@ -436,14 +523,27 @@ fn download_directory_recursive(
                 .map_err(|e| format!("Failed to create local file '{}': {}", local_entry, e))?;
 
             let mut buf = vec![0u8; TRANSFER_CHUNK];
-            loop {
-                let n = remote_file.read(&mut buf)
-                    .map_err(|e| format!("Failed to read '{}': {}", entry_path_str, e))?;
-                if n == 0 { break; }
-                local_file.write_all(&buf[..n])
-                    .map_err(|e| format!("Failed to write '{}': {}", local_entry, e))?;
-                *bytes_done += n as u64;
-                on_progress(*bytes_done, file_total, &entry_name);
+            let mut file_done = 0u64;
+            let write_result: Result<(), String> = loop {
+                if transfer_cancel::is_cancelled(profile_id) {
+                    break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+                }
+                let n = match remote_file.read(&mut buf) {
+                    Ok(v) => v,
+                    Err(e) => break Err(format!("Failed to read '{}': {}", entry_path_str, e)),
+                };
+                if n == 0 { break Ok(()); }
+                if let Err(e) = local_file.write_all(&buf[..n]) {
+                    break Err(format!("Failed to write '{}': {}", local_entry, e));
+                }
+                file_done += n as u64;
+                on_progress(file_done, file_total, &entry_name);
+            };
+            if let Err(e) = write_result {
+                // Best-effort cleanup of the partially downloaded file (F5).
+                drop(local_file);
+                let _ = std::fs::remove_file(&local_entry);
+                return Err(e);
             }
         }
     }
@@ -463,14 +563,25 @@ pub fn upload_directory(
     remote_path: &str,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
+    transfer_cancel::clear(&profile.id);
+    let result = upload_directory_inner(profile, local_path, remote_path, on_progress);
+    transfer_cancel::clear(&profile.id);
+    result
+}
+
+fn upload_directory_inner(
+    profile: &Profile,
+    local_path: &str,
+    remote_path: &str,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
     let session = connect(profile)?;
     let sftp = session
         .sftp()
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
 
     mkdir_ok_if_exists(&sftp, Path::new(remote_path))?;
-    let mut bytes_done = 0u64;
-    upload_directory_recursive(&sftp, Path::new(local_path), remote_path, &mut bytes_done, on_progress)
+    upload_directory_recursive(&profile.id, &sftp, Path::new(local_path), remote_path, on_progress)
 }
 
 /// Try to create a remote directory; silently succeed if it already exists.
@@ -487,13 +598,19 @@ fn mkdir_ok_if_exists(sftp: &ssh2::Sftp, path: &Path) -> Result<(), String> {
 }
 
 /// Internal recursive helper for directory upload — operates on an open SFTP channel.
+///
+/// Progress: `bytes_done` is per current file, `bytes_total` is the current
+/// file's size, `filename` is the current entry. Matches single-file shape.
 fn upload_directory_recursive(
+    profile_id: &str,
     sftp: &ssh2::Sftp,
     local_dir: &Path,
     remote_dir: &str,
-    bytes_done: &mut u64,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
+    if transfer_cancel::is_cancelled(profile_id) {
+        return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+    }
     let read_dir = std::fs::read_dir(local_dir)
         .map_err(|e| format!("Failed to read local directory '{}': {}", local_dir.display(), e))?;
 
@@ -516,10 +633,10 @@ fn upload_directory_recursive(
         // Broken symlinks and special files (sockets, devices) are skipped.
         if local_entry.is_dir() {
             mkdir_ok_if_exists(sftp, Path::new(&remote_entry))?;
-            upload_directory_recursive(sftp, &local_entry, &remote_entry, bytes_done, on_progress)?;
+            upload_directory_recursive(profile_id, sftp, &local_entry, &remote_entry, on_progress)?;
         } else if local_entry.is_file() {
             let file_total = local_entry.metadata().map(|m| m.len()).unwrap_or(0);
-            on_progress(*bytes_done, 0, &entry_name);
+            on_progress(0, file_total, &entry_name);
 
             let mut local_file = std::fs::File::open(&local_entry)
                 .map_err(|e| format!("Failed to open '{}': {}", local_entry.display(), e))?;
@@ -528,14 +645,27 @@ fn upload_directory_recursive(
                 .map_err(|e| format!("Failed to create remote file '{}': {}", remote_entry, e))?;
 
             let mut buf = vec![0u8; TRANSFER_CHUNK];
-            loop {
-                let n = local_file.read(&mut buf)
-                    .map_err(|e| format!("Read '{}' failed: {}", local_entry.display(), e))?;
-                if n == 0 { break; }
-                remote_file.write_all(&buf[..n])
-                    .map_err(|e| format!("Upload '{}' failed: {}", remote_entry, e))?;
-                *bytes_done += n as u64;
-                on_progress(*bytes_done, file_total, &entry_name);
+            let mut file_done = 0u64;
+            let write_result: Result<(), String> = loop {
+                if transfer_cancel::is_cancelled(profile_id) {
+                    break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+                }
+                let n = match local_file.read(&mut buf) {
+                    Ok(v) => v,
+                    Err(e) => break Err(format!("Read '{}' failed: {}", local_entry.display(), e)),
+                };
+                if n == 0 { break Ok(()); }
+                if let Err(e) = remote_file.write_all(&buf[..n]) {
+                    break Err(format!("Upload '{}' failed: {}", remote_entry, e));
+                }
+                file_done += n as u64;
+                on_progress(file_done, file_total, &entry_name);
+            };
+            if let Err(e) = write_result {
+                // Best-effort cleanup of the partial remote file (F5).
+                drop(remote_file);
+                let _ = sftp.unlink(Path::new(&remote_entry));
+                return Err(e);
             }
         }
         // Broken symlinks and special files are skipped without error.

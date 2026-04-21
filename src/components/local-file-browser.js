@@ -46,13 +46,12 @@ export class LocalFileBrowser {
         this.dragSourceNames = new Set();
         // Callbacks wired from main.ts
         this.onDownloadCallback = null;
-        this.onPathChange = null;
         this.onUploadCallback = null;
-        // Editor command from connected profile (optional)
+        this.onPathChange = null;
+        // Editor command from the connected profile (optional)
         this.editorCommand = null;
-        // Context menu element (shared, appended to body once)
+        // Context menu
         this._contextMenu = null;
-        this._contextMenuTarget = null;
         this._hideContextMenuBound = (e) => this._hideContextMenu(e);
         const el = document.getElementById(containerId);
         if (!el)
@@ -104,14 +103,11 @@ export class LocalFileBrowser {
     onPathChanged(cb) {
         this.onPathChange = cb;
     }
-    /**
-     * Register a callback invoked when the user chooses "Upload to remote" from the
-     * context menu. Receives an array of local file paths to upload.
-     */
+    /** Register a callback invoked when the user chooses "Upload to remote" from the context menu. */
     onUpload(cb) {
         this.onUploadCallback = cb;
     }
-    /** Set the editor command for the connected profile (may be null). */
+    /** Set the editor command from the connected profile (may be null/empty). */
     setEditorCommand(cmd) {
         this.editorCommand = cmd || null;
     }
@@ -198,9 +194,9 @@ export class LocalFileBrowser {
         this.wireEvents();
     }
     // ── Context menu ─────────────────────────────────────────────────────────────
-    _showContextMenu(x, y, entry) {
+    _showContextMenu(x, y, name, isDir) {
         this._hideContextMenu();
-        const isFile = !entry.is_dir;
+        const isFile = !isDir;
         const menu = document.createElement("div");
         menu.className = "lb-context-menu";
         menu.innerHTML = `
@@ -209,31 +205,28 @@ export class LocalFileBrowser {
       ${this.onUploadCallback ? `<button data-action="upload">${t("localBrowser.ctxUpload")}</button>` : ""}
       <button data-action="rename">${t("localBrowser.ctxRename")}</button>
     `;
-        // Clamp to viewport
         document.body.appendChild(menu);
+        // Clamp to viewport
         const rect = menu.getBoundingClientRect();
-        const left = Math.min(x, window.innerWidth - rect.width - 4);
-        const top = Math.min(y, window.innerHeight - rect.height - 4);
-        menu.style.left = `${left}px`;
-        menu.style.top = `${top}px`;
+        menu.style.left = `${Math.min(x, window.innerWidth - rect.width - 4)}px`;
+        menu.style.top = `${Math.min(y, window.innerHeight - rect.height - 4)}px`;
         this._contextMenu = menu;
-        this._contextMenuTarget = entry;
         menu.addEventListener("click", (e) => {
             const btn = e.target.closest("[data-action]");
             if (!btn)
                 return;
-            this._hideContextMenu();
             const action = btn.dataset.action;
+            this._hideContextMenu();
+            const path = joinPath(this.currentPath, name);
             if (action === "open")
-                void this._ctxOpen(entry, null);
+                void this._ctxOpen(path, null);
             else if (action === "edit")
-                void this._ctxOpen(entry, this.editorCommand);
+                void this._ctxOpen(path, this.editorCommand);
             else if (action === "upload")
-                void this._ctxUpload(entry);
+                void this._ctxUpload(path, name);
             else if (action === "rename")
-                void this._ctxRename(entry);
+                void this._ctxRename(name);
         });
-        // Close on outside click
         setTimeout(() => {
             document.addEventListener("mousedown", this._hideContextMenuBound, { once: true });
         }, 0);
@@ -243,10 +236,8 @@ export class LocalFileBrowser {
             return;
         this._contextMenu?.remove();
         this._contextMenu = null;
-        this._contextMenuTarget = null;
     }
-    async _ctxOpen(entry, editor) {
-        const path = joinPath(this.currentPath, entry.name);
+    async _ctxOpen(path, editor) {
         try {
             await api.openLocalFile(path, editor);
         }
@@ -255,28 +246,24 @@ export class LocalFileBrowser {
             this.render();
         }
     }
-    async _ctxUpload(entry) {
-        if (!this.onUploadCallback) {
-            this.inlineError = t("localBrowser.notConnectedForUpload");
-            this.render();
+    async _ctxUpload(path, name) {
+        if (!this.onUploadCallback)
             return;
-        }
-        const path = joinPath(this.currentPath, entry.name);
-        await this.onUploadCallback([path], entry.name);
+        await this.onUploadCallback([path], name);
     }
-    async _ctxRename(entry) {
-        const oldPath = joinPath(this.currentPath, entry.name);
-        const newName = window.prompt(t("localBrowser.renameTitle"), entry.name);
-        if (!newName || newName === entry.name)
+    async _ctxRename(oldName) {
+        const newName = window.prompt(t("localBrowser.renameTitle"), oldName);
+        if (!newName || newName === oldName)
             return;
         if (newName.includes("/")) {
             this.inlineError = t("localBrowser.renameFailed", { error: "Name cannot contain \"/\"" });
             this.render();
             return;
         }
-        const newPath = joinPath(this.currentPath, newName);
+        const fromPath = joinPath(this.currentPath, oldName);
+        const toPath = joinPath(this.currentPath, newName);
         try {
-            await api.renameLocalFile(oldPath, newPath);
+            await api.renameLocalFile(fromPath, toPath);
             await this.refresh();
         }
         catch (err) {
@@ -326,13 +313,12 @@ export class LocalFileBrowser {
             const row = e.target.closest("tr.lb-entry");
             if (!row)
                 return;
-            e.preventDefault();
             const name = row.dataset.name;
-            const isDir = row.dataset.isdir === "true";
-            if (name === "..")
+            if (!name || name === "..")
                 return;
-            const entry = { name, is_dir: isDir };
-            this._showContextMenu(e.clientX, e.clientY, entry);
+            e.preventDefault();
+            const isDir = row.dataset.isdir === "true";
+            this._showContextMenu(e.clientX, e.clientY, name, isDir);
         });
         // ── Drag source (local files → remote browser = upload) ────────────────────
         tbody.addEventListener("dragstart", (e) => {

@@ -50,8 +50,30 @@ fn sessions() -> &'static Mutex<HashMap<String, SshSession>> {
 
 // ── Path helpers ──────────────────────────────────────────────────────────────
 
+/// Directory for app-private runtime state (ControlMaster sockets, etc.).
+///
+/// Uses `~/.config/murmurssh/run/` with `0700` permissions so the socket path
+/// is not predictable in world-writable `/tmp` (audit F17). Falls back to `/`
+/// on an unset `$HOME` to avoid panicking under `panic=abort`.
+fn run_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+    PathBuf::from(home).join(".config").join("murmurssh").join("run")
+}
+
+fn ensure_run_dir() -> PathBuf {
+    let dir = run_dir();
+    let _ = fs::create_dir_all(&dir);
+    let _ = fs::set_permissions(&dir, fs::Permissions::from_mode(0o700));
+    dir
+}
+
 fn ctrl_socket_path(profile_id: &str) -> PathBuf {
-    std::env::temp_dir().join(format!(".murmurssh-ctrl-{}.sock", profile_id))
+    // Sanitise the profile id in case it contains path separators or dots.
+    let safe: String = profile_id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    run_dir().join(format!("{}.sock", safe))
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -69,9 +91,10 @@ fn ctrl_socket_path(profile_id: &str) -> PathBuf {
 /// Returns Ok(()) even if no session is needed.
 /// Returns Err only if a ControlMaster session was attempted but failed.
 pub fn start_session(profile: &Profile) -> Result<(), String> {
-    // Idempotent: if a session already exists, reuse it
-    {
-        let map = sessions().lock().unwrap();
+    // Idempotent: if a session already exists, reuse it.
+    // On a poisoned mutex we treat the store as empty and try to re-establish the
+    // session rather than aborting the app (panic=abort would otherwise kill it).
+    if let Ok(map) = sessions().lock() {
         if map.contains_key(&profile.id) {
             return Ok(());
         }
@@ -93,7 +116,9 @@ pub fn start_session(profile: &Profile) -> Result<(), String> {
 
 /// Stop and clean up the SSH session for a profile (called on disconnect).
 pub fn stop_session(profile_id: &str) {
-    let mut map = sessions().lock().unwrap();
+    // On a poisoned mutex skip cleanup rather than aborting the app; the OS will
+    // reap the ssh process when the app exits and startup cleanup removes stale sockets.
+    let Ok(mut map) = sessions().lock() else { return; };
     if let Some(mut session) = map.remove(profile_id) {
         let _ = session.child.kill();
         let _ = session.child.wait(); // reap to avoid zombies
@@ -113,7 +138,9 @@ pub struct SessionExtras {
 /// Returns None if no session exists (user must authenticate manually).
 /// Only ControlMaster sessions (password auth) are tracked here.
 pub fn get_session_extras(profile_id: &str) -> Option<SessionExtras> {
-    let map = sessions().lock().unwrap();
+    // Treat a poisoned mutex as "no session" so the terminal falls back to a
+    // normal (re-authenticating) launch instead of panic-aborting the app.
+    let map = sessions().lock().ok()?;
     let session = map.get(profile_id)?;
     let SessionKind::ControlMaster { socket_path } = &session.kind;
     Some(SessionExtras {
@@ -174,6 +201,8 @@ fn wait_for_socket(path: &Path, timeout_secs: u64) -> bool {
 fn start_control_master(profile: &Profile, password: &str) -> Result<(), String> {
     use std::process::Command;
 
+    // Make sure the app's run dir exists with 0700 before the socket is created.
+    ensure_run_dir();
     let socket_path = ctrl_socket_path(&profile.id);
     // Remove any stale socket from a previous session
     if socket_path.exists() {
@@ -230,14 +259,25 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
     // Delete sensitive temp files immediately after the master is up
     cleanup_pair(&pw_file, &ask_script);
 
-    sessions().lock().unwrap().insert(
-        profile.id.clone(),
-        SshSession {
-            kind: SessionKind::ControlMaster { socket_path },
-            child,
-        },
-    );
-
-    Ok(())
+    // A poisoned session store means we cannot track this child, so we must not
+    // leak it: kill the master we just spawned and report a soft failure instead
+    // of panic-aborting the app. Terminal launches will fall back to re-auth.
+    let new_session = SshSession {
+        kind: SessionKind::ControlMaster { socket_path: socket_path.clone() },
+        child,
+    };
+    match sessions().lock() {
+        Ok(mut map) => {
+            map.insert(profile.id.clone(), new_session);
+            Ok(())
+        }
+        Err(_) => {
+            let mut session = new_session;
+            let _ = session.child.kill();
+            let _ = session.child.wait();
+            let _ = fs::remove_file(&socket_path);
+            Err("SSH session store unavailable (internal lock poisoned)".to_string())
+        }
+    }
 }
 

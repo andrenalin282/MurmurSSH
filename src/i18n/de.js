@@ -78,6 +78,8 @@ const de = {
         downloadCancelledStatus: "Download abgebrochen. {done}{failed}.",
         downloadComplete: "Download abgeschlossen. {done} nach {dest}.",
         downloadCompleteErrors: "Download abgeschlossen. {done}, {failed}.",
+        downloadSkipped: "Download übersprungen.",
+        downloadCancelledSimple: "Download abgebrochen.",
         // Rename / move
         renamedTo: "Umbenannt in {name}",
         renameFailed: "Umbenennen fehlgeschlagen: {error}",
@@ -156,18 +158,6 @@ const de = {
         uploadFailed: "{count} fehlgeschlagen",
         downloadDone: "{count} heruntergeladen",
         downloadFailed: "{count} fehlgeschlagen",
-        // Kontextmenü
-        ctxOpen: "Öffnen",
-        ctxEdit: "Bearbeiten",
-        ctxUpload: "Auf Remote hochladen",
-        ctxRename: "Umbenennen",
-        renameTitle: "Umbenennen",
-        renamePlaceholder: "Neuer Name",
-        renameFailed: "Umbenennen fehlgeschlagen: {error}",
-        openFailed: "Öffnen fehlgeschlagen: {error}",
-        notConnectedForUpload: "Nicht verbunden — Hochladen nicht möglich.",
-        uploadConfirmTitle: "Auf Remote hochladen?",
-        uploadConfirmMsg: "\"{name}\" nach {remotePath} hochladen?",
     },
     profiles: {
         label: "Profil",

@@ -46,6 +46,8 @@ pub fn run() {
             commands::sftp::download_directory,
             commands::sftp::rename_file,
             commands::sftp::create_directory,
+            commands::sftp::cancel_transfer,
+            commands::sftp::local_file_exists,
             commands::workspace::open_for_edit,
             commands::local::list_local_directory,
             commands::local::get_home_dir,

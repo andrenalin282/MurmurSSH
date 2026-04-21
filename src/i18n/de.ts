@@ -80,6 +80,8 @@ const de = {
         downloadCancelledStatus: "Download abgebrochen. {done}{failed}.",
         downloadComplete: "Download abgeschlossen. {done} nach {dest}.",
         downloadCompleteErrors: "Download abgeschlossen. {done}, {failed}.",
+        downloadSkipped: "Download übersprungen.",
+        downloadCancelledSimple: "Download abgebrochen.",
         // Rename / move
         renamedTo: "Umbenannt in {name}",
         renameFailed: "Umbenennen fehlgeschlagen: {error}",

@@ -5,6 +5,14 @@ import * as api from "../api/index";
 import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
+/**
+ * Recognise the backend transfer-cancel sentinel regardless of wrapping.
+ * Tauri delivers invoke errors as plain strings; `String(err)` handles both
+ * bare strings and wrapped Error objects.
+ */
+function isCancelErr(err) {
+    return String(err).includes("TRANSFER_CANCELLED");
+}
 /** Format bytes/sec as human-readable speed string. */
 function formatSpeed(bps) {
     if (bps >= 1024 * 1024)
@@ -107,11 +115,15 @@ export class FileBrowser {
         this.logEntries = [];
         this.inlineError = null;
         this.isDragOver = false; // Tauri OS→app drag indicator
-        // Transfer progress (upload / download)
+        // Transfer progress (upload / download).
+        // All transfer flows support real cancellation: the backend chunk loops poll
+        // a per-profile cancel flag set via `api.cancelTransfer(profileId)`, so the
+        // button is always actionable (audit F4 follow-up).
         this.transferProgress = null;
         this.onStatusMessage = null;
         this.onDisconnectCallback = null;
         this.uploadApplyToAllDecision = null;
+        this.downloadApplyToAllDecision = null;
         this.onToggleLocalBrowserCallback = null;
         this.localBrowserVisible = false;
         const el = document.getElementById(containerId);
@@ -754,6 +766,9 @@ export class FileBrowser {
             });
         }
         // ── Transfer-progress cancel ───────────────────────────────────────────
+        // Sets a local flag (stops JS-level batch loops at file boundaries) AND
+        // invokes the backend cancel command so the in-flight SFTP/FTP chunk loop
+        // unwinds with TRANSFER_CANCELLED and cleans up its partial file.
         document
             .getElementById("transfer-cancel-btn")
             ?.addEventListener("click", () => {
@@ -768,6 +783,11 @@ export class FileBrowser {
             const statusEl = document.getElementById("transfer-status");
             if (statusEl)
                 statusEl.textContent = t("common.cancelling");
+            if (this.profileId) {
+                api.cancelTransfer(this.profileId).catch(() => {
+                    // Non-fatal: the JS-level flag still prevents subsequent files.
+                });
+            }
         });
         // ── Context menu (right-click) ─────────────────────────────────────────
         const tbodyCtx = this.container.querySelector("tbody");
@@ -812,6 +832,11 @@ export class FileBrowser {
     /**
      * Start a tracked transfer operation. Calls render() to insert the progress bar.
      * Must be called with busy=true already set.
+     *
+     * `cancellable` controls whether the Cancel button is shown. Set to true only
+     * when the caller's loop actually honours `transferProgress.cancelled` between
+     * items. For single-backend-call transfers (single file, recursive folder) the
+     * flag has no effect mid-call, so hiding the button keeps the UI honest (F4).
      */
     startTransfer(label, total) {
         this.transferProgress = { label, current: 0, total, cancelled: false, speedBps: 0, bytePct: null };
@@ -881,6 +906,43 @@ export class FileBrowser {
     endTransfer() {
         this.transferProgress = null;
         this.uploadApplyToAllDecision = null;
+        this.downloadApplyToAllDecision = null;
+    }
+    /**
+     * Ask the user whether to overwrite an existing local file at `localPath`
+     * before a download writes there (audit F9). Reuses the same overwrite
+     * dialog as uploads. Returns `"proceed"` when writing may continue,
+     * `"skip"` to leave the existing file alone, `"cancel"` to abort the batch.
+     *
+     * Honours the caller's `downloadApplyToAllDecision` so only the first file
+     * in a batch prompts.
+     */
+    async confirmLocalOverwrite(localPath, label) {
+        if (this.downloadApplyToAllDecision === "yes")
+            return "proceed";
+        if (this.downloadApplyToAllDecision === "no")
+            return "skip";
+        let exists = false;
+        try {
+            exists = await api.localFileExists(localPath);
+        }
+        catch {
+            // Fail-open: if the existence probe fails we proceed — existing
+            // download behaviour was silent-overwrite, so this keeps things no
+            // worse than before.
+            return "proceed";
+        }
+        if (!exists)
+            return "proceed";
+        const res = await showOverwriteDialog(label);
+        if (res.applyToAll && res.action !== "cancel") {
+            this.downloadApplyToAllDecision = res.action;
+        }
+        if (res.action === "yes")
+            return "proceed";
+        if (res.action === "no")
+            return "skip";
+        return "cancel";
     }
     normalizeRemoteError(err) {
         const msg = String(err);
@@ -1025,6 +1087,11 @@ export class FileBrowser {
     }
     // ── Disconnect ────────────────────────────────────────────────────────────
     handleDisconnect() {
+        // If a transfer is still in flight, ask the backend to unwind cleanly so
+        // partial files are cleaned up before we drop profile state.
+        if (this.transferProgress && this.profileId) {
+            api.cancelTransfer(this.profileId).catch(() => { });
+        }
         this.profileId = null;
         this.localPath = null;
         this.currentPath = "/";
@@ -1097,7 +1164,11 @@ export class FileBrowser {
                 await api.uploadFile(profileId, localFilePath, remotePath, ch);
                 uploaded++;
             }
-            catch {
+            catch (err) {
+                if (isCancelErr(err)) {
+                    aborted = true;
+                    break;
+                }
                 errors++;
             }
             this.updateTransfer(uploaded + skipped + errors, filename);
@@ -1165,7 +1236,11 @@ export class FileBrowser {
                 await api.uploadPath(profileId, localPath, remotePath, ch);
                 uploaded++;
             }
-            catch {
+            catch (err) {
+                if (isCancelErr(err)) {
+                    aborted = true;
+                    break;
+                }
                 errors++;
             }
             this.updateTransfer(uploaded + skipped + errors, name);
@@ -1236,7 +1311,8 @@ export class FileBrowser {
             await this.refresh();
         }
         catch (err) {
-            if (String(err) === "Error: UPLOAD_CANCELLED") {
+            this.endTransfer();
+            if (String(err) === "Error: UPLOAD_CANCELLED" || isCancelErr(err)) {
                 this.status(t("fileBrowser.uploadCancelledSimple"), false);
                 return;
             }
@@ -1268,6 +1344,7 @@ export class FileBrowser {
         if (!this.profileId || !this.selectedRemotePath || !this.selectedEntry)
             return;
         let savePath;
+        let skipOverwriteCheck = false;
         if (this.localPath) {
             savePath = this.localPath.replace(/\/?$/, "/") + this.selectedEntry.name;
         }
@@ -1279,6 +1356,19 @@ export class FileBrowser {
             if (!chosen)
                 return;
             savePath = chosen;
+            // The system save dialog already confirmed overwrite on the user's behalf.
+            skipOverwriteCheck = true;
+        }
+        if (!skipOverwriteCheck) {
+            const decision = await this.confirmLocalOverwrite(savePath, this.selectedEntry.name);
+            if (decision === "skip") {
+                this.status(t("fileBrowser.downloadSkipped"), false);
+                return;
+            }
+            if (decision === "cancel") {
+                this.status(t("fileBrowser.downloadCancelledSimple"), false);
+                return;
+            }
         }
         try {
             this.setBusy(true);
@@ -1291,7 +1381,12 @@ export class FileBrowser {
         }
         catch (err) {
             this.endTransfer();
-            this.status(t("fileBrowser.downloadFailed", { error: String(err) }), true);
+            if (isCancelErr(err)) {
+                this.status(t("fileBrowser.uploadCancelledSimple"), false);
+            }
+            else {
+                this.status(t("fileBrowser.downloadFailed", { error: String(err) }), true);
+            }
         }
         finally {
             this.setBusy(false);
@@ -1325,7 +1420,12 @@ export class FileBrowser {
         }
         catch (err) {
             this.endTransfer();
-            this.status(t("fileBrowser.folderDownloadFailed", { error: String(err) }), true);
+            if (isCancelErr(err)) {
+                this.status(t("fileBrowser.uploadCancelledSimple"), false);
+            }
+            else {
+                this.status(t("fileBrowser.folderDownloadFailed", { error: String(err) }), true);
+            }
         }
         finally {
             this.setBusy(false);
@@ -1355,6 +1455,7 @@ export class FileBrowser {
         let done = 0;
         let errors = 0;
         let aborted = false;
+        let skipped = 0;
         for (const entry of entries) {
             if (this.transferProgress?.cancelled) {
                 aborted = true;
@@ -1362,6 +1463,20 @@ export class FileBrowser {
             }
             const remotePath = joinPath(this.currentPath, entry.name);
             const localDest = destDir.replace(/\/?$/, "/") + entry.name;
+            // File-level overwrite guard (audit F9). Folders are merged as before —
+            // per-file prompts inside a recursive folder download would be unusable.
+            if (!entry.is_dir) {
+                const decision = await this.confirmLocalOverwrite(localDest, entry.name);
+                if (decision === "cancel") {
+                    aborted = true;
+                    break;
+                }
+                if (decision === "skip") {
+                    skipped++;
+                    this.updateTransfer(done + skipped + errors, entry.name);
+                    continue;
+                }
+            }
             try {
                 this.log(t("fileBrowser.logDownloading", { name: entry.name }));
                 const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
@@ -1373,10 +1488,14 @@ export class FileBrowser {
                 }
                 done++;
             }
-            catch {
+            catch (err) {
+                if (isCancelErr(err)) {
+                    aborted = true;
+                    break;
+                }
                 errors++;
             }
-            this.updateTransfer(done + errors, entry.name);
+            this.updateTransfer(done + skipped + errors, entry.name);
         }
         this.endTransfer();
         if (aborted) {
@@ -1429,6 +1548,7 @@ export class FileBrowser {
         let done = 0;
         let errors = 0;
         let aborted = false;
+        let skipped = 0;
         for (const entry of entries) {
             if (this.transferProgress?.cancelled) {
                 aborted = true;
@@ -1436,6 +1556,18 @@ export class FileBrowser {
             }
             const remotePath = joinPath(this.currentPath, entry.name);
             const localDest = destDir.replace(/\/?$/, "/") + entry.name;
+            if (!entry.is_dir) {
+                const decision = await this.confirmLocalOverwrite(localDest, entry.name);
+                if (decision === "cancel") {
+                    aborted = true;
+                    break;
+                }
+                if (decision === "skip") {
+                    skipped++;
+                    this.updateTransfer(done + skipped + errors, entry.name);
+                    continue;
+                }
+            }
             try {
                 this.log(t("fileBrowser.logDownloading", { name: entry.name }));
                 const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
@@ -1447,10 +1579,14 @@ export class FileBrowser {
                 }
                 done++;
             }
-            catch {
+            catch (err) {
+                if (isCancelErr(err)) {
+                    aborted = true;
+                    break;
+                }
                 errors++;
             }
-            this.updateTransfer(done + errors, entry.name);
+            this.updateTransfer(done + skipped + errors, entry.name);
         }
         this.endTransfer();
         if (aborted) {

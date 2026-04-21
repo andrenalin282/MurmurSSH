@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use tauri::ipc::Channel;
 
 use crate::models::{FileEntry, Profile, Protocol};
-use crate::services::{ftp_service, profile_service, sftp_service};
+use crate::services::{ftp_service, profile_service, sftp_service, transfer_cancel};
 
 /// Progress event streamed back to the frontend during file transfers.
 #[derive(Clone, serde::Serialize)]
@@ -276,6 +276,25 @@ pub fn download_directory(
     } else {
         sftp_service::download_directory(&profile, &remote_path, &local_path, &cb)
     }
+}
+
+/// Request cancellation of the currently running transfer for the given profile.
+///
+/// Sets a per-profile flag that backend chunk loops poll between chunks; the
+/// in-flight SFTP/FTP operation returns `TRANSFER_CANCELLED` shortly after,
+/// leaves the partial remote/local file cleaned up, and the frontend recognises
+/// the sentinel to render a cancel-friendly status.
+#[tauri::command]
+pub fn cancel_transfer(profile_id: String) {
+    transfer_cancel::request_cancel(&profile_id);
+}
+
+/// Check whether a local path exists (file or directory).
+/// Used by the frontend to prompt before silently overwriting a local file on download.
+#[tauri::command]
+pub fn local_file_exists(path: String) -> bool {
+    if path.is_empty() { return false; }
+    std::path::Path::new(&path).exists()
 }
 
 /// Returns ~/Downloads if it exists, otherwise ~/ as a fallback.

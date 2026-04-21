@@ -170,7 +170,11 @@ pub fn rename_local_file(from_path: &str, to_path: &str) -> Result<(), String> {
 
 /// Open a local file with xdg-open or a custom editor command.
 ///
-/// If `editor` is Some and non-empty, launches `<editor> <path>`.
+/// If `editor` is Some and non-empty, the first whitespace-separated token is
+/// treated as the program and the rest as additional arguments, followed by
+/// `path`. This matches the behaviour of `workspace_service::open_in_editor`
+/// so `"code --new-window"` and similar settings work consistently.
+///
 /// Otherwise falls back to `xdg-open <path>`.
 pub fn open_local_file(path: &str, editor: Option<&str>) -> Result<(), String> {
     reject_null_bytes(path)?;
@@ -179,15 +183,24 @@ pub fn open_local_file(path: &str, editor: Option<&str>) -> Result<(), String> {
         return Err("Only absolute paths are accepted".to_string());
     }
 
-    let (cmd, args): (&str, Vec<&str>) = match editor {
-        Some(e) if !e.trim().is_empty() => (e.trim(), vec![path]),
-        _ => ("xdg-open", vec![path]),
-    };
-
-    std::process::Command::new(cmd)
-        .args(&args)
-        .spawn()
-        .map_err(|e| format!("Failed to open '{}': {}", path, e))?;
+    match editor {
+        Some(e) if !e.trim().is_empty() => {
+            let mut parts = e.split_whitespace();
+            let cmd = parts.next().ok_or("Editor command is empty")?;
+            let extra_args: Vec<&str> = parts.collect();
+            std::process::Command::new(cmd)
+                .args(&extra_args)
+                .arg(path)
+                .spawn()
+                .map_err(|err| format!("Failed to open '{}' with '{}': {}", path, e, err))?;
+        }
+        _ => {
+            std::process::Command::new("xdg-open")
+                .arg(path)
+                .spawn()
+                .map_err(|e| format!("Failed to open '{}' with xdg-open: {}", path, e))?;
+        }
+    }
 
     Ok(())
 }

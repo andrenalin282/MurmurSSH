@@ -517,6 +517,10 @@ profileSelector.onConnect(async (profileId: string) => {
     fileBrowser.setConnectingState(false);
     profileSelector.setConnecting(false);
     connectingProfileId = null;
+    // Clear any credential that a prior in-flight connectSftp call may have
+    // stored before authentication completed. Prevents the session cache from
+    // silently reusing a credential the user chose to abandon (audit F10).
+    api.clearSessionCredentials(profileId).catch(() => {});
     statusBar.set("disconnected");
   });
 
