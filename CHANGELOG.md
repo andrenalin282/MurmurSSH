@@ -12,6 +12,14 @@ No changes yet.
 
 ---
 
+## [1.4.4] - 2026-04-21
+
+### Changed
+- Dependencies: bumped Vite 5.4.21 → 6.4.2 (dev dependency only; no runtime behaviour change).
+- Release rebuild after the dependency merge so the published artefacts ship with the updated toolchain.
+
+---
+
 ## [1.4.3] - 2026-04-21
 
 ### Fixed
