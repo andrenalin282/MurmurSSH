@@ -35,7 +35,14 @@
       "Bash(find /home/kai/Coding/MurmurSSH/src-tauri/target/release/bundle/appimage -type f -name *.sh)",
       "Bash(find /home/kai/Coding/MurmurSSH -path ./src-tauri/target -prune -o -name *.sh -type f -print)",
       "Bash(grep -E \"\\\\.sh$|Makefile|\\\\.yml$\")",
-      "Bash(git filter-branch:*)"
+      "Bash(git filter-branch:*)",
+      "Bash(grep -n \"local_directory\\\\|open_local\\\\|rename_local\\\\|open_file\\\\|xdg\" /home/kai/Coding/MurmurSSH/src-tauri/src/commands/*.rs)",
+      "Bash(cargo build:*)",
+      "Bash(cat /home/kai/Coding/MurmurSSH/vite.config.*)",
+      "Bash(echo \"EXIT=$?\")",
+      "Bash(git *)",
+      "Bash(echo \"TSC_EXIT=$?\")",
+      "Bash(npx vite *)"
     ]
   }
 }
