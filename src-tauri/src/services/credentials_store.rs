@@ -63,3 +63,10 @@ pub fn clear(profile_id: &str) {
         map.remove(profile_id);
     }
 }
+
+/// Remove ALL runtime credentials (called on app exit).
+pub fn clear_all() {
+    if let Ok(mut map) = store().lock() {
+        map.clear();
+    }
+}

@@ -127,6 +127,18 @@ pub fn stop_session(profile_id: &str) {
     }
 }
 
+/// Stop and clean up ALL SSH sessions (called on app exit). Mirrors
+/// `stop_session` but drains the whole registry.
+pub fn stop_all_sessions() {
+    let Ok(mut map) = sessions().lock() else { return; };
+    for (_id, mut session) in map.drain() {
+        let _ = session.child.kill();
+        let _ = session.child.wait(); // reap to avoid zombies
+        let SessionKind::ControlMaster { socket_path } = &session.kind;
+        let _ = fs::remove_file(socket_path);
+    }
+}
+
 pub struct SessionExtras {
     /// Extra arguments appended to the `ssh` command inside the terminal.
     pub extra_args: Vec<String>,

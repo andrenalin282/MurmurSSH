@@ -2,6 +2,15 @@ mod commands;
 mod models;
 mod services;
 
+/// Best-effort teardown run on app exit: stop SSH control sessions, remove any
+/// runtime key copies, and clear in-memory session credentials. Mirrors the
+/// explicit Disconnect path so closing via the OS title bar leaves no residue.
+fn cleanup_on_exit() {
+    services::ssh_session_service::stop_all_sessions();
+    services::runtime_key_service::cleanup_all_runtime_keys();
+    services::credentials_store::clear_all();
+}
+
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -57,6 +66,11 @@ pub fn run() {
             commands::local::rename_local_file,
             commands::local::open_local_file,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running MurmurSSH");
+        .build(tauri::generate_context!())
+        .expect("error while building MurmurSSH")
+        .run(|_app_handle, event| {
+            if let tauri::RunEvent::ExitRequested { .. } = event {
+                cleanup_on_exit();
+            }
+        });
 }
