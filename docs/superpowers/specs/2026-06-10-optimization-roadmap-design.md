@@ -41,9 +41,9 @@ Deliver a set of feature optimizations and reliability fixes for MurmurSSH (Taur
 ### Phase 0 — Bug fixes (ship first, lowest risk)
 
 **B1. Edit / re-save flow** (`workspace_service.rs`, `main.ts`, `file-browser.ts`)
-- *Cannot re-edit after save:* `open_for_edit` must always refresh the local copy from the remote on re-open (re-download), even when already watched, so the editor opens the current remote version.
-- *Spurious upload prompt with no changes:* replace mtime-only change detection with a **content hash** (e.g. SHA-256 or a fast non-crypto hash) of the local file; only upload when the hash differs from the last-known/last-uploaded hash. Store `last_hash` alongside `last_mtime` in the watcher state.
-- *Double upload confirmation:* debounced inotify can emit two events; dedup via the hash check + a short "pending upload" guard so only one `upload-ready` / upload fires per real change.
+- **Actual root cause (corrected after reading the code):** `open_for_edit` already re-downloads unconditionally on every Edit click (workspace_service.rs:93-100). That re-download **rewrites the local cache file, bumping its mtime**. The watcher thread from the first edit (still alive) sees the mtime change and fires `upload-ready` even though the user made no edits — this is the "spurious upload prompt". Multi-write editor saves (temp+rename) bump mtime twice → "double confirmation". The mtime-only comparison (watcher `last_mtime`) is the flaw.
+- *Fix:* replace mtime-only detection with a **content-hash baseline registry** shared between `open_for_edit` and the watcher: a `OnceLock<Mutex<HashMap<PathBuf,String>>>` mapping local path → last-accounted-for content hash. `open_for_edit` sets the baseline after each download; the watcher only emits/uploads when the current file hash **differs** from the baseline, then updates the baseline. This makes re-downloads invisible to the watcher and dedups multi-write saves to a single upload.
+- *Cannot re-edit after save:* a symptom of the confusing prompts; once hash-baseline logic lands the open→edit→save→re-edit cycle is clean. Verify manually.
 - **Acceptance:** open→edit→save→(auto/confirm upload once)→close editor→re-click Edit opens fresh remote content; opening without editing produces **no** upload prompt; a single save produces exactly **one** confirmation/upload.
 
 **B2. Connection cleanup on window close** (`lib.rs`, ssh/runtime-key services)
