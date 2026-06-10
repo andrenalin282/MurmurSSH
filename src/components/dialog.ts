@@ -109,6 +109,134 @@ export function showOverwriteDialog(
 }
 
 /**
+ * Show the change-permissions (chmod) dialog for a single entry.
+ * Presents an rwx checkbox grid (owner/group/other) kept in sync with an
+ * octal text field. Returns the selected mode (integer, 0..=0o777) or null
+ * if cancelled.
+ *
+ * @param name      Display name of the target entry (for the title).
+ * @param initial   Current mode bits (only the low 9 bits are used); defaults to 0o644.
+ */
+export function showPermissionsDialog(
+  name: string,
+  initial: number | null
+): Promise<number | null> {
+  return new Promise((resolve) => {
+    const start = ((initial ?? 0o644) & 0o777);
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay";
+
+    const classes: Array<["owner" | "group" | "other", number]> = [
+      ["owner", 6],
+      ["group", 3],
+      ["other", 0],
+    ];
+    const perms: Array<["r" | "w" | "x", number]> = [
+      ["r", 4],
+      ["w", 2],
+      ["x", 1],
+    ];
+
+    const rowsHtml = classes
+      .map(
+        ([cls]) => `
+        <tr>
+          <td class="perm-grid__label">${t(`dialogs.perm_${cls}`)}</td>
+          ${perms
+            .map(
+              ([p]) =>
+                `<td><input type="checkbox" class="perm-cb" data-cls="${cls}" data-perm="${p}"></td>`
+            )
+            .join("")}
+        </tr>`
+      )
+      .join("");
+
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal__title">${t("dialogs.permTitle")}: ${escHtml(name)}</div>
+        <table class="perm-grid">
+          <thead>
+            <tr>
+              <th></th>
+              <th>${t("dialogs.perm_read")}</th>
+              <th>${t("dialogs.perm_write")}</th>
+              <th>${t("dialogs.perm_execute")}</th>
+            </tr>
+          </thead>
+          <tbody>${rowsHtml}</tbody>
+        </table>
+        <div class="form-field perm-grid__octal">
+          <label>${t("dialogs.permOctal")}
+            <input id="perm-octal" type="text" inputmode="numeric" maxlength="4" autocomplete="off" value="${start
+              .toString(8)
+              .padStart(3, "0")}">
+          </label>
+        </div>
+        <div class="modal__actions">
+          <button class="btn-secondary" id="perm-cancel">${t("dialogs.promptCancel")}</button>
+          <button id="perm-apply">${t("dialogs.permApply")}</button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const octalInput = overlay.querySelector<HTMLInputElement>("#perm-octal")!;
+    const cbs = Array.from(overlay.querySelectorAll<HTMLInputElement>(".perm-cb"));
+
+    const clsShift: Record<string, number> = { owner: 6, group: 3, other: 0 };
+    const permBit: Record<string, number> = { r: 4, w: 2, x: 1 };
+
+    const modeToGrid = (mode: number) => {
+      for (const cb of cbs) {
+        const shift = clsShift[cb.dataset.cls!];
+        const bit = permBit[cb.dataset.perm!];
+        cb.checked = (((mode >> shift) & 7) & bit) !== 0;
+      }
+    };
+
+    const gridToMode = (): number => {
+      let mode = 0;
+      for (const cb of cbs) {
+        if (cb.checked) {
+          mode |= permBit[cb.dataset.perm!] << clsShift[cb.dataset.cls!];
+        }
+      }
+      return mode;
+    };
+
+    modeToGrid(start);
+
+    for (const cb of cbs) {
+      cb.addEventListener("change", () => {
+        octalInput.value = gridToMode().toString(8).padStart(3, "0");
+      });
+    }
+
+    octalInput.addEventListener("input", () => {
+      const raw = octalInput.value.trim();
+      if (!/^[0-7]{1,4}$/.test(raw)) return;
+      const parsed = parseInt(raw, 8) & 0o777;
+      modeToGrid(parsed);
+    });
+
+    const cleanup = (result: number | null) => {
+      overlay.remove();
+      resolve(result);
+    };
+
+    overlay.querySelector("#perm-cancel")?.addEventListener("click", () => cleanup(null));
+    overlay.querySelector("#perm-apply")?.addEventListener("click", () => {
+      cleanup(gridToMode());
+    });
+
+    setTimeout(() => overlay.querySelector<HTMLButtonElement>("#perm-apply")?.focus(), 10);
+  });
+}
+
+/**
  * Show a simple in-app confirmation dialog.
  * Returns a promise that resolves to true (confirmed) or false (cancelled).
  */
