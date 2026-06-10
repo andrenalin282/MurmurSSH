@@ -88,6 +88,30 @@ fn is_watched(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
+/// Per-path content-hash baseline. The watcher only acts when a file's current
+/// hash differs from its baseline; downloads/uploads update the baseline so they
+/// don't look like user edits.
+fn baselines() -> &'static Mutex<std::collections::HashMap<PathBuf, String>> {
+    static BASELINES: OnceLock<Mutex<std::collections::HashMap<PathBuf, String>>> = OnceLock::new();
+    BASELINES.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+fn set_baseline(path: &Path, hash: String) {
+    if let Ok(mut map) = baselines().lock() {
+        map.insert(path.to_path_buf(), hash);
+    }
+}
+
+fn get_baseline(path: &Path) -> Option<String> {
+    baselines().lock().ok().and_then(|map| map.get(path).cloned())
+}
+
+fn clear_baseline(path: &Path) {
+    if let Ok(mut map) = baselines().lock() {
+        map.remove(path);
+    }
+}
+
 /// Opens a remote text file for editing.
 pub fn open_for_edit(
     app: tauri::AppHandle,
@@ -311,5 +335,18 @@ mod tests {
     fn hash_none_for_missing_file() {
         let p = PathBuf::from("/nonexistent/murmurssh/definitely/missing");
         assert!(file_content_hash(&p).is_none());
+    }
+
+    #[test]
+    fn baseline_set_get_clear_roundtrip() {
+        let p = PathBuf::from("/tmp/murmurssh_baseline_roundtrip");
+        clear_baseline(&p);
+        assert_eq!(get_baseline(&p), None);
+        set_baseline(&p, "deadbeef".to_string());
+        assert_eq!(get_baseline(&p), Some("deadbeef".to_string()));
+        set_baseline(&p, "feedface".to_string());
+        assert_eq!(get_baseline(&p), Some("feedface".to_string()));
+        clear_baseline(&p);
+        assert_eq!(get_baseline(&p), None);
     }
 }
