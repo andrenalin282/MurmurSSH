@@ -35,6 +35,8 @@ const fr = {
         // Table
         columnName: "Nom",
         columnSize: "Taille",
+        columnModified: "Modifié",
+        columnPermissions: "Permissions",
         emptyDir: "Dossier vide",
         connectPrompt: "Connectez-vous à un profil pour parcourir les fichiers.",
         upRow: ".. (parent)",
@@ -48,6 +50,7 @@ const fr = {
         download: "Télécharger",
         rename: "Renommer",
         moveTo: "Déplacer vers…",
+        permissions: "Permissions…",
         edit: "Modifier",
         delete: "Supprimer",
         newFile: "Nouveau fichier",
@@ -84,6 +87,8 @@ const fr = {
         renamedTo: "Renommé en {name}",
         renameFailed: "Échec du renommage : {error}",
         nameContainsSlash: "Le nom ne peut pas contenir « / »",
+        permissionsChanged: "Permissions modifiées : {name}",
+        permissionsFailed: "Échec de la modification des permissions : {error}",
         movedItems: "{count} {itemLabel} déplacé(s)",
         movedItemsErrors: "{count} {itemLabel} déplacé(s), {errors} échoué(s){detail}",
         itemSingular: "élément",
@@ -238,6 +243,15 @@ const fr = {
         promptOk: "OK",
         confirmCancel: "Annuler",
         confirmConfirm: "Confirmer",
+        permTitle: "Modifier les permissions",
+        permApply: "Appliquer",
+        permOctal: "Octal",
+        perm_owner: "Propriétaire",
+        perm_group: "Groupe",
+        perm_other: "Autres",
+        perm_read: "Lecture",
+        perm_write: "Écriture",
+        perm_execute: "Exécution",
         overwriteTitle: "Le fichier existe déjà",
         overwriteBodySuffix: "existe déjà sur le serveur.",
         overwriteQuestion: "Écraser ?",
@@ -291,23 +305,23 @@ const fr = {
         helpTitle: "À propos de MurmurSSH",
         helpVersion: "Version {version}",
         helpBodyHtml: `
-            <p><strong>MurmurSSH</strong> est un client de bureau SSH et SFTP minimaliste et open source pour Linux.</p>
-            <p>Il vous permet de gérer des profils de connexion, de parcourir des fichiers distants via SFTP et d'ouvrir des sessions de terminal SSH — le tout sans services cloud ni télémétrie.</p>
-            <p><strong>Vos données restent locales.</strong> Tous les profils, identifiants et fichiers sont stockés uniquement sur votre machine. Rien n'est envoyé à un serveur à moins que vous ne téléversiez explicitement un fichier.</p>
-            <p><strong>Compatibilité des clés SSH :</strong> Si votre clé privée est stockée sur un système de fichiers monté ou réseau, le client SSH du système peut la refuser en raison des exigences de permissions. MurmurSSH peut créer une copie locale d'exécution de la clé (dans <code>~/.config/murmurssh/runtime-keys/</code>) avec les permissions correctes pour une utilisation dans le terminal. La clé d'origine n'est jamais modifiée. La copie est temporaire et est supprimée à la déconnexion.</p>
-            <p><strong>Remarque :</strong> Les fenêtres de terminal ouvertes via le bouton Terminal doivent être fermées manuellement lorsque vous avez terminé.</p>
-            <p><strong>Raccourcis clavier (navigateur de fichiers) :</strong></p>
-            <table style="border-collapse:collapse;font-size:13px;width:100%">
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Actualiser la liste du dossier</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Renommer l'entrée sélectionnée</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Ouvrir un terminal SSH</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Supprimer les entrées sélectionnées</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Ouvrir le dossier / modifier le fichier</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Sélectionner toutes les entrées</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Effacer la sélection</td></tr>
-            </table>
-            <p>Créé par <strong>Kai André Schultka</strong> avec <strong>Claude Code</strong>.</p>
-        `,
+      <p><strong>MurmurSSH</strong> est un client de bureau SSH et SFTP minimaliste et open source pour Linux.</p>
+      <p>Il vous permet de gérer des profils de connexion, de parcourir des fichiers distants via SFTP et d'ouvrir des sessions de terminal SSH — le tout sans services cloud ni télémétrie.</p>
+      <p><strong>Vos données restent locales.</strong> Tous les profils, identifiants et fichiers sont stockés uniquement sur votre machine. Rien n'est envoyé à un serveur à moins que vous ne téléversiez explicitement un fichier.</p>
+      <p><strong>Compatibilité des clés SSH :</strong> Si votre clé privée est stockée sur un système de fichiers monté ou réseau, le client SSH du système peut la refuser en raison des exigences de permissions. MurmurSSH peut créer une copie locale d'exécution de la clé (dans <code>~/.config/murmurssh/runtime-keys/</code>) avec les permissions correctes pour une utilisation dans le terminal. La clé d'origine n'est jamais modifiée. La copie est temporaire et est supprimée à la déconnexion.</p>
+      <p><strong>Remarque :</strong> Les fenêtres de terminal ouvertes via le bouton Terminal doivent être fermées manuellement lorsque vous avez terminé.</p>
+      <p><strong>Raccourcis clavier (navigateur de fichiers) :</strong></p>
+      <table style="border-collapse:collapse;font-size:13px;width:100%">
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Actualiser la liste du dossier</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Renommer l'entrée sélectionnée</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Ouvrir un terminal SSH</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Supprimer les entrées sélectionnées</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Ouvrir le dossier / modifier le fichier</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Sélectionner toutes les entrées</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Effacer la sélection</td></tr>
+      </table>
+      <p>Créé par <strong>Kai André Schultka</strong> avec <strong>Claude Code</strong>.</p>
+    `,
         helpWebsite: "Site Web",
         helpGitHub: "GitHub",
         helpReportIssue: "Signaler un problème",
@@ -334,5 +348,4 @@ const fr = {
         tooltip: "Langue : Français",
     },
 };
-
 export default fr;

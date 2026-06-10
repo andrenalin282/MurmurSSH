@@ -35,6 +35,8 @@ const pl = {
         // Table
         columnName: "Nazwa",
         columnSize: "Rozmiar",
+        columnModified: "Zmodyfikowano",
+        columnPermissions: "Uprawnienia",
         emptyDir: "Pusty katalog",
         connectPrompt: "Połącz się z profilem, aby przeglądać pliki.",
         upRow: ".. (w górę)",
@@ -48,6 +50,7 @@ const pl = {
         download: "Pobierz",
         rename: "Zmień nazwę",
         moveTo: "Przenieś do…",
+        permissions: "Uprawnienia…",
         edit: "Edytuj",
         delete: "Usuń",
         newFile: "Nowy plik",
@@ -84,6 +87,8 @@ const pl = {
         renamedTo: "Zmieniono nazwę na {name}",
         renameFailed: "Zmiana nazwy nie powiodła się: {error}",
         nameContainsSlash: "Nazwa nie może zawierać „/\"",
+        permissionsChanged: "Zmieniono uprawnienia: {name}",
+        permissionsFailed: "Nie udało się zmienić uprawnień: {error}",
         movedItems: "Przeniesiono {count} {itemLabel}",
         movedItemsErrors: "Przeniesiono {count} {itemLabel}, nieudane: {errors}{detail}",
         itemSingular: "element",
@@ -238,6 +243,15 @@ const pl = {
         promptOk: "OK",
         confirmCancel: "Anuluj",
         confirmConfirm: "Potwierdź",
+        permTitle: "Zmień uprawnienia",
+        permApply: "Zastosuj",
+        permOctal: "Ósemkowo",
+        perm_owner: "Właściciel",
+        perm_group: "Grupa",
+        perm_other: "Inni",
+        perm_read: "Odczyt",
+        perm_write: "Zapis",
+        perm_execute: "Wykonanie",
         overwriteTitle: "Plik już istnieje",
         overwriteBodySuffix: "już istnieje na serwerze.",
         overwriteQuestion: "Zastąpić?",
@@ -291,23 +305,23 @@ const pl = {
         helpTitle: "O programie MurmurSSH",
         helpVersion: "Wersja {version}",
         helpBodyHtml: `
-            <p><strong>MurmurSSH</strong> to minimalistyczny, otwartoźródłowy klient SSH i SFTP dla systemu Linux.</p>
-            <p>Umożliwia zarządzanie profilami połączeń, przeglądanie zdalnych plików przez SFTP oraz otwieranie sesji terminala SSH — wszystko bez usług chmurowych ani telemetrii.</p>
-            <p><strong>Twoje dane pozostają lokalne.</strong> Wszystkie profile, dane uwierzytelniające i pliki są przechowywane tylko na Twoim komputerze. Nic nie jest wysyłane na żaden serwer, chyba że jawnie wyślesz plik.</p>
-            <p><strong>Zgodność kluczy SSH:</strong> Jeśli Twój klucz prywatny znajduje się na zamontowanym lub sieciowym systemie plików, systemowy klient SSH może go odrzucić z powodu wymagań dotyczących uprawnień plików. MurmurSSH może utworzyć lokalną kopię roboczą klucza (w <code>~/.config/murmurssh/runtime-keys/</code>) z poprawnymi uprawnieniami na potrzeby terminala. Oryginalny klucz nigdy nie jest modyfikowany. Kopia jest tymczasowa i zostaje usunięta po rozłączeniu.</p>
-            <p><strong>Uwaga:</strong> Okna terminala otwarte przyciskiem Terminal należy po zakończeniu zamknąć ręcznie.</p>
-            <p><strong>Skróty klawiszowe (przeglądarka plików):</strong></p>
-            <table style="border-collapse:collapse;font-size:13px;width:100%">
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Odśwież listę katalogu</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Zmień nazwę zaznaczonego wpisu</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Otwórz terminal SSH</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Usuń zaznaczone wpisy</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Otwórz folder / edytuj plik</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Zaznacz wszystkie wpisy</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Wyczyść zaznaczenie</td></tr>
-            </table>
-            <p>Stworzone przez <strong>Kaia André Schultkę</strong> z użyciem <strong>Claude Code</strong>.</p>
-        `,
+      <p><strong>MurmurSSH</strong> to minimalistyczny, otwartoźródłowy klient SSH i SFTP dla systemu Linux.</p>
+      <p>Umożliwia zarządzanie profilami połączeń, przeglądanie zdalnych plików przez SFTP oraz otwieranie sesji terminala SSH — wszystko bez usług chmurowych ani telemetrii.</p>
+      <p><strong>Twoje dane pozostają lokalne.</strong> Wszystkie profile, dane uwierzytelniające i pliki są przechowywane tylko na Twoim komputerze. Nic nie jest wysyłane na żaden serwer, chyba że jawnie wyślesz plik.</p>
+      <p><strong>Zgodność kluczy SSH:</strong> Jeśli Twój klucz prywatny znajduje się na zamontowanym lub sieciowym systemie plików, systemowy klient SSH może go odrzucić z powodu wymagań dotyczących uprawnień plików. MurmurSSH może utworzyć lokalną kopię roboczą klucza (w <code>~/.config/murmurssh/runtime-keys/</code>) z poprawnymi uprawnieniami na potrzeby terminala. Oryginalny klucz nigdy nie jest modyfikowany. Kopia jest tymczasowa i zostaje usunięta po rozłączeniu.</p>
+      <p><strong>Uwaga:</strong> Okna terminala otwarte przyciskiem Terminal należy po zakończeniu zamknąć ręcznie.</p>
+      <p><strong>Skróty klawiszowe (przeglądarka plików):</strong></p>
+      <table style="border-collapse:collapse;font-size:13px;width:100%">
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Odśwież listę katalogu</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Zmień nazwę zaznaczonego wpisu</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Otwórz terminal SSH</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Usuń zaznaczone wpisy</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Otwórz folder / edytuj plik</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Zaznacz wszystkie wpisy</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Wyczyść zaznaczenie</td></tr>
+      </table>
+      <p>Stworzone przez <strong>Kaia André Schultkę</strong> z użyciem <strong>Claude Code</strong>.</p>
+    `,
         helpWebsite: "Strona internetowa",
         helpGitHub: "GitHub",
         helpReportIssue: "Zgłoś problem",
@@ -334,5 +348,4 @@ const pl = {
         tooltip: "Język: Polski",
     },
 };
-
 export default pl;

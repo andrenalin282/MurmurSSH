@@ -35,6 +35,8 @@ const ru = {
         // Table
         columnName: "Имя",
         columnSize: "Размер",
+        columnModified: "Изменён",
+        columnPermissions: "Права",
         emptyDir: "Пустой каталог",
         connectPrompt: "Подключитесь к профилю для просмотра файлов.",
         upRow: ".. (вверх)",
@@ -48,6 +50,7 @@ const ru = {
         download: "Скачать",
         rename: "Переименовать",
         moveTo: "Переместить в…",
+        permissions: "Права…",
         edit: "Редактировать",
         delete: "Удалить",
         newFile: "Новый файл",
@@ -84,6 +87,8 @@ const ru = {
         renamedTo: "Переименовано в {name}",
         renameFailed: "Не удалось переименовать: {error}",
         nameContainsSlash: "Имя не может содержать «/»",
+        permissionsChanged: "Права изменены: {name}",
+        permissionsFailed: "Не удалось изменить права: {error}",
         movedItems: "Перемещено: {count} {itemLabel}",
         movedItemsErrors: "Перемещено: {count} {itemLabel}, с ошибкой: {errors}{detail}",
         itemSingular: "элемент",
@@ -238,6 +243,15 @@ const ru = {
         promptOk: "OK",
         confirmCancel: "Отмена",
         confirmConfirm: "Подтвердить",
+        permTitle: "Изменить права",
+        permApply: "Применить",
+        permOctal: "Восьмеричный",
+        perm_owner: "Владелец",
+        perm_group: "Группа",
+        perm_other: "Прочие",
+        perm_read: "Чтение",
+        perm_write: "Запись",
+        perm_execute: "Выполнение",
         overwriteTitle: "Файл уже существует",
         overwriteBodySuffix: "уже существует на сервере.",
         overwriteQuestion: "Перезаписать?",
@@ -291,23 +305,23 @@ const ru = {
         helpTitle: "О программе MurmurSSH",
         helpVersion: "Версия {version}",
         helpBodyHtml: `
-            <p><strong>MurmurSSH</strong> — минималистичный клиент SSH и SFTP с открытым исходным кодом для Linux.</p>
-            <p>Позволяет управлять профилями подключений, просматривать удалённые файлы по SFTP и открывать сеансы терминала SSH — без облачных сервисов и телеметрии.</p>
-            <p><strong>Ваши данные остаются локальными.</strong> Все профили, учётные данные и файлы хранятся только на вашем компьютере. На сервер ничего не отправляется, пока вы сами явно не загрузите файл.</p>
-            <p><strong>Совместимость SSH-ключей:</strong> Если ваш приватный ключ хранится на смонтированной или сетевой файловой системе, системный SSH-клиент может отклонить его из-за требований к правам доступа. MurmurSSH может создать локальную рабочую копию ключа (в <code>~/.config/murmurssh/runtime-keys/</code>) с правильными правами для использования в терминале. Исходный ключ никогда не изменяется. Копия временная и удаляется при отключении.</p>
-            <p><strong>Примечание:</strong> Окна терминала, открытые через кнопку «Терминал», нужно закрывать вручную по завершении работы.</p>
-            <p><strong>Сочетания клавиш (обозреватель файлов):</strong></p>
-            <table style="border-collapse:collapse;font-size:13px;width:100%">
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Обновить список каталога</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Переименовать выбранный элемент</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Открыть терминал SSH</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Удалить выбранные элементы</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Открыть папку / редактировать файл</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Выбрать все элементы</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Снять выделение</td></tr>
-            </table>
-            <p>Создано <strong>Kai André Schultka</strong> с помощью <strong>Claude Code</strong>.</p>
-        `,
+      <p><strong>MurmurSSH</strong> — минималистичный клиент SSH и SFTP с открытым исходным кодом для Linux.</p>
+      <p>Позволяет управлять профилями подключений, просматривать удалённые файлы по SFTP и открывать сеансы терминала SSH — без облачных сервисов и телеметрии.</p>
+      <p><strong>Ваши данные остаются локальными.</strong> Все профили, учётные данные и файлы хранятся только на вашем компьютере. На сервер ничего не отправляется, пока вы сами явно не загрузите файл.</p>
+      <p><strong>Совместимость SSH-ключей:</strong> Если ваш приватный ключ хранится на смонтированной или сетевой файловой системе, системный SSH-клиент может отклонить его из-за требований к правам доступа. MurmurSSH может создать локальную рабочую копию ключа (в <code>~/.config/murmurssh/runtime-keys/</code>) с правильными правами для использования в терминале. Исходный ключ никогда не изменяется. Копия временная и удаляется при отключении.</p>
+      <p><strong>Примечание:</strong> Окна терминала, открытые через кнопку «Терминал», нужно закрывать вручную по завершении работы.</p>
+      <p><strong>Сочетания клавиш (обозреватель файлов):</strong></p>
+      <table style="border-collapse:collapse;font-size:13px;width:100%">
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Обновить список каталога</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Переименовать выбранный элемент</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Открыть терминал SSH</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Удалить выбранные элементы</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Открыть папку / редактировать файл</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Выбрать все элементы</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Снять выделение</td></tr>
+      </table>
+      <p>Создано <strong>Kai André Schultka</strong> с помощью <strong>Claude Code</strong>.</p>
+    `,
         helpWebsite: "Веб-сайт",
         helpGitHub: "GitHub",
         helpReportIssue: "Сообщить о проблеме",
@@ -334,5 +348,4 @@ const ru = {
         tooltip: "Язык: Русский",
     },
 };
-
 export default ru;

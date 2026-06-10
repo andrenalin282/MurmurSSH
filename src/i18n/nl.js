@@ -35,6 +35,8 @@ const nl = {
         // Table
         columnName: "Naam",
         columnSize: "Grootte",
+        columnModified: "Gewijzigd",
+        columnPermissions: "Rechten",
         emptyDir: "Lege map",
         connectPrompt: "Verbind met een profiel om bestanden te bekijken.",
         upRow: ".. (omhoog)",
@@ -48,6 +50,7 @@ const nl = {
         download: "Downloaden",
         rename: "Hernoemen",
         moveTo: "Verplaatsen naar…",
+        permissions: "Rechten…",
         edit: "Bewerken",
         delete: "Verwijderen",
         newFile: "Nieuw bestand",
@@ -84,6 +87,8 @@ const nl = {
         renamedTo: "Hernoemd naar {name}",
         renameFailed: "Hernoemen mislukt: {error}",
         nameContainsSlash: "Naam mag geen \"/\" bevatten",
+        permissionsChanged: "Rechten gewijzigd: {name}",
+        permissionsFailed: "Wijzigen van rechten mislukt: {error}",
         movedItems: "{count} {itemLabel} verplaatst",
         movedItemsErrors: "{count} {itemLabel} verplaatst, {errors} mislukt{detail}",
         itemSingular: "item",
@@ -238,6 +243,15 @@ const nl = {
         promptOk: "OK",
         confirmCancel: "Annuleren",
         confirmConfirm: "Bevestigen",
+        permTitle: "Rechten wijzigen",
+        permApply: "Toepassen",
+        permOctal: "Octaal",
+        perm_owner: "Eigenaar",
+        perm_group: "Groep",
+        perm_other: "Overige",
+        perm_read: "Lezen",
+        perm_write: "Schrijven",
+        perm_execute: "Uitvoeren",
         overwriteTitle: "Bestand bestaat al",
         overwriteBodySuffix: "bestaat al op de server.",
         overwriteQuestion: "Overschrijven?",
@@ -291,23 +305,23 @@ const nl = {
         helpTitle: "Over MurmurSSH",
         helpVersion: "Versie {version}",
         helpBodyHtml: `
-            <p><strong>MurmurSSH</strong> is een minimale open-source SSH- en SFTP-desktopclient voor Linux.</p>
-            <p>U kunt verbindingsprofielen beheren, externe bestanden via SFTP bekijken en SSH-terminalsessies openen — allemaal zonder cloud-diensten of telemetrie.</p>
-            <p><strong>Uw gegevens blijven lokaal.</strong> Alle profielen, inloggegevens en bestanden worden alleen op uw machine opgeslagen. Er wordt niets naar een server verzonden, tenzij u expliciet een bestand uploadt.</p>
-            <p><strong>SSH-sleutelcompatibiliteit:</strong> Als uw privésleutel op een aangekoppeld of netwerkbestandssysteem is opgeslagen, kan de systeem-SSH-client deze weigeren vanwege bestandsrechtenvereisten. MurmurSSH kan een lokale runtime-kopie van de sleutel maken (in <code>~/.config/murmurssh/runtime-keys/</code>) met de juiste rechten voor gebruik in de terminal. De originele sleutel wordt nooit gewijzigd. De kopie is tijdelijk en wordt verwijderd wanneer u de verbinding verbreekt.</p>
-            <p><strong>Opmerking:</strong> Terminalvensters die via de knop Terminal zijn geopend, moeten handmatig worden gesloten wanneer u klaar bent.</p>
-            <p><strong>Sneltoetsen (bestandsbrowser):</strong></p>
-            <table style="border-collapse:collapse;font-size:13px;width:100%">
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Maplijst vernieuwen</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Geselecteerd item hernoemen</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>SSH-terminal openen</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Geselecteerde items verwijderen</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Map openen / bestand bewerken</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Alle items selecteren</td></tr>
-                <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Selectie wissen</td></tr>
-            </table>
-            <p>Gemaakt door <strong>Kai André Schultka</strong> met <strong>Claude Code</strong>.</p>
-        `,
+      <p><strong>MurmurSSH</strong> is een minimale open-source SSH- en SFTP-desktopclient voor Linux.</p>
+      <p>U kunt verbindingsprofielen beheren, externe bestanden via SFTP bekijken en SSH-terminalsessies openen — allemaal zonder cloud-diensten of telemetrie.</p>
+      <p><strong>Uw gegevens blijven lokaal.</strong> Alle profielen, inloggegevens en bestanden worden alleen op uw machine opgeslagen. Er wordt niets naar een server verzonden, tenzij u expliciet een bestand uploadt.</p>
+      <p><strong>SSH-sleutelcompatibiliteit:</strong> Als uw privésleutel op een aangekoppeld of netwerkbestandssysteem is opgeslagen, kan de systeem-SSH-client deze weigeren vanwege bestandsrechtenvereisten. MurmurSSH kan een lokale runtime-kopie van de sleutel maken (in <code>~/.config/murmurssh/runtime-keys/</code>) met de juiste rechten voor gebruik in de terminal. De originele sleutel wordt nooit gewijzigd. De kopie is tijdelijk en wordt verwijderd wanneer u de verbinding verbreekt.</p>
+      <p><strong>Opmerking:</strong> Terminalvensters die via de knop Terminal zijn geopend, moeten handmatig worden gesloten wanneer u klaar bent.</p>
+      <p><strong>Sneltoetsen (bestandsbrowser):</strong></p>
+      <table style="border-collapse:collapse;font-size:13px;width:100%">
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Maplijst vernieuwen</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Geselecteerd item hernoemen</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>SSH-terminal openen</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Geselecteerde items verwijderen</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Map openen / bestand bewerken</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Alle items selecteren</td></tr>
+        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Selectie wissen</td></tr>
+      </table>
+      <p>Gemaakt door <strong>Kai André Schultka</strong> met <strong>Claude Code</strong>.</p>
+    `,
         helpWebsite: "Website",
         helpGitHub: "GitHub",
         helpReportIssue: "Probleem melden",
@@ -334,5 +348,4 @@ const nl = {
         tooltip: "Taal: Nederlands",
     },
 };
-
 export default nl;
