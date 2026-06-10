@@ -2,7 +2,7 @@ import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Channel } from "@tauri-apps/api/core";
 import * as api from "../api/index";
-import { showConfirm, showPrompt, showOverwriteDialog } from "./dialog";
+import { showConfirm, showPrompt, showOverwriteDialog, showPermissionsDialog } from "./dialog";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
 /**
@@ -76,6 +76,7 @@ const ICONS = {
     newFile: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>`,
     newFolder: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`,
     openFolder: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+    permissions: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
 };
 function formatBytes(bytes) {
     if (bytes < 1024)
@@ -1663,6 +1664,28 @@ export class FileBrowser {
             this.setBusy(false);
         }
     }
+    // ── Change permissions (chmod) ────────────────────────────────────────────
+    async handlePermissions() {
+        const entry = this.selectedEntry;
+        if (!this.profileId || !entry)
+            return;
+        const newMode = await showPermissionsDialog(entry.name, entry.perm);
+        if (newMode === null)
+            return; // cancelled
+        const remotePath = joinPath(this.currentPath, entry.name);
+        try {
+            this.setBusy(true);
+            await api.setPermissions(this.profileId, remotePath, newMode);
+            this.status(t("fileBrowser.permissionsChanged", { name: entry.name }), false);
+            await this.refresh();
+        }
+        catch (err) {
+            this.status(t("fileBrowser.permissionsFailed", { error: this.normalizeRemoteError(err) }), true);
+        }
+        finally {
+            this.setBusy(false);
+        }
+    }
     // ── Move to… (prompted path) ──────────────────────────────────────────────
     async handleMoveTo() {
         if (!this.profileId || this.selectedNames.size === 0)
@@ -1875,6 +1898,7 @@ export class FileBrowser {
             { separator: true },
             { icon: ICONS.rename, label: t("fileBrowser.rename"), action: () => this.handleRename() },
             { icon: ICONS.moveTo, label: t("fileBrowser.moveTo"), action: () => this.handleMoveTo() },
+            { icon: ICONS.permissions, label: t("fileBrowser.permissions"), action: () => this.handlePermissions() },
             { separator: true },
             { icon: ICONS.delete, label: t("fileBrowser.delete"), action: () => this.handleDelete(), danger: true },
         ];
@@ -1886,6 +1910,7 @@ export class FileBrowser {
             { separator: true },
             { icon: ICONS.rename, label: t("fileBrowser.rename"), action: () => this.handleRename() },
             { icon: ICONS.moveTo, label: t("fileBrowser.moveTo"), action: () => this.handleMoveTo() },
+            { icon: ICONS.permissions, label: t("fileBrowser.permissions"), action: () => this.handlePermissions() },
             { separator: true },
             { icon: ICONS.delete, label: t("fileBrowser.delete"), action: () => this.handleDelete(), danger: true },
         ];
