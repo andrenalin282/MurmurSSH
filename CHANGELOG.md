@@ -12,6 +12,14 @@ No changes yet.
 
 ---
 
+## [1.4.8] - 2026-06-10
+
+### Added
+- File browser now shows a modification-date column and a permissions column (symbolic, e.g. `-rw-r--r--`, with the octal value in the tooltip).
+- Change remote file/folder permissions via the right-click "Permissions…" action: an rwx checkbox grid (owner/group/other) kept in sync with an octal field. SFTP only — FTP reports it as unsupported. Directory type bits are preserved so a folder stays a folder.
+
+---
+
 ## [1.4.7] - 2026-06-10
 
 ### Fixed

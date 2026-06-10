@@ -18,7 +18,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
 - **Split-pane file browser** — a local file browser panel sits alongside the remote browser, so you can see both sides at once. The panel is toggleable and its position (left or right) is configurable in Settings.
-- **SFTP/FTP remote browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, move, and create files and directories. Works identically over SFTP and FTP.
+- **SFTP/FTP remote browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, move, and create files and directories. The listing shows modification dates and permissions, and you can change permissions (chmod) via a right-click dialog with an rwx grid synced to an octal field (SFTP). Works identically over SFTP and FTP.
 - **Drag and drop** — drag local files onto the remote browser to upload; drag remote entries onto the local browser to download. Drop files or folders from your OS file manager onto the remote browser to upload.
 - **Real-time transfer progress** — progress bar with live speed display (e.g. `2.1 MB/s`) during every upload and download. Byte-level fill for SFTP transfers; per-file updates for FTP and folder operations.
 - **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
