@@ -157,6 +157,12 @@ pub fn open_for_edit(
         }
     }
 
+    // Record the just-downloaded content as the baseline so the watcher does not
+    // mistake this (re-)download for a user edit.
+    if let Some(h) = file_content_hash(&local_path) {
+        set_baseline(&local_path, h);
+    }
+
     // Open in editor
     open_in_editor(profile, &local_path)?;
 
