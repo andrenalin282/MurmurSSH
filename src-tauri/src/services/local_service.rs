@@ -75,6 +75,7 @@ pub fn list_local_directory(path: &str) -> Result<Vec<FileEntry>, String> {
                     is_dir: false,
                     size: None,
                     modified: None,
+                    perm: None,
                 });
                 continue;
             }
@@ -93,6 +94,7 @@ pub fn list_local_directory(path: &str) -> Result<Vec<FileEntry>, String> {
             is_dir,
             size,
             modified,
+            perm: None,
         });
     }
 

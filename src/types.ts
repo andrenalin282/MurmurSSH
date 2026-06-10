@@ -59,6 +59,8 @@ export interface FileEntry {
   size: number | null;
   /** Unix timestamp in seconds. */
   modified: number | null;
+  /** Unix permission/mode bits (e.g. 0o644). Null when unavailable (e.g. FTP). */
+  perm: number | null;
 }
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";

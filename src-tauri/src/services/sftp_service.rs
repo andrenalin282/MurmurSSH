@@ -240,6 +240,7 @@ pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, S
                     is_dir,
                     size: stat.size,
                     modified: stat.mtime,
+                    perm: stat.perm,
                 }
             })
         })
@@ -425,6 +426,27 @@ pub fn rename_file(profile: &Profile, from: &str, to: &str) -> Result<(), String
 
     sftp.rename(Path::new(from), Path::new(to), None)
         .map_err(|e| format!("Failed to rename '{}' to '{}': {}", from, to, e))
+}
+
+/// Change the Unix permission bits of a remote file or directory.
+/// `mode` is the permission value (e.g. 0o644); only the perm field is set,
+/// leaving size/uid/gid/atime/mtime untouched on the server.
+pub fn set_permissions(profile: &Profile, path: &str, mode: u32) -> Result<(), String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    let stat = ssh2::FileStat {
+        size: None,
+        uid: None,
+        gid: None,
+        perm: Some(mode),
+        atime: None,
+        mtime: None,
+    };
+    sftp.setstat(Path::new(path), stat)
+        .map_err(|e| format!("Failed to change permissions of '{}': {}", path, e))
 }
 
 pub fn create_directory(profile: &Profile, path: &str) -> Result<(), String> {

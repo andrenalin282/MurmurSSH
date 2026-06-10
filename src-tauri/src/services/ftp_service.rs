@@ -136,6 +136,7 @@ fn parse_list_line(line: &str) -> Option<FileEntry> {
         is_dir,
         size,
         modified: None,
+        perm: None,
     })
 }
 
@@ -416,4 +417,9 @@ fn download_dir_recursive(
     }
 
     Ok(())
+}
+
+/// Changing permissions is not supported over FTP in MurmurSSH.
+pub fn set_permissions(_profile: &Profile, _path: &str, _mode: u32) -> Result<(), String> {
+    Err("Changing permissions is not supported over FTP.".to_string())
 }
