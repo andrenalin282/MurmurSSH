@@ -12,6 +12,14 @@ No changes yet.
 
 ---
 
+## [1.4.7] - 2026-06-10
+
+### Fixed
+- Remote edit: re-opening a file no longer triggers a spurious "upload?" prompt, and a single save no longer asks for upload confirmation twice. Change detection now compares file content (hash) instead of modification time.
+- App now stops SSH control sessions, removes runtime key copies, and clears session credentials when the window is closed via the OS title bar (previously only on explicit Disconnect/Quit).
+
+---
+
 ## [1.4.6] - 2026-04-21
 
 ### Added
