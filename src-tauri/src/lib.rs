@@ -54,6 +54,7 @@ pub fn run() {
             commands::sftp::upload_path,
             commands::sftp::download_directory,
             commands::sftp::rename_file,
+            commands::sftp::set_permissions,
             commands::sftp::create_directory,
             commands::sftp::cancel_transfer,
             commands::sftp::local_file_exists,

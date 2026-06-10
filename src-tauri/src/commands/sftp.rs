@@ -179,6 +179,21 @@ pub fn rename_file(
     }
 }
 
+/// Change the Unix permission bits (mode) of a remote file or directory.
+#[tauri::command]
+pub fn set_permissions(
+    profile_id: String,
+    remote_path: String,
+    mode: u32,
+) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    if is_ftp(&profile) {
+        ftp_service::set_permissions(&profile, &remote_path, mode)
+    } else {
+        sftp_service::set_permissions(&profile, &remote_path, mode)
+    }
+}
+
 #[tauri::command]
 pub fn create_directory(profile_id: String, path: String) -> Result<(), String> {
     let profile = profile_service::get_profile(&profile_id)?;

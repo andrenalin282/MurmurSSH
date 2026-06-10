@@ -202,6 +202,14 @@ export async function createDirectory(profileId, path) {
     return invoke("create_directory", { profileId, path });
 }
 /**
+ * Change the Unix permission bits (mode) of a remote file or directory.
+ * `mode` is the integer permission value (e.g. 0o644 === 420).
+ * Returns an error string for FTP profiles (unsupported).
+ */
+export async function setPermissions(profileId, remotePath, mode) {
+    return invoke("set_permissions", { profileId, remotePath, mode });
+}
+/**
  * Request cancellation of the currently running transfer for the given profile.
  * The backend's chunk loops poll the cancel flag between chunks and unwind
  * with a `TRANSFER_CANCELLED` error that the frontend can display as "cancelled".
