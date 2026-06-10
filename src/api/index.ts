@@ -321,7 +321,7 @@ export async function createDirectory(
 /**
  * Change the Unix permission bits (mode) of a remote file or directory.
  * `mode` is the integer permission value (e.g. 0o644 === 420).
- * Returns an error string for FTP profiles (unsupported).
+ * Throws (rejected promise) for FTP profiles (unsupported).
  */
 export async function setPermissions(
   profileId: string,

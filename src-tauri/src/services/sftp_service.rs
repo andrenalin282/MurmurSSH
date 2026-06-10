@@ -437,11 +437,22 @@ pub fn set_permissions(profile: &Profile, path: &str, mode: u32) -> Result<(), S
         .sftp()
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
 
+    // Preserve the existing file-type bits (S_IFDIR/S_IFREG/etc.) and apply only
+    // the permission/special bits from `mode`. Some strict SFTP servers reject a
+    // setstat that drops the type bits.
+    let type_bits = sftp
+        .stat(Path::new(path))
+        .ok()
+        .and_then(|s| s.perm)
+        .map(|p| p & 0o170000)
+        .unwrap_or(0);
+    let new_perm = type_bits | (mode & 0o7777);
+
     let stat = ssh2::FileStat {
         size: None,
         uid: None,
         gid: None,
-        perm: Some(mode),
+        perm: Some(new_perm),
         atime: None,
         mtime: None,
     };
