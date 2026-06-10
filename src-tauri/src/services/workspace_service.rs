@@ -1,11 +1,10 @@
+use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
+use std::hash::{Hash, Hasher};
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
-
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
@@ -224,6 +223,7 @@ fn watch_and_upload(
         Err(e) => {
             eprintln!("[murmurssh] Failed to create file watcher: {}", e);
             unregister_watcher(&local_path);
+            clear_baseline(&local_path);
             return;
         }
     };
@@ -235,6 +235,7 @@ fn watch_and_upload(
             e
         );
         unregister_watcher(&local_path);
+        clear_baseline(&local_path);
         return;
     }
 
