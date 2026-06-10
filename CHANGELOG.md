@@ -18,6 +18,9 @@ No changes yet.
 - Remote edit: re-opening a file no longer triggers a spurious "upload?" prompt, and a single save no longer asks for upload confirmation twice. Change detection now compares file content (hash) instead of modification time.
 - App now stops SSH control sessions, removes runtime key copies, and clears session credentials when the window is closed via the OS title bar (previously only on explicit Disconnect/Quit).
 
+### Notes
+- In "confirm" upload mode, closing the app before confirming a pending upload discards that pending change (the local edit is not uploaded). Save and confirm the upload before closing.
+
 ---
 
 ## [1.4.6] - 2026-04-21
