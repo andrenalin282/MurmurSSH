@@ -84,6 +84,30 @@ function formatBytes(bytes) {
         return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+/** Format a Unix timestamp (seconds) as a locale date-time, or "—" if absent. */
+function formatDate(sec) {
+    if (sec == null)
+        return "—";
+    const d = new Date(sec * 1000);
+    if (isNaN(d.getTime()))
+        return "—";
+    return d.toLocaleString();
+}
+/** Format Unix mode bits as a symbolic permission string, e.g. "rwxr-xr-x". */
+function formatPermSymbolic(mode, isDir) {
+    if (mode == null)
+        return "—";
+    const bits = mode & 0o777;
+    const rwx = (n) => `${n & 4 ? "r" : "-"}${n & 2 ? "w" : "-"}${n & 1 ? "x" : "-"}`;
+    const type = isDir ? "d" : "-";
+    return `${type}${rwx((bits >> 6) & 7)}${rwx((bits >> 3) & 7)}${rwx(bits & 7)}`;
+}
+/** Format Unix mode bits as a 3-digit octal string, e.g. "755", or "" if absent. */
+function formatPermOctal(mode) {
+    if (mode == null)
+        return "";
+    return (mode & 0o777).toString(8).padStart(3, "0");
+}
 /** Join a remote directory path with a filename. Handles trailing slashes. */
 function joinPath(dir, name) {
     return dir.replace(/\/?$/, "/") + name;
@@ -404,10 +428,10 @@ export class FileBrowser {
         const upRow = isAtRoot
             ? ""
             : `<tr class="file-entry file-entry--dir file-entry--up${this.dropTargetName === ".." ? " file-entry--drop-target" : ""}" data-name=".." data-isdir="true">
-           <td colspan="2">${t("fileBrowser.upRow")}</td>
+           <td colspan="4">${t("fileBrowser.upRow")}</td>
          </tr>`;
         const rows = this.entries.length === 0 && !this.inlineError
-            ? `<tr><td colspan="2" class="empty-dir">${t("fileBrowser.emptyDir")}</td></tr>`
+            ? `<tr><td colspan="4" class="empty-dir">${t("fileBrowser.emptyDir")}</td></tr>`
             : this.entries.length === 0
                 ? ""
                 : this.entries
@@ -424,6 +448,8 @@ export class FileBrowser {
                     return `<tr class="${cls}" data-name="${escHtml(entry.name)}" data-isdir="${entry.is_dir}" draggable="true">
                    <td>${entry.is_dir ? "&#128193; " : ""}${escHtml(entry.name)}</td>
                    <td>${entry.size != null && !entry.is_dir ? formatBytes(entry.size) : "—"}</td>
+                   <td>${formatDate(entry.modified)}</td>
+                   <td title="${formatPermOctal(entry.perm)}">${formatPermSymbolic(entry.perm, entry.is_dir)}</td>
                  </tr>`;
                 })
                     .join("");
@@ -476,7 +502,7 @@ export class FileBrowser {
         <div class="file-browser__scroll">
         <table class="file-browser__table">
           <thead>
-            <tr><th>${t("fileBrowser.columnName")}</th><th>${t("fileBrowser.columnSize")}</th></tr>
+            <tr><th>${t("fileBrowser.columnName")}</th><th>${t("fileBrowser.columnSize")}</th><th>${t("fileBrowser.columnModified")}</th><th>${t("fileBrowser.columnPermissions")}</th></tr>
           </thead>
           <tbody>${upRow}${rows}</tbody>
         </table>
