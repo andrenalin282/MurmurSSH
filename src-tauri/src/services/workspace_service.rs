@@ -4,6 +4,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+
 use notify::{EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 use tauri::Emitter;
@@ -47,6 +50,15 @@ fn local_cache_path(profile_id: &str, remote_path: &str) -> PathBuf {
         .unwrap_or_else(|| "file".to_string());
 
     workspace_base().join(profile_id).join(filename)
+}
+
+/// Computes a fast content hash of a file. Returns None if the file can't be read.
+/// Used to detect *real* edits and ignore re-downloads / duplicate save events.
+fn file_content_hash(path: &Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    let mut hasher = DefaultHasher::new();
+    bytes.hash(&mut hasher);
+    Some(format!("{:016x}", hasher.finish()))
 }
 
 /// Registry of paths currently being watched. Prevents duplicate watchers.
@@ -259,4 +271,45 @@ fn watch_and_upload(
 
     // Cleanup: remove from active watchers registry
     unregister_watcher(&local_path);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+
+    fn tmp_file(name: &str, contents: &[u8]) -> PathBuf {
+        let mut p = std::env::temp_dir();
+        p.push(format!("murmurssh_test_{}", name));
+        let mut f = std::fs::File::create(&p).unwrap();
+        f.write_all(contents).unwrap();
+        p
+    }
+
+    #[test]
+    fn hash_is_stable_for_same_content() {
+        let p = tmp_file("stable", b"hello world");
+        let a = file_content_hash(&p).unwrap();
+        let b = file_content_hash(&p).unwrap();
+        assert_eq!(a, b);
+        let _ = std::fs::remove_file(&p);
+    }
+
+    #[test]
+    fn hash_differs_for_different_content() {
+        let p1 = tmp_file("diff_a", b"content A");
+        let p2 = tmp_file("diff_b", b"content B");
+        assert_ne!(
+            file_content_hash(&p1).unwrap(),
+            file_content_hash(&p2).unwrap()
+        );
+        let _ = std::fs::remove_file(&p1);
+        let _ = std::fs::remove_file(&p2);
+    }
+
+    #[test]
+    fn hash_none_for_missing_file() {
+        let p = PathBuf::from("/nonexistent/murmurssh/definitely/missing");
+        assert!(file_content_hash(&p).is_none());
+    }
 }
