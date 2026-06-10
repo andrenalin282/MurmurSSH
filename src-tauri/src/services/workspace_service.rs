@@ -238,9 +238,13 @@ fn watch_and_upload(
         return;
     }
 
-    let mut last_mtime = std::fs::metadata(&local_path)
-        .and_then(|m| m.modified())
-        .ok();
+    // Seed the baseline from the file as it exists now (open_for_edit normally
+    // sets it already, but this guards the watch-before-download race).
+    if get_baseline(&local_path).is_none() {
+        if let Some(h) = file_content_hash(&local_path) {
+            set_baseline(&local_path, h);
+        }
+    }
 
     for result in rx {
         let event = match result {
@@ -258,14 +262,20 @@ fn watch_and_upload(
             EventKind::Modify(_) | EventKind::Create(_) => {
                 std::thread::sleep(DEBOUNCE_DELAY);
 
-                let current_mtime = std::fs::metadata(&local_path)
-                    .and_then(|m| m.modified())
-                    .ok();
+                let current_hash = match file_content_hash(&local_path) {
+                    Some(h) => h,
+                    None => continue, // file vanished mid-write; ignore
+                };
 
-                if current_mtime == last_mtime {
+                // Only a genuine content change (differs from the recorded
+                // baseline) counts. This ignores re-downloads and collapses
+                // multi-write editor saves into a single upload.
+                if get_baseline(&local_path).as_deref() == Some(current_hash.as_str()) {
                     continue;
                 }
-                last_mtime = current_mtime;
+                // Update the baseline immediately so the duplicate event from a
+                // temp+rename save does not fire a second upload/prompt.
+                set_baseline(&local_path, current_hash);
 
                 match profile.upload_mode {
                     UploadMode::Auto => {
@@ -299,8 +309,9 @@ fn watch_and_upload(
         }
     }
 
-    // Cleanup: remove from active watchers registry
+    // Cleanup: remove from active watchers registry and drop the baseline
     unregister_watcher(&local_path);
+    clear_baseline(&local_path);
 }
 
 #[cfg(test)]
