@@ -6,6 +6,7 @@ mod services;
 /// runtime key copies, and clear in-memory session credentials. Mirrors the
 /// explicit Disconnect path so closing via the OS title bar leaves no residue.
 fn cleanup_on_exit() {
+    services::transfer_queue::cancel_all();
     services::ssh_session_service::stop_all_sessions();
     services::runtime_key_service::cleanup_all_runtime_keys();
     services::credentials_store::clear_all();
@@ -14,6 +15,10 @@ fn cleanup_on_exit() {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            services::transfer_queue::init(app.handle());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             commands::connection::connect_sftp,
             commands::connection::accept_host_key,
@@ -44,20 +49,18 @@ pub fn run() {
             commands::sftp::get_sftp_home,
             commands::sftp::list_directory,
             commands::sftp::remote_file_exists,
-            commands::sftp::upload_file,
             commands::sftp::upload_file_bytes,
-            commands::sftp::download_file,
-            commands::sftp::download_file_to,
             commands::sftp::delete_file,
             commands::sftp::delete_directory,
-            commands::sftp::upload_directory,
-            commands::sftp::upload_path,
-            commands::sftp::download_directory,
             commands::sftp::rename_file,
             commands::sftp::set_permissions,
             commands::sftp::create_directory,
-            commands::sftp::cancel_transfer,
             commands::sftp::local_file_exists,
+            commands::transfer::enqueue_transfer,
+            commands::transfer::cancel_transfer,
+            commands::transfer::cancel_all_transfers,
+            commands::transfer::list_transfers,
+            commands::transfer::clear_finished_transfers,
             commands::workspace::open_for_edit,
             commands::local::list_local_directory,
             commands::local::get_home_dir,

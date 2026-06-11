@@ -8,5 +8,4 @@ pub use settings::Settings;
 pub use sftp::FileEntry;
 pub use transfer::{
     clamp_concurrency, TransferJobView, TransferKind, TransferState, CANCELLED_ERROR,
-    DEFAULT_CONCURRENCY,
 };
