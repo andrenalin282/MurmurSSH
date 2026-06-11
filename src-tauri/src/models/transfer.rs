@@ -42,6 +42,7 @@ pub enum TransferState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TransferJobView {
+    /// Session-scoped job id (monotonic within one app run; not persisted).
     pub id: u64,
     pub profile_id: String,
     pub kind: TransferKind,

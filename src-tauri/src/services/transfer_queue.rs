@@ -185,26 +185,43 @@ pub fn clear_finished() {
 /// worker per promoted job. Blocks on the condvar otherwise.
 fn dispatcher_loop() {
     loop {
-        let mut st = queue().state.lock().unwrap();
-        loop {
-            let limit = current_concurrency();
-            if st.active >= limit {
-                break;
+        // Read concurrency (does blocking file I/O) BEFORE taking the state lock.
+        let limit = current_concurrency();
+
+        let mut to_emit: Vec<TransferJobView> = Vec::new();
+        {
+            let mut st = queue().state.lock().unwrap();
+            while st.active < limit {
+                let Some(idx) = st
+                    .jobs
+                    .iter()
+                    .position(|j| j.view.state == TransferState::Queued)
+                else {
+                    break;
+                };
+                st.jobs[idx].view.state = TransferState::Active;
+                st.active += 1;
+                let view = st.jobs[idx].view.clone();
+                let cancel = st.jobs[idx].cancel.clone();
+                to_emit.push(view.clone());
+                std::thread::spawn(move || run_worker(view, cancel));
             }
-            let idx = st
-                .jobs
-                .iter()
-                .position(|j| j.view.state == TransferState::Queued);
-            let Some(idx) = idx else { break };
-            st.jobs[idx].view.state = TransferState::Active;
-            st.active += 1;
-            let view = st.jobs[idx].view.clone();
-            let cancel = st.jobs[idx].cancel.clone();
-            emit(&view);
-            std::thread::spawn(move || run_worker(view, cancel));
         }
-        let _unused = queue().cv.wait(st).unwrap();
+        // Emit promoted-job updates without holding the state lock.
+        for v in &to_emit {
+            emit(v);
+        }
+        // Re-acquire and wait. Note: limit is re-read at the top of the next
+        // iteration, so a notify() after a settings change re-evaluates it.
+        let st = queue().state.lock().unwrap();
+        drop(queue().cv.wait(st).unwrap());
     }
+}
+
+/// Wake the dispatcher to re-evaluate the concurrency limit and pending jobs.
+/// Call after the `max_concurrent_transfers` setting changes.
+pub fn notify() {
+    queue().cv.notify_all();
 }
 
 /// Update a job's view in place. Returns the updated snapshot if the job exists.
@@ -218,7 +235,8 @@ fn with_job<F: FnOnce(&mut TransferJobView)>(job_id: u64, f: F) -> Option<Transf
 /// Run one job to completion on this worker thread, then release the slot.
 fn run_worker(view: TransferJobView, cancel: Arc<AtomicBool>) {
     let job_id = view.id;
-    let result = run_job(&view, &cancel);
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| run_job(&view, &cancel)))
+        .unwrap_or_else(|_| Err("Transfer worker panicked".to_string()));
 
     let final_view = with_job(job_id, |v| match &result {
         Ok(()) => {
