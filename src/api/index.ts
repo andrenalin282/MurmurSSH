@@ -1,14 +1,5 @@
-import { invoke, Channel } from "@tauri-apps/api/core";
-import type { FileEntry, Profile, Settings } from "../types";
-
-/** Progress event streamed during file transfers. */
-export interface TransferProgress {
-  bytesDone: number;
-  bytesTotal: number; // 0 = unknown (FTP or folder op)
-  filename: string;
-}
-
-export type TransferChannel = Channel<TransferProgress>;
+import { invoke } from "@tauri-apps/api/core";
+import type { FileEntry, Profile, Settings, TransferJobView } from "../types";
 
 export async function listProfiles(): Promise<Profile[]> {
   return invoke("list_profiles");
@@ -212,65 +203,40 @@ export async function uploadFileBytes(
 }
 
 /**
- * Upload a local path (file or directory) to a remote destination.
- * Automatically handles both files and directories.
- * Used by drag-and-drop upload where the item type isn't known ahead of time.
+ * Enqueue a transfer job in the background queue. Returns the job id.
+ * kind: "upload" | "download" | "uploadDir" | "downloadDir".
+ * For uploads: src = local path, dst = remote path.
+ * For downloads: src = remote path, dst = local path.
  */
-export async function uploadPath(
+export async function enqueueTransfer(
   profileId: string,
-  localPath: string,
-  remotePath: string,
-  onProgress: TransferChannel
-): Promise<void> {
-  return invoke("upload_path", { profileId, localPath, remotePath, onProgress });
+  kind: TransferJobView["kind"],
+  src: string,
+  dst: string,
+  filename: string
+): Promise<number> {
+  return invoke("enqueue_transfer", { profileId, kind, src, dst, filename });
 }
 
-/**
- * Recursively upload a local directory to a remote destination path.
- */
-export async function uploadDirectory(
-  profileId: string,
-  localPath: string,
-  remotePath: string,
-  onProgress: TransferChannel
-): Promise<void> {
-  return invoke("upload_directory", { profileId, localPath, remotePath, onProgress });
+export async function cancelTransfer(jobId: number): Promise<void> {
+  return invoke("cancel_transfer", { jobId });
 }
 
-/**
- * Upload a local file path to a remote path.
- */
-export async function uploadFile(
-  profileId: string,
-  localPath: string,
-  remotePath: string,
-  onProgress: TransferChannel
-): Promise<void> {
-  return invoke("upload_file", { profileId, localPath, remotePath, onProgress });
+export async function cancelAllTransfers(): Promise<void> {
+  return invoke("cancel_all_transfers");
 }
 
-/**
- * Download a remote file to ~/Downloads/<filename>.
- * Returns the local path where the file was saved.
- */
-export async function downloadFile(
-  profileId: string,
-  remotePath: string,
-  onProgress: TransferChannel
-): Promise<string> {
-  return invoke("download_file", { profileId, remotePath, onProgress });
+export async function listTransfers(): Promise<TransferJobView[]> {
+  return invoke("list_transfers");
 }
 
-/**
- * Download a remote file to a user-specified local path.
- */
-export async function downloadFileTo(
-  profileId: string,
-  remotePath: string,
-  localPath: string,
-  onProgress: TransferChannel
-): Promise<void> {
-  return invoke("download_file_to", { profileId, remotePath, localPath, onProgress });
+export async function clearFinishedTransfers(): Promise<void> {
+  return invoke("clear_finished_transfers");
+}
+
+/** Check whether a local path is a directory (to pick upload vs uploadDir). */
+export async function localPathIsDir(path: string): Promise<boolean> {
+  return invoke("local_path_is_dir", { path });
 }
 
 export async function deleteFile(
@@ -278,18 +244,6 @@ export async function deleteFile(
   remotePath: string
 ): Promise<void> {
   return invoke("delete_file", { profileId, remotePath });
-}
-
-/**
- * Recursively download a remote directory to a local destination path.
- */
-export async function downloadDirectory(
-  profileId: string,
-  remotePath: string,
-  localPath: string,
-  onProgress: TransferChannel
-): Promise<void> {
-  return invoke("download_directory", { profileId, remotePath, localPath, onProgress });
 }
 
 /**
@@ -329,15 +283,6 @@ export async function setPermissions(
   mode: number
 ): Promise<void> {
   return invoke("set_permissions", { profileId, remotePath, mode });
-}
-
-/**
- * Request cancellation of the currently running transfer for the given profile.
- * The backend's chunk loops poll the cancel flag between chunks and unwind
- * with a `TRANSFER_CANCELLED` error that the frontend can display as "cancelled".
- */
-export async function cancelTransfer(profileId: string): Promise<void> {
-  return invoke("cancel_transfer", { profileId });
 }
 
 /** Check whether a local path already exists (file or directory). */

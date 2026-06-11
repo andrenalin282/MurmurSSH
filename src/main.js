@@ -1,9 +1,9 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
-import { Channel } from "@tauri-apps/api/core";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
 import { LocalFileBrowser } from "./components/local-file-browser";
+import { TransferQueuePanel } from "./components/transfer-queue";
 import { ProfileForm } from "./components/profile-form";
 import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
@@ -102,6 +102,19 @@ const fileBrowser = new FileBrowser("file-browser");
 const localBrowser = new LocalFileBrowser("local-file-browser");
 const profileForm = new ProfileForm();
 const settingsDialog = new SettingsDialog();
+// Background transfer queue panel — driven entirely by `transfer-update` events.
+const transferQueue = new TransferQueuePanel("transfer-queue");
+transferQueue.setOnJobFinished((job) => {
+    if (job.state !== "done")
+        return;
+    // Refresh the remote browser after an upload, the local browser after a download.
+    if (job.kind === "upload" || job.kind === "uploadDir") {
+        fileBrowser.refresh().catch(() => { });
+    }
+    else {
+        localBrowser.refresh().catch(() => { });
+    }
+});
 // ── Local browser toggle + resizer ───────────────────────────────────────────
 const localBrowserEl = document.getElementById("local-file-browser");
 const resizerEl = document.getElementById("browsers-pane-resizer");
@@ -420,8 +433,7 @@ listen("upload-ready", async (event) => {
         // Non-fatal: if conflict check fails, proceed with upload attempt.
     }
     try {
-        const ch = new Channel();
-        await api.uploadFile(profile_id, local_path, remote_path, ch);
+        await api.enqueueTransfer(profile_id, "upload", local_path, remote_path, filename);
         statusBar.set("connected", t("app.uploadedFile", { filename }));
     }
     catch (err) {

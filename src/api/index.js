@@ -147,46 +147,32 @@ export async function uploadFileBytes(profileId, remotePath, content) {
     return invoke("upload_file_bytes", { profileId, remotePath, content });
 }
 /**
- * Upload a local path (file or directory) to a remote destination.
- * Automatically handles both files and directories.
- * Used by drag-and-drop upload where the item type isn't known ahead of time.
+ * Enqueue a transfer job in the background queue. Returns the job id.
+ * kind: "upload" | "download" | "uploadDir" | "downloadDir".
+ * For uploads: src = local path, dst = remote path.
+ * For downloads: src = remote path, dst = local path.
  */
-export async function uploadPath(profileId, localPath, remotePath, onProgress) {
-    return invoke("upload_path", { profileId, localPath, remotePath, onProgress });
+export async function enqueueTransfer(profileId, kind, src, dst, filename) {
+    return invoke("enqueue_transfer", { profileId, kind, src, dst, filename });
 }
-/**
- * Recursively upload a local directory to a remote destination path.
- */
-export async function uploadDirectory(profileId, localPath, remotePath, onProgress) {
-    return invoke("upload_directory", { profileId, localPath, remotePath, onProgress });
+export async function cancelTransfer(jobId) {
+    return invoke("cancel_transfer", { jobId });
 }
-/**
- * Upload a local file path to a remote path.
- */
-export async function uploadFile(profileId, localPath, remotePath, onProgress) {
-    return invoke("upload_file", { profileId, localPath, remotePath, onProgress });
+export async function cancelAllTransfers() {
+    return invoke("cancel_all_transfers");
 }
-/**
- * Download a remote file to ~/Downloads/<filename>.
- * Returns the local path where the file was saved.
- */
-export async function downloadFile(profileId, remotePath, onProgress) {
-    return invoke("download_file", { profileId, remotePath, onProgress });
+export async function listTransfers() {
+    return invoke("list_transfers");
 }
-/**
- * Download a remote file to a user-specified local path.
- */
-export async function downloadFileTo(profileId, remotePath, localPath, onProgress) {
-    return invoke("download_file_to", { profileId, remotePath, localPath, onProgress });
+export async function clearFinishedTransfers() {
+    return invoke("clear_finished_transfers");
+}
+/** Check whether a local path is a directory (to pick upload vs uploadDir). */
+export async function localPathIsDir(path) {
+    return invoke("local_path_is_dir", { path });
 }
 export async function deleteFile(profileId, remotePath) {
     return invoke("delete_file", { profileId, remotePath });
-}
-/**
- * Recursively download a remote directory to a local destination path.
- */
-export async function downloadDirectory(profileId, remotePath, localPath, onProgress) {
-    return invoke("download_directory", { profileId, remotePath, localPath, onProgress });
 }
 /**
  * Recursively delete a remote directory and all of its contents.
@@ -208,14 +194,6 @@ export async function createDirectory(profileId, path) {
  */
 export async function setPermissions(profileId, remotePath, mode) {
     return invoke("set_permissions", { profileId, remotePath, mode });
-}
-/**
- * Request cancellation of the currently running transfer for the given profile.
- * The backend's chunk loops poll the cancel flag between chunks and unwind
- * with a `TRANSFER_CANCELLED` error that the frontend can display as "cancelled".
- */
-export async function cancelTransfer(profileId) {
-    return invoke("cancel_transfer", { profileId });
 }
 /** Check whether a local path already exists (file or directory). */
 export async function localFileExists(path) {

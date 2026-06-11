@@ -1009,67 +1009,169 @@ button:disabled {
 
 /* ── Transfer progress bar ────────────────────────────────── */
 
-.transfer-progress {
-  flex-shrink: 0;
-  margin-top: 10px;
-  padding: 8px 12px;
-  background: color-mix(in srgb, var(--accent) 10%, var(--bg-surface));
-  border: 1px solid var(--accent);
-  border-radius: 6px;
+.form-field__hint {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--fg-subtle);
 }
 
-.transfer-progress__row {
+/* ── Transfer queue panel ──────────────────────────────────── */
+
+.hidden {
+  display: none;
+}
+
+.transfer-queue {
+  flex-shrink: 0;
+  margin: 8px 12px 12px;
+  padding: 8px 12px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.tq-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.tq-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-text);
+  flex: 1;
+}
+
+.tq-cancel-all,
+.tq-clear {
+  font-size: 12px;
+  padding: 3px 10px;
+  flex-shrink: 0;
+  background: var(--bg-hover);
+  color: var(--fg-text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tq-cancel-all:hover,
+.tq-clear:hover {
+  background: color-mix(in srgb, var(--accent) 20%, var(--bg-hover));
+}
+
+.tq-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tq-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 5px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
 }
 
-.transfer-progress__status {
+.tq-row--done {
+  background: color-mix(in srgb, var(--ok, #2e8b57) 14%, var(--bg-surface));
+}
+
+.tq-row--failed {
+  background: color-mix(in srgb, var(--err, #d9534f) 16%, var(--bg-surface));
+}
+
+.tq-row--cancelled {
+  background: var(--bg-hover);
+  opacity: 0.75;
+}
+
+.tq-arrow {
   font-size: 13px;
-  color: var(--fg-text);
-  flex-shrink: 0;
-}
-
-.transfer-progress__speed {
-  font-size: 12px;
   color: var(--accent);
-  font-family: monospace;
   flex-shrink: 0;
-  min-width: 72px;
-  text-align: right;
 }
 
-.transfer-progress__file {
+.tq-name {
   flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: monospace;
+  font-size: 12px;
+  color: var(--fg-text);
+}
+
+.tq-state {
   font-size: 11px;
   color: var(--fg-faint);
-}
-
-.transfer-progress__cancel {
-  font-size: 12px;
-  padding: 3px 10px;
   flex-shrink: 0;
+  min-width: 78px;
+  text-align: right;
 }
 
-.transfer-progress__track {
+.tq-track {
+  width: 120px;
   height: 4px;
   background: var(--bg-hover);
   border-radius: 2px;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
-.transfer-progress__fill {
+.tq-fill {
   height: 100%;
   background: var(--accent);
   border-radius: 2px;
   transition: width 0.15s ease;
-  min-width: 4px;
+}
+
+.tq-fill--indeterminate {
+  width: 40% !important;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--accent),
+    transparent
+  );
+  animation: tq-indeterminate 1.1s ease-in-out infinite;
+}
+
+@keyframes tq-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.tq-error {
+  font-size: 11px;
+  color: var(--err, #d9534f);
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tq-cancel {
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 7px;
+  flex-shrink: 0;
+  background: var(--bg-hover);
+  color: var(--fg-text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.tq-cancel:hover {
+  background: color-mix(in srgb, var(--err, #d9534f) 25%, var(--bg-hover));
 }
 
 /* ── Log panel ─────────────────────────────────────────────── */

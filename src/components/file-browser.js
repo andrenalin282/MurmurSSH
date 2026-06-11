@@ -1,56 +1,9 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { Channel } from "@tauri-apps/api/core";
 import * as api from "../api/index";
 import { showConfirm, showPrompt, showOverwriteDialog, showPermissionsDialog } from "./dialog";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
-/**
- * Recognise the backend transfer-cancel sentinel regardless of wrapping.
- * Tauri delivers invoke errors as plain strings; `String(err)` handles both
- * bare strings and wrapped Error objects.
- */
-function isCancelErr(err) {
-    return String(err).includes("TRANSFER_CANCELLED");
-}
-/** Format bytes/sec as human-readable speed string. */
-function formatSpeed(bps) {
-    if (bps >= 1024 * 1024)
-        return `${(bps / 1024 / 1024).toFixed(1)} MB/s`;
-    if (bps >= 1024)
-        return `${(bps / 1024).toFixed(0)} KB/s`;
-    return `${bps.toFixed(0)} B/s`;
-}
-/** Create a Channel and return it along with a speed-tracking message handler. */
-function makeProgressChannel(onEvent) {
-    const ch = new Channel();
-    let prevBytes = 0;
-    let prevTime = 0;
-    let smoothedSpeed = 0;
-    ch.onmessage = (msg) => {
-        const now = Date.now();
-        if (prevTime > 0) {
-            const elapsed = (now - prevTime) / 1000;
-            if (elapsed >= 0.08) { // throttle to ~12 updates/s
-                const byteDelta = msg.bytesDone - prevBytes;
-                const instantSpeed = byteDelta / elapsed;
-                // Exponential moving average — smooth out bursts
-                smoothedSpeed = smoothedSpeed > 0
-                    ? 0.25 * instantSpeed + 0.75 * smoothedSpeed
-                    : instantSpeed;
-                prevBytes = msg.bytesDone;
-                prevTime = now;
-                onEvent(msg, smoothedSpeed);
-            }
-        }
-        else {
-            prevBytes = msg.bytesDone;
-            prevTime = now;
-            onEvent(msg, 0);
-        }
-    };
-    return ch;
-}
 function escHtml(s) {
     return s
         .replace(/&/g, "&amp;")
@@ -140,11 +93,6 @@ export class FileBrowser {
         this.logEntries = [];
         this.inlineError = null;
         this.isDragOver = false; // Tauri OS→app drag indicator
-        // Transfer progress (upload / download).
-        // All transfer flows support real cancellation: the backend chunk loops poll
-        // a per-profile cancel flag set via `api.cancelTransfer(profileId)`, so the
-        // button is always actionable (audit F4 follow-up).
-        this.transferProgress = null;
         this.onStatusMessage = null;
         this.onDisconnectCallback = null;
         this.uploadApplyToAllDecision = null;
@@ -464,26 +412,6 @@ export class FileBrowser {
             ? `<div class="file-browser__inline-error">${escHtml(this.inlineError)}</div>`
             : "";
         const downloadDisabled = !hasAny || this.busy;
-        // Transfer progress bar
-        const tp = this.transferProgress;
-        const fillPct = tp
-            ? tp.bytePct !== null
-                ? tp.bytePct
-                : tp.total > 0 ? Math.min(100, (tp.current / tp.total) * 100) : 0
-            : 0;
-        const transferProgressHtml = tp
-            ? `<div class="transfer-progress" id="transfer-progress">
-           <div class="transfer-progress__row">
-             <span class="transfer-progress__status" id="transfer-status">${escHtml(tp.label)}: ${tp.current} / ${tp.total}</span>
-             <span class="transfer-progress__speed" id="transfer-speed">${tp.speedBps > 0 ? escHtml(formatSpeed(tp.speedBps)) : ""}</span>
-             <span class="transfer-progress__file" id="transfer-current-file" title="${escHtml(tp.currentFile ?? "")}">${escHtml(tp.currentFile ?? "")}</span>
-             <button class="transfer-progress__cancel btn-secondary" id="transfer-cancel-btn">${t("fileBrowser.transferCancel")}</button>
-           </div>
-           <div class="transfer-progress__track">
-             <div class="transfer-progress__fill" id="transfer-bar-fill" style="width:${fillPct.toFixed(1)}%"></div>
-           </div>
-         </div>`
-            : "";
         const showTerminal = !this.protocol || this.protocol === "ssh";
         this.container.innerHTML = `
       <div class="file-browser${this.isDragOver ? " file-browser--dragover" : ""}">
@@ -522,7 +450,6 @@ export class FileBrowser {
           <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder}</button>
         </div>
         ${hasProfile ? `<div class="file-browser__dl-dropzone" id="dl-dropzone">${ICONS.download} ${t("fileBrowser.downloadDropZone")}</div>` : ""}
-        ${transferProgressHtml}
       </div>
     `;
         // Restore scroll position after DOM rebuild.
@@ -792,30 +719,6 @@ export class FileBrowser {
                 void this.downloadNamesToLocal(names);
             });
         }
-        // ── Transfer-progress cancel ───────────────────────────────────────────
-        // Sets a local flag (stops JS-level batch loops at file boundaries) AND
-        // invokes the backend cancel command so the in-flight SFTP/FTP chunk loop
-        // unwinds with TRANSFER_CANCELLED and cleans up its partial file.
-        document
-            .getElementById("transfer-cancel-btn")
-            ?.addEventListener("click", () => {
-            if (!this.transferProgress)
-                return;
-            this.transferProgress.cancelled = true;
-            const btn = document.getElementById("transfer-cancel-btn");
-            if (btn) {
-                btn.disabled = true;
-                btn.textContent = t("common.cancelling");
-            }
-            const statusEl = document.getElementById("transfer-status");
-            if (statusEl)
-                statusEl.textContent = t("common.cancelling");
-            if (this.profileId) {
-                api.cancelTransfer(this.profileId).catch(() => {
-                    // Non-fatal: the JS-level flag still prevents subsequent files.
-                });
-            }
-        });
         // ── Context menu (right-click) ─────────────────────────────────────────
         const tbodyCtx = this.container.querySelector("tbody");
         if (tbodyCtx) {
@@ -855,83 +758,23 @@ export class FileBrowser {
             });
         }
     }
-    // ── Transfer-progress helpers ──────────────────────────────────────────────
-    /**
-     * Start a tracked transfer operation. Calls render() to insert the progress bar.
-     * Must be called with busy=true already set.
-     *
-     * `cancellable` controls whether the Cancel button is shown. Set to true only
-     * when the caller's loop actually honours `transferProgress.cancelled` between
-     * items. For single-backend-call transfers (single file, recursive folder) the
-     * flag has no effect mid-call, so hiding the button keeps the UI honest (F4).
-     */
-    startTransfer(label, total) {
-        this.transferProgress = { label, current: 0, total, cancelled: false, speedBps: 0, bytePct: null };
-        this.render();
-    }
-    /**
-     * Update the file-count counter via direct DOM manipulation.
-     * Must NOT call render() — that would interrupt the transfer loop visually.
-     */
-    updateTransfer(current, currentFile) {
-        if (!this.transferProgress)
+    // ── Transfer enqueue helpers ───────────────────────────────────────────────
+    /** Enqueue a single transfer job in the background queue. */
+    async enqueue(kind, src, dst, filename) {
+        if (!this.profileId)
             return;
-        this.transferProgress.current = current;
-        if (currentFile !== undefined) {
-            this.transferProgress.currentFile = currentFile;
-            this.transferProgress.bytePct = null; // reset byte fill when moving to next file
-        }
-        this._flushTransferDom();
+        await api.enqueueTransfer(this.profileId, kind, src, dst, filename);
+    }
+    /** Enqueue an upload whose local-path type (file vs dir) is resolved via the backend. */
+    async enqueueLocalPath(localPath, remotePath, name) {
+        const isDir = await api.localPathIsDir(localPath);
+        await this.enqueue(isDir ? "uploadDir" : "upload", localPath, remotePath, name);
     }
     /**
-     * Handle a progress event from the Tauri Channel (byte-level).
-     * Updates speed, current file, and byte-level fill bar.
+     * Reset the per-batch apply-to-all overwrite decisions. Called at the start
+     * of every upload/download batch so a previous batch's choice does not leak.
      */
-    updateFromChannel(msg, speedBps) {
-        if (!this.transferProgress)
-            return;
-        this.transferProgress.speedBps = speedBps;
-        if (msg.filename)
-            this.transferProgress.currentFile = msg.filename;
-        this.transferProgress.bytePct =
-            msg.bytesTotal > 0 ? Math.min(100, (msg.bytesDone / msg.bytesTotal) * 100) : null;
-        this._flushTransferDom();
-    }
-    /** Write current transferProgress state to the DOM without a full re-render. */
-    _flushTransferDom() {
-        if (!this.transferProgress)
-            return;
-        const tp = this.transferProgress;
-        const statusEl = document.getElementById("transfer-status");
-        const speedEl = document.getElementById("transfer-speed");
-        const fileEl = document.getElementById("transfer-current-file");
-        const fillEl = document.getElementById("transfer-bar-fill");
-        if (statusEl) {
-            statusEl.textContent = `${tp.label}: ${tp.current} / ${tp.total}`;
-        }
-        if (speedEl) {
-            speedEl.textContent = tp.speedBps > 0 ? formatSpeed(tp.speedBps) : "";
-        }
-        if (fileEl && tp.currentFile !== undefined) {
-            fileEl.textContent = tp.currentFile;
-            fileEl.title = tp.currentFile;
-        }
-        if (fillEl) {
-            // Byte-level fill takes priority; fall back to file-count fill
-            const pct = tp.bytePct !== null
-                ? tp.bytePct
-                : tp.total > 0
-                    ? Math.min(100, (tp.current / tp.total) * 100)
-                    : 0;
-            fillEl.style.width = `${pct.toFixed(1)}%`;
-        }
-    }
-    /**
-     * Mark the transfer as done and remove the progress bar state.
-     * render() will be called by the following refresh(), removing the element.
-     */
-    endTransfer() {
-        this.transferProgress = null;
+    resetOverwriteDecisions() {
         this.uploadApplyToAllDecision = null;
         this.downloadApplyToAllDecision = null;
     }
@@ -1114,11 +957,7 @@ export class FileBrowser {
     }
     // ── Disconnect ────────────────────────────────────────────────────────────
     handleDisconnect() {
-        // If a transfer is still in flight, ask the backend to unwind cleanly so
-        // partial files are cleaned up before we drop profile state.
-        if (this.transferProgress && this.profileId) {
-            api.cancelTransfer(this.profileId).catch(() => { });
-        }
+        // Background transfers continue independently of the browser view.
         this.profileId = null;
         this.localPath = null;
         this.currentPath = "/";
@@ -1131,7 +970,6 @@ export class FileBrowser {
         this.isDraggingInternal = false;
         this.dragSourceNames = new Set();
         this.dropTargetName = null;
-        this.transferProgress = null;
         this.onDisconnectCallback?.();
         this.renderEmpty();
     }
@@ -1154,92 +992,42 @@ export class FileBrowser {
     async uploadFileList(localPaths) {
         if (!this.profileId)
             return;
-        const profileId = this.profileId;
-        const total = localPaths.length;
-        this.setBusy(true);
-        this.startTransfer(t("fileBrowser.transferUploading"), total);
-        let uploaded = 0;
+        this.resetOverwriteDecisions();
+        let queued = 0;
         let skipped = 0;
-        let errors = 0;
-        let aborted = false;
         for (const localFilePath of localPaths) {
-            // Check for user-requested cancel
-            if (this.transferProgress?.cancelled) {
-                aborted = true;
-                break;
-            }
             const filename = localFilePath.replace(/\\/g, "/").split("/").pop() ?? localFilePath;
             const remotePath = joinPath(this.currentPath, filename);
             try {
                 const proceed = await this.resolveOverwrite(remotePath, filename);
                 if (!proceed) {
                     skipped++;
-                    this.updateTransfer(uploaded + skipped + errors);
                     continue;
                 }
             }
             catch (err) {
-                if (String(err) === "Error: UPLOAD_CANCELLED") {
-                    aborted = true;
+                if (String(err) === "Error: UPLOAD_CANCELLED")
                     break;
-                }
             }
-            // ── Upload ───────────────────────────────────────────────────────────
-            try {
-                this.log(t("fileBrowser.logUploading", { name: filename }));
-                const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-                await api.uploadFile(profileId, localFilePath, remotePath, ch);
-                uploaded++;
-            }
-            catch (err) {
-                if (isCancelErr(err)) {
-                    aborted = true;
-                    break;
-                }
-                errors++;
-            }
-            this.updateTransfer(uploaded + skipped + errors, filename);
+            this.log(t("fileBrowser.logUploading", { name: filename }));
+            await this.enqueue("upload", localFilePath, remotePath, filename);
+            queued++;
         }
-        this.endTransfer();
-        // Summary status message
-        if (aborted) {
-            const parts = [];
-            if (uploaded > 0)
-                parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
-            if (skipped > 0)
-                parts.push(t("fileBrowser.skippedCount", { count: skipped }));
-            const summary = parts.join(", ");
-            this.status(summary
-                ? t("fileBrowser.uploadCancelled", { summary })
-                : t("fileBrowser.uploadCancelledNoFiles"), false);
-        }
-        else {
-            const parts = [];
-            if (uploaded > 0)
-                parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
-            if (skipped > 0)
-                parts.push(t("fileBrowser.skippedCount", { count: skipped }));
-            if (errors > 0)
-                parts.push(t("fileBrowser.failedCount", { count: errors }));
-            this.status(parts.join(", ") || t("fileBrowser.nothingToUpload"), errors > 0);
-        }
-        this.setBusy(false);
-        await this.refresh();
+        const parts = [];
+        if (queued > 0)
+            parts.push(t("fileBrowser.queuedCount", { count: queued }));
+        if (skipped > 0)
+            parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+        if (parts.length)
+            this.status(parts.join(", "), false);
     }
     async uploadPathList(localPaths) {
         if (!this.profileId)
             return;
-        const profileId = this.profileId;
-        const total = localPaths.length;
-        this.setBusy(true);
-        this.startTransfer(t("fileBrowser.transferUploading"), total);
-        let uploaded = 0;
+        this.resetOverwriteDecisions();
+        let queued = 0;
         let skipped = 0;
-        let errors = 0;
-        let aborted = false;
         for (const localPath of localPaths) {
-            if (this.transferProgress?.cancelled)
-                break;
             const name = localPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() ??
                 localPath;
             const remotePath = joinPath(this.currentPath, name);
@@ -1247,65 +1035,24 @@ export class FileBrowser {
                 const proceed = await this.resolveOverwrite(remotePath, name);
                 if (!proceed) {
                     skipped++;
-                    this.updateTransfer(uploaded + skipped + errors);
                     continue;
                 }
             }
             catch (err) {
-                if (String(err) === "Error: UPLOAD_CANCELLED") {
-                    aborted = true;
+                if (String(err) === "Error: UPLOAD_CANCELLED")
                     break;
-                }
             }
-            try {
-                this.log(t("fileBrowser.logUploading", { name }));
-                const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-                await api.uploadPath(profileId, localPath, remotePath, ch);
-                uploaded++;
-            }
-            catch (err) {
-                if (isCancelErr(err)) {
-                    aborted = true;
-                    break;
-                }
-                errors++;
-            }
-            this.updateTransfer(uploaded + skipped + errors, name);
+            this.log(t("fileBrowser.logUploading", { name }));
+            await this.enqueueLocalPath(localPath, remotePath, name);
+            queued++;
         }
-        this.endTransfer();
-        if (aborted) {
-            const parts = [];
-            if (uploaded > 0)
-                parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
-            if (skipped > 0)
-                parts.push(t("fileBrowser.skippedCount", { count: skipped }));
-            if (errors > 0)
-                parts.push(t("fileBrowser.failedCount", { count: errors }));
-            const summary = parts.join(", ");
-            this.status(summary
-                ? t("fileBrowser.uploadCancelled", { summary })
-                : t("fileBrowser.uploadCancelledNoFiles"), false);
-        }
-        else if (errors === 0) {
-            const parts = [];
-            if (uploaded > 0)
-                parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
-            if (skipped > 0)
-                parts.push(t("fileBrowser.skippedCount", { count: skipped }));
-            this.status(parts.join(", ") || t("fileBrowser.nothingToUpload"), false);
-        }
-        else {
-            const parts = [];
-            if (uploaded > 0)
-                parts.push(t("fileBrowser.uploadedCount", { count: uploaded }));
-            if (skipped > 0)
-                parts.push(t("fileBrowser.skippedCount", { count: skipped }));
-            if (errors > 0)
-                parts.push(t("fileBrowser.failedCount", { count: errors }));
-            this.status(parts.join(", ") || t("fileBrowser.nothingToUpload"), true);
-        }
-        this.setBusy(false);
-        await this.refresh();
+        const parts = [];
+        if (queued > 0)
+            parts.push(t("fileBrowser.queuedCount", { count: queued }));
+        if (skipped > 0)
+            parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+        if (parts.length)
+            this.status(parts.join(", "), false);
     }
     async handleUploadFolder() {
         if (!this.profileId)
@@ -1321,32 +1068,23 @@ export class FileBrowser {
         const folderName = localFolderPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() ??
             "folder";
         const remotePath = joinPath(this.currentPath, folderName);
+        this.resetOverwriteDecisions();
         try {
             const proceed = await this.resolveOverwrite(remotePath, folderName);
             if (!proceed) {
                 this.status(t("fileBrowser.uploadSkipped"), false);
                 return;
             }
-            this.setBusy(true);
-            this.startTransfer(t("fileBrowser.transferUploading"), 1);
             this.log(t("fileBrowser.logUploading", { name: folderName }));
-            this.status(t("fileBrowser.uploadingFolder", { name: folderName }), false);
-            const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-            await api.uploadDirectory(this.profileId, localFolderPath, remotePath, ch);
-            this.endTransfer();
-            this.status(t("fileBrowser.uploadedFolder", { name: folderName }), false);
-            await this.refresh();
+            await this.enqueue("uploadDir", localFolderPath, remotePath, folderName);
+            this.status(t("fileBrowser.queuedCount", { count: 1 }), false);
         }
         catch (err) {
-            this.endTransfer();
-            if (String(err) === "Error: UPLOAD_CANCELLED" || isCancelErr(err)) {
+            if (String(err) === "Error: UPLOAD_CANCELLED") {
                 this.status(t("fileBrowser.uploadCancelledSimple"), false);
                 return;
             }
             this.status(t("fileBrowser.folderUploadFailed", { error: String(err) }), true);
-        }
-        finally {
-            this.setBusy(false);
         }
     }
     // ── Download ──────────────────────────────────────────────────────────────
@@ -1386,6 +1124,7 @@ export class FileBrowser {
             // The system save dialog already confirmed overwrite on the user's behalf.
             skipOverwriteCheck = true;
         }
+        this.resetOverwriteDecisions();
         if (!skipOverwriteCheck) {
             const decision = await this.confirmLocalOverwrite(savePath, this.selectedEntry.name);
             if (decision === "skip") {
@@ -1398,25 +1137,12 @@ export class FileBrowser {
             }
         }
         try {
-            this.setBusy(true);
-            this.startTransfer(t("fileBrowser.transferDownloading"), 1);
             this.log(t("fileBrowser.logDownloading", { name: this.selectedEntry.name }));
-            const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-            await api.downloadFileTo(this.profileId, this.selectedRemotePath, savePath, ch);
-            this.endTransfer();
-            this.status(t("fileBrowser.downloadedTo", { path: savePath }), false);
+            await this.enqueue("download", this.selectedRemotePath, savePath, this.selectedEntry.name);
+            this.status(t("fileBrowser.queuedCount", { count: 1 }), false);
         }
         catch (err) {
-            this.endTransfer();
-            if (isCancelErr(err)) {
-                this.status(t("fileBrowser.uploadCancelledSimple"), false);
-            }
-            else {
-                this.status(t("fileBrowser.downloadFailed", { error: String(err) }), true);
-            }
-        }
-        finally {
-            this.setBusy(false);
+            this.status(t("fileBrowser.downloadFailed", { error: String(err) }), true);
         }
     }
     async handleDownloadFolder() {
@@ -1437,25 +1163,12 @@ export class FileBrowser {
             localDestPath = chosen.replace(/\/?$/, "/") + this.selectedEntry.name;
         }
         try {
-            this.setBusy(true);
-            this.startTransfer(t("fileBrowser.transferDownloading"), 1);
             this.log(t("fileBrowser.logDownloading", { name: this.selectedEntry.name }));
-            const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-            await api.downloadDirectory(this.profileId, this.selectedRemotePath, localDestPath, ch);
-            this.endTransfer();
-            this.status(t("fileBrowser.downloadedFolderTo", { path: localDestPath }), false);
+            await this.enqueue("downloadDir", this.selectedRemotePath, localDestPath, this.selectedEntry.name);
+            this.status(t("fileBrowser.queuedCount", { count: 1 }), false);
         }
         catch (err) {
-            this.endTransfer();
-            if (isCancelErr(err)) {
-                this.status(t("fileBrowser.uploadCancelledSimple"), false);
-            }
-            else {
-                this.status(t("fileBrowser.folderDownloadFailed", { error: String(err) }), true);
-            }
-        }
-        finally {
-            this.setBusy(false);
+            this.status(t("fileBrowser.folderDownloadFailed", { error: String(err) }), true);
         }
     }
     async handleDownloadMulti() {
@@ -1477,17 +1190,11 @@ export class FileBrowser {
             destDir = chosen;
         }
         const entries = this.selectedEntries;
-        this.setBusy(true);
-        this.startTransfer(t("fileBrowser.transferDownloading"), entries.length);
-        let done = 0;
-        let errors = 0;
-        let aborted = false;
+        this.resetOverwriteDecisions();
+        let queued = 0;
         let skipped = 0;
+        let aborted = false;
         for (const entry of entries) {
-            if (this.transferProgress?.cancelled) {
-                aborted = true;
-                break;
-            }
             const remotePath = joinPath(this.currentPath, entry.name);
             const localDest = destDir.replace(/\/?$/, "/") + entry.name;
             // File-level overwrite guard (audit F9). Folders are merged as before —
@@ -1500,47 +1207,20 @@ export class FileBrowser {
                 }
                 if (decision === "skip") {
                     skipped++;
-                    this.updateTransfer(done + skipped + errors, entry.name);
                     continue;
                 }
             }
-            try {
-                this.log(t("fileBrowser.logDownloading", { name: entry.name }));
-                const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-                if (entry.is_dir) {
-                    await api.downloadDirectory(this.profileId, remotePath, localDest, ch);
-                }
-                else {
-                    await api.downloadFileTo(this.profileId, remotePath, localDest, ch);
-                }
-                done++;
-            }
-            catch (err) {
-                if (isCancelErr(err)) {
-                    aborted = true;
-                    break;
-                }
-                errors++;
-            }
-            this.updateTransfer(done + skipped + errors, entry.name);
+            this.log(t("fileBrowser.logDownloading", { name: entry.name }));
+            await this.enqueue(entry.is_dir ? "downloadDir" : "download", remotePath, localDest, entry.name);
+            queued++;
         }
-        this.endTransfer();
-        if (aborted) {
-            const doneStr = t("fileBrowser.downloadedCount", { count: done });
-            const failedStr = errors > 0 ? `, ${t("fileBrowser.failedCount", { count: errors })}` : "";
-            this.status(t("fileBrowser.downloadCancelledStatus", { done: doneStr, failed: failedStr }), false);
-        }
-        else if (errors === 0) {
-            this.status(t("fileBrowser.downloadComplete", { done: t("fileBrowser.downloadedCount", { count: done }), dest: destDir }), false);
-        }
-        else {
-            this.status(t("fileBrowser.downloadCompleteErrors", {
-                done: t("fileBrowser.downloadedCount", { count: done }),
-                failed: t("fileBrowser.failedCount", { count: errors }),
-            }), true);
-        }
-        this.setBusy(false);
-        await this.refresh();
+        const parts = [];
+        if (queued > 0)
+            parts.push(t("fileBrowser.queuedCount", { count: queued }));
+        if (skipped > 0)
+            parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+        if (aborted || parts.length)
+            this.status(parts.join(", ") || t("fileBrowser.downloadCancelledSimple"), false);
     }
     /**
      * Download a list of named entries (from the current directory) to a local folder.
@@ -1570,17 +1250,11 @@ export class FileBrowser {
         const entries = this.entries.filter((e) => names.includes(e.name));
         if (entries.length === 0)
             return;
-        this.setBusy(true);
-        this.startTransfer(t("fileBrowser.transferDownloading"), entries.length);
-        let done = 0;
-        let errors = 0;
-        let aborted = false;
+        this.resetOverwriteDecisions();
+        let queued = 0;
         let skipped = 0;
+        let aborted = false;
         for (const entry of entries) {
-            if (this.transferProgress?.cancelled) {
-                aborted = true;
-                break;
-            }
             const remotePath = joinPath(this.currentPath, entry.name);
             const localDest = destDir.replace(/\/?$/, "/") + entry.name;
             if (!entry.is_dir) {
@@ -1591,50 +1265,20 @@ export class FileBrowser {
                 }
                 if (decision === "skip") {
                     skipped++;
-                    this.updateTransfer(done + skipped + errors, entry.name);
                     continue;
                 }
             }
-            try {
-                this.log(t("fileBrowser.logDownloading", { name: entry.name }));
-                const ch = makeProgressChannel((msg, spd) => this.updateFromChannel(msg, spd));
-                if (entry.is_dir) {
-                    await api.downloadDirectory(this.profileId, remotePath, localDest, ch);
-                }
-                else {
-                    await api.downloadFileTo(this.profileId, remotePath, localDest, ch);
-                }
-                done++;
-            }
-            catch (err) {
-                if (isCancelErr(err)) {
-                    aborted = true;
-                    break;
-                }
-                errors++;
-            }
-            this.updateTransfer(done + skipped + errors, entry.name);
+            this.log(t("fileBrowser.logDownloading", { name: entry.name }));
+            await this.enqueue(entry.is_dir ? "downloadDir" : "download", remotePath, localDest, entry.name);
+            queued++;
         }
-        this.endTransfer();
-        if (aborted) {
-            const doneStr = t("fileBrowser.downloadedCount", { count: done });
-            const failedStr = errors > 0 ? `, ${t("fileBrowser.failedCount", { count: errors })}` : "";
-            this.status(t("fileBrowser.downloadCancelledStatus", { done: doneStr, failed: failedStr }), false);
-        }
-        else if (errors === 0) {
-            this.status(t("fileBrowser.downloadComplete", {
-                done: t("fileBrowser.downloadedCount", { count: done }),
-                dest: destDir,
-            }), false);
-        }
-        else {
-            this.status(t("fileBrowser.downloadCompleteErrors", {
-                done: t("fileBrowser.downloadedCount", { count: done }),
-                failed: t("fileBrowser.failedCount", { count: errors }),
-            }), true);
-        }
-        this.setBusy(false);
-        await this.refresh();
+        const parts = [];
+        if (queued > 0)
+            parts.push(t("fileBrowser.queuedCount", { count: queued }));
+        if (skipped > 0)
+            parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+        if (aborted || parts.length)
+            this.status(parts.join(", ") || t("fileBrowser.downloadCancelledSimple"), false);
     }
     // ── Rename ────────────────────────────────────────────────────────────────
     async handleRename() {

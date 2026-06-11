@@ -33,6 +33,7 @@ export class SettingsDialog {
     const customPath = settings.profiles_path ?? "";
     const currentTheme = settings.theme ?? "system";
     const currentPosition = settings.local_browser_position ?? "left";
+    const currentConcurrency = settings.max_concurrent_transfers ?? 2;
     const currentLocale = getLocale();
     const availableLocales = getAvailableLocales();
     const localeOptions = availableLocales
@@ -116,6 +117,13 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label for="concurrency-input">${t("settings.maxConcurrentTransfers")}</label>
+          <input id="concurrency-input" type="number" min="1" max="8" step="1"
+            value="${currentConcurrency}" style="width:80px">
+          <div class="form-field__hint">${t("settings.maxConcurrentTransfersHint")}</div>
+        </div>
+
+        <div class="form-field">
           <label for="lang-select-settings">${t("settings.labelLanguage")}</label>
           <select id="lang-select-settings" style="width:100%">
             ${localeOptions}
@@ -174,11 +182,18 @@ export class SettingsDialog {
       const newLang = overlay.querySelector<HTMLSelectElement>("#lang-select-settings")?.value ?? "en";
       const langChanged = newLang !== currentLocale;
 
+      const rawConcurrency = parseInt(
+        overlay.querySelector<HTMLInputElement>("#concurrency-input")?.value ?? "2",
+        10
+      );
+      const newConcurrency = Math.min(8, Math.max(1, Number.isNaN(rawConcurrency) ? 2 : rawConcurrency));
+
       const updated: Settings = {
         ...settings,
         profiles_path: newPath ?? null,
         theme: newTheme,
         local_browser_position: newPosition,
+        max_concurrent_transfers: newConcurrency,
       };
 
       try {

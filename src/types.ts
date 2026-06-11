@@ -51,6 +51,8 @@ export interface Settings {
   theme?: "dark" | "light" | "system" | null;
   /** Side the local file browser panel appears on. Null/absent = "left". */
   local_browser_position?: "left" | "right" | null;
+  /** Max concurrent transfers the background queue runs. Null/absent = 2. Clamped 1..8. */
+  max_concurrent_transfers?: number | null;
 }
 
 export interface FileEntry {
@@ -64,6 +66,20 @@ export interface FileEntry {
 }
 
 export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "error";
+
+/** A transfer queue job snapshot, mirrors Rust TransferJobView. */
+export interface TransferJobView {
+  id: number;
+  profileId: string;
+  kind: "upload" | "download" | "uploadDir" | "downloadDir";
+  src: string;
+  dst: string;
+  filename: string;
+  state: "queued" | "active" | "done" | "failed" | "cancelled";
+  bytesDone: number;
+  bytesTotal: number;
+  error: string | null;
+}
 
 /** Emitted by the backend when a watched file changes and upload_mode is "confirm". */
 export interface UploadReadyPayload {
