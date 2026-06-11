@@ -189,6 +189,12 @@ const en = {
         deleteTitle: "Delete Profile",
         deleteMsg: "Delete profile \"{name}\"? This only removes the profile, not any workspace files.",
         deleteFailed: "Could not delete profile: {error}",
+        ungrouped: "Ungrouped",
+        sortLabel: "Sort profiles",
+        sortName: "Sort A–Z",
+        sortNameShort: "A–Z",
+        sortCreated: "Sort by newest",
+        sortCreatedShort: "Newest",
     },
     profileForm: {
         titleNew: "New Profile",
@@ -231,6 +237,8 @@ const en = {
         errorKeyNotFound: "Key file not found: {path}",
         errorProfileExists: "A profile with a similar name already exists. Choose a different display name.",
         errorClearFailed: "Failed to clear credential: {error}",
+        labelGroup: "Group",
+        placeholderGroup: "Optional group name",
     },
     settings: {
         title: "Settings",

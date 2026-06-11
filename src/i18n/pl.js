@@ -189,6 +189,12 @@ const pl = {
         deleteTitle: "Usuń profil",
         deleteMsg: "Usunąć profil „{name}\"? Usunie to tylko profil, a nie żadne pliki robocze.",
         deleteFailed: "Nie można usunąć profilu: {error}",
+        ungrouped: "Bez grupy",
+        sortLabel: "Sortuj profile",
+        sortName: "Sortuj A–Z",
+        sortNameShort: "A–Z",
+        sortCreated: "Sortuj wg daty",
+        sortCreatedShort: "Najnowsze",
     },
     profileForm: {
         titleNew: "Nowy profil",
@@ -231,6 +237,8 @@ const pl = {
         errorKeyNotFound: "Nie znaleziono pliku klucza: {path}",
         errorProfileExists: "Profil o podobnej nazwie już istnieje. Wybierz inną nazwę wyświetlaną.",
         errorClearFailed: "Nie udało się wyczyścić danych uwierzytelniających: {error}",
+        labelGroup: "Grupa",
+        placeholderGroup: "Opcjonalna nazwa grupy",
     },
     settings: {
         title: "Ustawienia",

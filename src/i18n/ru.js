@@ -189,6 +189,12 @@ const ru = {
         deleteTitle: "Удалить профиль",
         deleteMsg: "Удалить профиль «{name}»? Это удалит только профиль, но не файлы рабочей области.",
         deleteFailed: "Не удалось удалить профиль: {error}",
+        ungrouped: "Без группы",
+        sortLabel: "Сортировать профили",
+        sortName: "Сортировать А–Я",
+        sortNameShort: "А–Я",
+        sortCreated: "Сортировать по дате",
+        sortCreatedShort: "Новые",
     },
     profileForm: {
         titleNew: "Новый профиль",
@@ -231,6 +237,8 @@ const ru = {
         errorKeyNotFound: "Файл ключа не найден: {path}",
         errorProfileExists: "Профиль с похожим именем уже существует. Выберите другое отображаемое имя.",
         errorClearFailed: "Не удалось очистить учётные данные: {error}",
+        labelGroup: "Группа",
+        placeholderGroup: "Имя группы (необязательно)",
     },
     settings: {
         title: "Настройки",

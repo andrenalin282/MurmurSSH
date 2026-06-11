@@ -189,6 +189,12 @@ const nl = {
         deleteTitle: "Profiel verwijderen",
         deleteMsg: "Profiel \"{name}\" verwijderen? Dit verwijdert alleen het profiel, geen werkruimtebestanden.",
         deleteFailed: "Kon profiel niet verwijderen: {error}",
+        ungrouped: "Geen groep",
+        sortLabel: "Profielen sorteren",
+        sortName: "Sorteer A–Z",
+        sortNameShort: "A–Z",
+        sortCreated: "Sorteer op datum",
+        sortCreatedShort: "Nieuwste",
     },
     profileForm: {
         titleNew: "Nieuw profiel",
@@ -231,6 +237,8 @@ const nl = {
         errorKeyNotFound: "Sleutelbestand niet gevonden: {path}",
         errorProfileExists: "Er bestaat al een profiel met een vergelijkbare naam. Kies een andere weergavenaam.",
         errorClearFailed: "Inloggegevens wissen mislukt: {error}",
+        labelGroup: "Groep",
+        placeholderGroup: "Optionele groepsnaam",
     },
     settings: {
         title: "Instellingen",

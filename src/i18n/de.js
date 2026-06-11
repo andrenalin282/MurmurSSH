@@ -189,6 +189,12 @@ const de = {
         deleteTitle: "Profil löschen",
         deleteMsg: "Profil \"{name}\" löschen? Es werden nur die Profildaten entfernt, keine Workspace-Dateien.",
         deleteFailed: "Profil konnte nicht gelöscht werden: {error}",
+        ungrouped: "Ohne Gruppe",
+        sortLabel: "Profile sortieren",
+        sortName: "Alphabetisch sortieren",
+        sortNameShort: "A–Z",
+        sortCreated: "Nach Datum sortieren",
+        sortCreatedShort: "Neueste",
     },
     profileForm: {
         titleNew: "Neues Profil",
@@ -231,6 +237,8 @@ const de = {
         errorKeyNotFound: "Schlüsseldatei nicht gefunden: {path}",
         errorProfileExists: "Ein Profil mit ähnlichem Namen existiert bereits. Bitte einen anderen Anzeigenamen wählen.",
         errorClearFailed: "Anmeldedaten konnten nicht gelöscht werden: {error}",
+        labelGroup: "Gruppe",
+        placeholderGroup: "Optionaler Gruppenname",
     },
     settings: {
         title: "Einstellungen",

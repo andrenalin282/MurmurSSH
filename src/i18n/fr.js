@@ -189,6 +189,12 @@ const fr = {
         deleteTitle: "Supprimer le profil",
         deleteMsg: "Supprimer le profil « {name} » ? Cela ne supprime que le profil, pas les fichiers de l'espace de travail.",
         deleteFailed: "Impossible de supprimer le profil : {error}",
+        ungrouped: "Sans groupe",
+        sortLabel: "Trier les profils",
+        sortName: "Trier de A à Z",
+        sortNameShort: "A–Z",
+        sortCreated: "Trier par date",
+        sortCreatedShort: "Récents",
     },
     profileForm: {
         titleNew: "Nouveau profil",
@@ -231,6 +237,8 @@ const fr = {
         errorKeyNotFound: "Fichier de clé introuvable : {path}",
         errorProfileExists: "Un profil portant un nom similaire existe déjà. Choisissez un autre nom affiché.",
         errorClearFailed: "Échec de l'effacement de l'identifiant : {error}",
+        labelGroup: "Groupe",
+        placeholderGroup: "Nom de groupe (facultatif)",
     },
     settings: {
         title: "Paramètres",
