@@ -128,9 +128,9 @@ pub fn open_for_edit(
     // Download the file (dispatch based on protocol)
     let local_str = local_path.to_str().unwrap_or_default();
     if is_ftp(profile) {
-        ftp_service::download_file_to(profile, remote_path, local_str, &|_, _, _| {})
+        ftp_service::download_file_to(profile, remote_path, local_str, &|| false, &|_, _, _| {})
     } else {
-        sftp_service::download_file(profile, remote_path, local_str, &|_, _| {})
+        sftp_service::download_file(profile, remote_path, local_str, &|| false, &|_, _| {})
     }
     .map_err(|e| format!("Failed to download file for editing: {}", e))?;
 
@@ -282,9 +282,9 @@ fn watch_and_upload(
                     UploadMode::Auto => {
                         let local_str = local_path.to_str().unwrap_or_default();
                         let upload_result = if is_ftp(&profile) {
-                            ftp_service::upload_file(&profile, local_str, &remote_path, &|_, _, _| {})
+                            ftp_service::upload_file(&profile, local_str, &remote_path, &|| false, &|_, _, _| {})
                         } else {
-                            sftp_service::upload_file(&profile, local_str, &remote_path, &|_, _| {})
+                            sftp_service::upload_file(&profile, local_str, &remote_path, &|| false, &|_, _| {})
                         };
                         match upload_result {
                             Ok(()) => {

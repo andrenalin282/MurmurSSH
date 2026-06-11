@@ -16,8 +16,8 @@ const TRANSFER_TIMEOUT_MS: u32 = 120_000;
 
 use ssh2::Session;
 
-use crate::models::{AuthType, FileEntry, Profile};
-use crate::services::{credentials_store, known_hosts_service, transfer_cancel};
+use crate::models::{AuthType, FileEntry, Profile, CANCELLED_ERROR};
+use crate::services::{credentials_store, known_hosts_service};
 
 /// Compute a SHA-256 fingerprint of the server host key as colon-separated hex.
 fn host_fingerprint(session: &Session) -> String {
@@ -265,18 +265,17 @@ pub fn upload_file(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
-    let result = upload_file_inner(profile, local_path, remote_path, on_progress);
-    transfer_cancel::clear(&profile.id);
-    result
+    upload_file_inner(profile, local_path, remote_path, cancel, on_progress)
 }
 
 fn upload_file_inner(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64),
 ) -> Result<(), String> {
     let mut local = std::fs::File::open(local_path)
@@ -295,8 +294,8 @@ fn upload_file_inner(
     let mut buf = vec![0u8; TRANSFER_CHUNK];
     let mut done = 0u64;
     let write_result: Result<(), String> = loop {
-        if transfer_cancel::is_cancelled(&profile.id) {
-            break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+        if cancel() {
+            break Err(CANCELLED_ERROR.to_string());
         }
         let n = match local.read(&mut buf) {
             Ok(v) => v,
@@ -342,18 +341,17 @@ pub fn download_file(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
-    let result = download_file_inner(profile, remote_path, local_path, on_progress);
-    transfer_cancel::clear(&profile.id);
-    result
+    download_file_inner(profile, remote_path, local_path, cancel, on_progress)
 }
 
 fn download_file_inner(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64),
 ) -> Result<(), String> {
     let session = connect(profile)?;
@@ -374,8 +372,8 @@ fn download_file_inner(
     let mut buf = vec![0u8; TRANSFER_CHUNK];
     let mut done = 0u64;
     let write_result: Result<(), String> = loop {
-        if transfer_cancel::is_cancelled(&profile.id) {
-            break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+        if cancel() {
+            break Err(CANCELLED_ERROR.to_string());
         }
         let n = match remote.read(&mut buf) {
             Ok(v) => v,
@@ -482,18 +480,17 @@ pub fn download_directory(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
-    let result = download_directory_inner(profile, remote_path, local_path, on_progress);
-    transfer_cancel::clear(&profile.id);
-    result
+    download_directory_inner(profile, remote_path, local_path, cancel, on_progress)
 }
 
 fn download_directory_inner(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
     let session = connect(profile)?;
@@ -504,19 +501,19 @@ fn download_directory_inner(
     std::fs::create_dir_all(local_path)
         .map_err(|e| format!("Failed to create local directory '{}': {}", local_path, e))?;
 
-    download_directory_recursive(&profile.id, &sftp, remote_path, local_path, on_progress)
+    download_directory_recursive(cancel, &sftp, remote_path, local_path, on_progress)
 }
 
 /// Internal recursive helper for directory download — operates on an open SFTP channel.
 fn download_directory_recursive(
-    profile_id: &str,
+    cancel: &dyn Fn() -> bool,
     sftp: &ssh2::Sftp,
     remote_path: &str,
     local_path: &str,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    if transfer_cancel::is_cancelled(profile_id) {
-        return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+    if cancel() {
+        return Err(CANCELLED_ERROR.to_string());
     }
     let entries = sftp
         .readdir(Path::new(remote_path))
@@ -544,7 +541,7 @@ fn download_directory_recursive(
         if is_dir {
             std::fs::create_dir_all(&local_entry)
                 .map_err(|e| format!("Failed to create local directory '{}': {}", local_entry, e))?;
-            download_directory_recursive(profile_id, sftp, &entry_path_str, &local_entry, on_progress)?;
+            download_directory_recursive(cancel, sftp, &entry_path_str, &local_entry, on_progress)?;
         } else {
             let file_total = sftp.stat(&entry_path).map(|s| s.size.unwrap_or(0)).unwrap_or(0);
             on_progress(0, file_total, &entry_name);
@@ -558,8 +555,8 @@ fn download_directory_recursive(
             let mut buf = vec![0u8; TRANSFER_CHUNK];
             let mut file_done = 0u64;
             let write_result: Result<(), String> = loop {
-                if transfer_cancel::is_cancelled(profile_id) {
-                    break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+                if cancel() {
+                    break Err(CANCELLED_ERROR.to_string());
                 }
                 let n = match remote_file.read(&mut buf) {
                     Ok(v) => v,
@@ -594,18 +591,17 @@ pub fn upload_directory(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
-    let result = upload_directory_inner(profile, local_path, remote_path, on_progress);
-    transfer_cancel::clear(&profile.id);
-    result
+    upload_directory_inner(profile, local_path, remote_path, cancel, on_progress)
 }
 
 fn upload_directory_inner(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
     let session = connect(profile)?;
@@ -614,7 +610,7 @@ fn upload_directory_inner(
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
 
     mkdir_ok_if_exists(&sftp, Path::new(remote_path))?;
-    upload_directory_recursive(&profile.id, &sftp, Path::new(local_path), remote_path, on_progress)
+    upload_directory_recursive(cancel, &sftp, Path::new(local_path), remote_path, on_progress)
 }
 
 /// Try to create a remote directory; silently succeed if it already exists.
@@ -635,14 +631,14 @@ fn mkdir_ok_if_exists(sftp: &ssh2::Sftp, path: &Path) -> Result<(), String> {
 /// Progress: `bytes_done` is per current file, `bytes_total` is the current
 /// file's size, `filename` is the current entry. Matches single-file shape.
 fn upload_directory_recursive(
-    profile_id: &str,
+    cancel: &dyn Fn() -> bool,
     sftp: &ssh2::Sftp,
     local_dir: &Path,
     remote_dir: &str,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    if transfer_cancel::is_cancelled(profile_id) {
-        return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+    if cancel() {
+        return Err(CANCELLED_ERROR.to_string());
     }
     let read_dir = std::fs::read_dir(local_dir)
         .map_err(|e| format!("Failed to read local directory '{}': {}", local_dir.display(), e))?;
@@ -666,7 +662,7 @@ fn upload_directory_recursive(
         // Broken symlinks and special files (sockets, devices) are skipped.
         if local_entry.is_dir() {
             mkdir_ok_if_exists(sftp, Path::new(&remote_entry))?;
-            upload_directory_recursive(profile_id, sftp, &local_entry, &remote_entry, on_progress)?;
+            upload_directory_recursive(cancel, sftp, &local_entry, &remote_entry, on_progress)?;
         } else if local_entry.is_file() {
             let file_total = local_entry.metadata().map(|m| m.len()).unwrap_or(0);
             on_progress(0, file_total, &entry_name);
@@ -680,8 +676,8 @@ fn upload_directory_recursive(
             let mut buf = vec![0u8; TRANSFER_CHUNK];
             let mut file_done = 0u64;
             let write_result: Result<(), String> = loop {
-                if transfer_cancel::is_cancelled(profile_id) {
-                    break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+                if cancel() {
+                    break Err(CANCELLED_ERROR.to_string());
                 }
                 let n = match local_file.read(&mut buf) {
                     Ok(v) => v,

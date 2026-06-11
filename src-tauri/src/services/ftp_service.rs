@@ -8,14 +8,14 @@ use std::io::{Cursor, Read, Write};
 
 use suppaftp::FtpStream;
 
-use crate::models::{FileEntry, Profile};
-use crate::services::{credentials_store, transfer_cancel};
+use crate::models::{FileEntry, Profile, CANCELLED_ERROR};
+use crate::services::credentials_store;
 
 /// 256 KB chunks — same granularity as SFTP transfers.
 const FTP_CHUNK: usize = 256 * 1024;
 
 /// Stream a remote file to `local_path` in fixed-size chunks, polling the
-/// cancel flag between chunks. Invokes `on_progress` each chunk. Cleans up the
+/// cancel closure between chunks. Invokes `on_progress` each chunk. Cleans up the
 /// partial local file on any error or cancel.
 ///
 /// The caller must hold an authenticated `FtpStream`; the stream must be in a
@@ -23,7 +23,7 @@ const FTP_CHUNK: usize = 256 * 1024;
 /// finalised or aborted, so further commands can be issued on it.
 fn retr_stream_to_file(
     ftp: &mut FtpStream,
-    profile_id: &str,
+    cancel: &dyn Fn() -> bool,
     remote_path: &str,
     local_path: &str,
     name: &str,
@@ -47,8 +47,8 @@ fn retr_stream_to_file(
     let mut buf = vec![0u8; FTP_CHUNK];
     let mut done = 0u64;
     let transfer_result: Result<(), String> = loop {
-        if transfer_cancel::is_cancelled(profile_id) {
-            break Err(transfer_cancel::CANCELLED_ERROR.to_string());
+        if cancel() {
+            break Err(CANCELLED_ERROR.to_string());
         }
         let n = match stream.read(&mut buf) {
             Ok(v) => v,
@@ -189,6 +189,7 @@ pub fn upload_file(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
     let mut file = std::fs::File::open(local_path)
@@ -199,6 +200,8 @@ pub fn upload_file(
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
     on_progress(0, total, &name);
+    // FTP upload is a single atomic put_file; there is no mid-stream cancel point (suppaftp limitation).
+    let _ = cancel;
     let mut ftp = connect(profile)?;
     if let Err(e) = ftp.put_file(remote_path, &mut file) {
         let _ = ftp.rm(remote_path);
@@ -216,20 +219,16 @@ pub fn download_file_to(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
     let name = std::path::Path::new(remote_path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
         .unwrap_or_default();
-    let mut ftp = match connect(profile) {
-        Ok(f) => f,
-        Err(e) => { transfer_cancel::clear(&profile.id); return Err(e); }
-    };
-    let result = retr_stream_to_file(&mut ftp, &profile.id, remote_path, local_path, &name, on_progress);
+    let mut ftp = connect(profile)?;
+    let result = retr_stream_to_file(&mut ftp, cancel, remote_path, local_path, &name, on_progress);
     let _ = ftp.quit();
-    transfer_cancel::clear(&profile.id);
     result
 }
 
@@ -297,28 +296,24 @@ pub fn upload_directory(
     profile: &Profile,
     local_path: &str,
     remote_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
-    let mut ftp = match connect(profile) {
-        Ok(f) => f,
-        Err(e) => { transfer_cancel::clear(&profile.id); return Err(e); }
-    };
-    let result = upload_dir_recursive(&profile.id, &mut ftp, std::path::Path::new(local_path), remote_path, on_progress);
+    let mut ftp = connect(profile)?;
+    let result = upload_dir_recursive(cancel, &mut ftp, std::path::Path::new(local_path), remote_path, on_progress);
     let _ = ftp.quit();
-    transfer_cancel::clear(&profile.id);
     result
 }
 
 fn upload_dir_recursive(
-    profile_id: &str,
+    cancel: &dyn Fn() -> bool,
     ftp: &mut FtpStream,
     local_dir: &std::path::Path,
     remote_dir: &str,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    if transfer_cancel::is_cancelled(profile_id) {
-        return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+    if cancel() {
+        return Err(CANCELLED_ERROR.to_string());
     }
     // Create the remote directory; ignore error if it already exists.
     let _ = ftp.mkdir(remote_dir);
@@ -338,11 +333,11 @@ fn upload_dir_recursive(
         }
         let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
 
-        if transfer_cancel::is_cancelled(profile_id) {
-            return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+        if cancel() {
+            return Err(CANCELLED_ERROR.to_string());
         }
         if local_entry.is_dir() {
-            upload_dir_recursive(profile_id, ftp, &local_entry, &remote_entry, on_progress)?;
+            upload_dir_recursive(cancel, ftp, &local_entry, &remote_entry, on_progress)?;
         } else if local_entry.is_file() {
             // Stream from the open file handle directly (F8 partial).
             let mut file = std::fs::File::open(&local_entry)
@@ -368,28 +363,24 @@ pub fn download_directory(
     profile: &Profile,
     remote_path: &str,
     local_path: &str,
+    cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    transfer_cancel::clear(&profile.id);
-    let mut ftp = match connect(profile) {
-        Ok(f) => f,
-        Err(e) => { transfer_cancel::clear(&profile.id); return Err(e); }
-    };
-    let result = download_dir_recursive(&profile.id, &mut ftp, remote_path, local_path, on_progress);
+    let mut ftp = connect(profile)?;
+    let result = download_dir_recursive(cancel, &mut ftp, remote_path, local_path, on_progress);
     let _ = ftp.quit();
-    transfer_cancel::clear(&profile.id);
     result
 }
 
 fn download_dir_recursive(
-    profile_id: &str,
+    cancel: &dyn Fn() -> bool,
     ftp: &mut FtpStream,
     remote_dir: &str,
     local_dir: &str,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    if transfer_cancel::is_cancelled(profile_id) {
-        return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+    if cancel() {
+        return Err(CANCELLED_ERROR.to_string());
     }
     std::fs::create_dir_all(local_dir)
         .map_err(|e| format!("Failed to create local directory '{}': {}", local_dir, e))?;
@@ -403,15 +394,15 @@ fn download_dir_recursive(
             let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), entry.name);
             let local_entry = format!("{}/{}", local_dir.trim_end_matches('/'), entry.name);
 
-            if transfer_cancel::is_cancelled(profile_id) {
-                return Err(transfer_cancel::CANCELLED_ERROR.to_string());
+            if cancel() {
+                return Err(CANCELLED_ERROR.to_string());
             }
             if entry.is_dir {
-                download_dir_recursive(profile_id, ftp, &remote_entry, &local_entry, on_progress)?;
+                download_dir_recursive(cancel, ftp, &remote_entry, &local_entry, on_progress)?;
             } else {
                 // Stream each file so recursive folder downloads do not balloon
                 // RAM on large payloads and still honour cancel between chunks.
-                retr_stream_to_file(ftp, profile_id, &remote_entry, &local_entry, &entry.name, on_progress)?;
+                retr_stream_to_file(ftp, cancel, &remote_entry, &local_entry, &entry.name, on_progress)?;
             }
         }
     }
