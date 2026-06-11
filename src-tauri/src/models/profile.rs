@@ -57,6 +57,15 @@ pub struct Profile {
     /// For local-machine profiles `local_path` is used instead.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub local_paths_by_user: Option<HashMap<String, String>>,
+
+    /// Optional group/folder this profile belongs to (free-text). Empty/None = ungrouped.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
+
+    /// Profile creation time, epoch seconds. Set once at first save; preserved on edit.
+    /// Legacy profiles without it are backfilled from the JSON file mtime at list time.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -93,4 +102,41 @@ pub enum CredentialStorageMode {
     /// completely unprotected against anyone with access to the file.
     /// This is intentionally the weakest option and must be clearly labeled as such.
     PortableProfile,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserializes_legacy_profile_without_group_or_created_at() {
+        let json = r#"{
+            "id": "old",
+            "name": "Old",
+            "host": "h",
+            "port": 22,
+            "username": "u",
+            "auth_type": "agent",
+            "key_path": null,
+            "default_remote_path": null,
+            "editor_command": null,
+            "upload_mode": "confirm"
+        }"#;
+        let p: Profile = serde_json::from_str(json).unwrap();
+        assert_eq!(p.group, None);
+        assert_eq!(p.created_at, None);
+    }
+
+    #[test]
+    fn group_and_created_at_round_trip() {
+        let json = r#"{
+            "id": "x","name":"X","host":"h","port":22,"username":"u",
+            "auth_type":"agent","key_path":null,"default_remote_path":null,
+            "editor_command":null,"upload_mode":"confirm",
+            "group":"Work","created_at":1700000000
+        }"#;
+        let p: Profile = serde_json::from_str(json).unwrap();
+        assert_eq!(p.group.as_deref(), Some("Work"));
+        assert_eq!(p.created_at, Some(1_700_000_000));
+    }
 }
