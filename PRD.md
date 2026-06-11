@@ -278,3 +278,81 @@ A phase is considered done when:
 - user-visible behavior is coherent and minimal
 - important warnings or issues have been resolved or documented
 - the final output clearly lists changes, validation, and remaining known limitations
+
+---
+
+## 15. Future Roadmap (post-v1.6.0)
+
+This section captures the planned next steps **after v1.6.0**. It is forward-looking:
+the items below are not yet implemented. The MVP (sections 1–14) is complete and the
+product has since grown beyond it (see status snapshot). Detailed, locked design lives in
+`docs/superpowers/specs/2026-06-10-optimization-roadmap-design.md`; per-phase plans are
+authored just-in-time under `docs/superpowers/plans/`; live progress is tracked in
+`vault/MurmurSSH Optimization Roadmap.md`.
+
+### 15.1 Status snapshot (shipped beyond the original MVP)
+
+For context — these went beyond the original Non-Goals and are now shipped:
+- FTP support (file browser only), AppImage distribution, multi-protocol port defaults.
+- Multi-file/folder transfers, drag-and-drop, recursive upload/download.
+- Credential storage tiers (never / local-machine / portable), host-key verification.
+- Split local+remote file browsers, keyboard shortcuts, 6-language i18n.
+- **Phase 1 (v1.4.8):** file-list Modified + Permissions columns, remote chmod dialog.
+- **Phase 0 (v1.4.7):** remote-edit content-hash baseline fix, app-exit cleanup.
+- **Phase 2 (v1.5.0):** background transfer queue with configurable concurrency (1–8),
+  per-job cancel, queue panel — keeps the UI responsive during large transfers.
+- **Phase 3 (v1.6.0):** profile groups (collapsible grouped tree), persisted sort toggle
+  (A–Z | Newest), `created_at` stamping, group field in the profile form.
+
+### 15.2 Phase 4 — FileZilla import (next up)
+
+**Goal:** Let users migrate from FileZilla by importing its Site Manager.
+
+Requirements:
+- Parse `~/.config/filezilla/sitemanager.xml` (allow a custom file picker).
+- Map FileZilla `<Folder>` nesting → the profile `group` field (flattened path, e.g.
+  `Parent/Child`); `<Server>` → a MurmurSSH profile (host, port, user, name, protocol).
+- **Security (locked decision): saved passwords are NOT imported.** Imported profiles use
+  `credential_storage_mode = never`; credentials are prompted at connect time.
+- Conflict handling: skip or suffix duplicate IDs; show an import summary (created /
+  skipped / failed), reusing the existing SSH-config import summary UX where practical.
+- Graceful handling of malformed/partial XML — never crash, report clearly.
+- Depends on the Phase 3 group model (now available).
+
+Acceptance: importing a real `sitemanager.xml` creates profiles grouped by their FileZilla
+folders; no credentials are persisted; a summary is shown; malformed XML is handled cleanly.
+
+### 15.3 Phase 5 — Editor configuration
+
+**Goal:** Control which editor opens remote/local files for editing, globally and per type.
+
+Requirements:
+- Add `default_editor: Option<String>` and `editor_by_extension: HashMap<String,String>`
+  to Settings.
+- Resolution order in the open-in-editor flow: per-profile `editor_command` →
+  per-extension map (by lowercased extension) → global default → `xdg-open`.
+- Settings UI: a global default-editor field plus an editable extension→editor list
+  (add/remove rows). Used by both remote-edit and the local browser's edit action.
+
+Acceptance: a `.conf` file opens in the configured per-extension editor; a profile override
+still wins; unmapped types fall back to the global default, then `xdg-open`.
+
+### 15.4 Execution process (applies to every future phase)
+
+- Read guidance files; author a just-in-time plan under `docs/superpowers/plans/`.
+- Execute subagent-driven: fresh implementer per task + two-stage review (spec, then
+  quality) + an Opus final holistic review before release. Per-task model assignment
+  (Haiku = mechanical/i18n/docs, Sonnet = implementation, Opus = architecture/review).
+- Commit each logical step separately; **always update the README** plus CHANGELOG,
+  CLAUDE.md, and the vault roadmap note.
+- At each phase boundary: version bump across `package.json` / `Cargo.toml` /
+  `tauri.conf.json`, annotated git tag, push to `main`, then refresh the gitnexus index.
+- Frontend build rule: edit `.ts` → `npx tsc` → commit both the `.ts` and its tracked
+  `.js` sibling; revert unrelated regenerated `.js` (recurring `src/i18n/index.js` noise).
+
+### 15.5 Still out of scope (unchanged)
+
+- Separate sidecar transfer process; true file birth-time (unavailable over SFTP v3);
+  chown/ownership editing; importing FileZilla saved passwords; nested multi-level group
+  hierarchies beyond a single flattened `group` string; custom embedded terminal; cloud
+  sync / accounts / telemetry; Windows/macOS support.
