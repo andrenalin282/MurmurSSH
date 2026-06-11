@@ -31,14 +31,21 @@ function requiresKeyPath(authType: AuthType): boolean {
 export class ProfileForm {
   private overlay: HTMLElement | null = null;
   private editingId: string | null = null;
+  private existingGroups: string[] = [];
   private onSavedCallback: ((savedId: string) => Promise<void>) | null = null;
 
   onSaved(cb: (savedId: string) => Promise<void>): void {
     this.onSavedCallback = cb;
   }
 
-  show(profile?: Profile): void {
+  async show(profile?: Profile): Promise<void> {
     this.editingId = profile?.id ?? null;
+    try {
+      const all = await api.listProfiles();
+      this.existingGroups = [...new Set(all.map((p) => (p.group ?? "").trim()).filter((g) => g.length > 0))].sort();
+    } catch {
+      this.existingGroups = [];
+    }
     this.mount(profile);
   }
 
@@ -79,6 +86,14 @@ export class ProfileForm {
             <label for="pf-name">${t("profileForm.labelName")}</label>
             <input id="pf-name" type="text" value="${escHtml(profile?.name ?? "")}"
               placeholder="${t("profileForm.placeholderName")}" autocomplete="off">
+          </div>
+          <div class="form-field">
+            <label for="pf-group">${t("profileForm.labelGroup")}</label>
+            <input id="pf-group" type="text" list="pf-group-list" value="${escHtml(profile?.group ?? "")}"
+              placeholder="${t("profileForm.placeholderGroup")}" autocomplete="off">
+            <datalist id="pf-group-list">
+              ${this.existingGroups.map((g) => `<option value="${escHtml(g)}"></option>`).join("")}
+            </datalist>
           </div>
           <div class="form-field">
             <label for="pf-host">${t("profileForm.labelHost")}</label>
@@ -299,6 +314,7 @@ export class ProfileForm {
         local_path: null,
         editor_command: null,
         upload_mode: "confirm",
+        group: undefined,
       };
 
       try {
@@ -427,6 +443,7 @@ export class ProfileForm {
       this.overlay?.querySelector<HTMLInputElement | HTMLSelectElement>(`#${id}`)?.value.trim() ?? "";
 
     const name = get("pf-name");
+    const group = get("pf-group");
     const host = get("pf-host");
     const portStr = get("pf-port");
     const username = get("pf-username");
@@ -515,6 +532,8 @@ export class ProfileForm {
       stored_secret_portable: isAuthSwitchAwayFromPassword
         ? undefined
         : existingProfile?.stored_secret_portable,
+      group: group || undefined,
+      created_at: existingProfile?.created_at ?? undefined,
     };
 
     try {
