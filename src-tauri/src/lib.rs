@@ -56,6 +56,7 @@ pub fn run() {
             commands::sftp::set_permissions,
             commands::sftp::create_directory,
             commands::sftp::local_file_exists,
+            commands::sftp::local_path_is_dir,
             commands::transfer::enqueue_transfer,
             commands::transfer::cancel_transfer,
             commands::transfer::cancel_all_transfers,

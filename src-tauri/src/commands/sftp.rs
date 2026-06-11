@@ -126,3 +126,10 @@ pub fn local_file_exists(path: String) -> bool {
     if path.is_empty() { return false; }
     std::path::Path::new(&path).exists()
 }
+
+/// Check whether a local path is a directory (used to pick upload vs uploadDir).
+#[tauri::command]
+pub fn local_path_is_dir(path: String) -> bool {
+    if path.is_empty() { return false; }
+    std::path::Path::new(&path).is_dir()
+}
