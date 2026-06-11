@@ -15,5 +15,9 @@ pub struct Settings {
     /// When None, defaults to "left".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub local_browser_position: Option<String>,
+    /// Maximum number of transfers the background queue runs concurrently.
+    /// When None, defaults to 2. Clamped to 1..=8 at use sites.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_transfers: Option<u32>,
 }
 
