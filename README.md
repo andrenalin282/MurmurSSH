@@ -20,7 +20,8 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Split-pane file browser** — a local file browser panel sits alongside the remote browser, so you can see both sides at once. The panel is toggleable and its position (left or right) is configurable in Settings.
 - **SFTP/FTP remote browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, move, and create files and directories. The listing shows modification dates and permissions, and you can change permissions (chmod) via a right-click dialog with an rwx grid synced to an octal field (SFTP). Works identically over SFTP and FTP.
 - **Drag and drop** — drag local files onto the remote browser to upload; drag remote entries onto the local browser to download. Drop files or folders from your OS file manager onto the remote browser to upload.
-- **Real-time transfer progress** — progress bar with live speed display (e.g. `2.1 MB/s`) during every upload and download. Byte-level fill for SFTP transfers; per-file updates for FTP and folder operations.
+- **Background transfer queue** — uploads and downloads run in a background queue, so the app stays responsive even during large or numerous transfers. A transfer panel lists every job (queued, transferring, done, failed, cancelled) with a live progress bar and per-job cancel, plus "Cancel all" and "Clear finished".
+- **Concurrent transfers** — several transfers run at once, each on its own connection (FileZilla-style). The number that run simultaneously is configurable in Settings (1–8, default 2).
 - **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
@@ -169,7 +170,7 @@ The file browser works the same way over SFTP and FTP.
 | Refresh | Click **Refresh** or press **F5** |
 | Open terminal | Click the terminal icon in the toolbar or press **F11** (SSH profiles only) |
 
-During transfers, a progress bar shows the current filename, percentage, and live transfer speed (e.g. `1.4 MB/s`). The activity log below the file list shows what happened and any errors.
+Transfers are queued and run in the background: the transfer panel shows each job's progress and lets you cancel individual jobs or all of them. Several jobs run concurrently (configurable in Settings → **Concurrent transfers**, 1–8). The activity log below the file list shows what happened and any errors.
 
 ### Local file browser
 
@@ -183,6 +184,8 @@ The local browser shows your local filesystem and lets you:
 The last visited path is saved per profile. For shared (portable) profiles each OS user gets their own remembered path.
 
 **Panel position** — go to Settings → Local browser position to move the panel to the right side of the remote browser instead of the left.
+
+**Concurrent transfers** — go to Settings → Concurrent transfers to set how many uploads/downloads run at the same time (1–8, default 2). Each runs on its own connection.
 
 ### Credential storage
 

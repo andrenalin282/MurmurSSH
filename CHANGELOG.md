@@ -12,6 +12,24 @@ No changes yet.
 
 ---
 
+## [1.5.0] - 2026-06-11
+
+### Added
+- **Background transfer queue.** Uploads and downloads now run in a background queue instead of blocking the file browser. A transfer panel lists every job (queued / transferring / done / failed / cancelled) with a live progress bar, a per-job cancel (✕), "Cancel all", and "Clear finished".
+- **Multiple concurrent transfers.** Several transfers run at the same time, each on its own connection (FileZilla-style). How many run simultaneously is configurable in Settings → "Concurrent transfers" (1–8, default 2); raising the limit takes effect immediately.
+- The app stays responsive during large or numerous transfers — queuing many files no longer freezes the window.
+
+### Changed
+- The single inline progress bar was replaced by the transfer queue panel.
+- Per-job cancellation replaces the previous per-connection cancel, so cancelling one transfer no longer affects others on the same server.
+- All file-browser uploads and downloads — including drag-and-drop and recursive folder transfers — now route through the queue. Overwrite prompts still appear before a transfer is queued.
+
+### Notes
+- FTP single-file uploads cannot be interrupted mid-transfer (a limitation of the FTP library); the job is marked cancelled once the current file finishes.
+- Closing the app cancels queued and in-progress transfers; partially written files are cleaned up on a best-effort basis.
+
+---
+
 ## [1.4.8] - 2026-06-10
 
 ### Added

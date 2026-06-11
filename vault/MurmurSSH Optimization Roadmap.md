@@ -11,7 +11,7 @@ Ausführung: subagent-driven (frischer Subagent pro Task, Spec- + Quality-Review
 |-------|--------|--------|
 | 0 | Bugfixes: Edit-Flow (Hash-Baseline statt mtime) + Cleanup beim Fenster-Schließen | ✅ done — v1.4.7 |
 | 1 | Dateiliste: Änderungsdatum-Spalte + Rechte-Spalte + chmod-Dialog (Häkchen-Grid ↔ Oktal) | ✅ done — v1.4.8 |
-| 2 | Transfer-Background-Queue mit konfigurierbarer Parallelität (Multiverbindung), Queue-UI | pending |
+| 2 | Transfer-Background-Queue mit konfigurierbarer Parallelität (Multiverbindung), Queue-UI | ✅ done — v1.5.0 |
 | 3 | Profil-Gruppen (`group` + `created_at`), Baum-Ansicht, Sortierung alphabetisch/Erstellungsdatum | pending |
 | 4 | FileZilla-Import (sitemanager.xml → Profile + Gruppen, ohne Passwörter) | pending |
 | 5 | Editor-Konfiguration: globaler Default + Pro-Dateityp-Map | pending |
@@ -51,6 +51,20 @@ Commits: 3987f65, 61adf22, ef8f416, 1e918de, a7e8b2d (B1), ef6e082 (B2), + docs/
 1. Liste zeigt Geändert-Datum + Rechte-Spalte (z.B. `-rw-r--r--`, Oktal im Tooltip).
 2. Rechtsklick Datei → „Rechte ändern…": Häkchen ⇄ Oktal synchron; Apply ändert Remote-Rechte; Spalte aktualisiert nach Refresh.
 3. FTP-Profil: „Rechte ändern…" zeigt sauber den „nicht unterstützt"-Fehler.
+
+## Phase 2 — abgeschlossen (v1.5.0, 2026-06-11)
+
+Neuer `transfer_queue`-Service: ein Dispatcher-Thread (`Mutex<QueueState>` + `Condvar`) befördert Queued→Active-Jobs bis `max_concurrent_transfers` (Settings, Default 2, Clamp 1–8) und startet je Job einen Worker-Thread mit eigener SFTP/FTP-Session → echte Parallelität. Per-Job-Abbruch via `Arc<AtomicBool>` ersetzt das gelöschte profil-gekoppelte `transfer_cancel`; Transfer-Funktionen nehmen jetzt `cancel: &dyn Fn() -> bool` (Edit-Flow übergibt `&|| false`). Neues Modell `models/transfer.rs`, neue Commands `commands/transfer.rs` (`enqueue_transfer`/`cancel_transfer(job_id)`/`cancel_all_transfers`/`list_transfers`/`clear_finished_transfers` + `local_path_is_dir`); alte Channel-basierte Transfer-Commands entfernt. Queue emittiert `transfer-update`-Events; `init(&app)` in `lib.rs` `.setup`, `cancel_all()` in `cleanup_on_exit`. Frontend: neues `TransferQueuePanel` (In-Place-Row-Updates, voller Re-Render nur bei Strukturänderung), File-Browser reiht Transfers ein statt Einzelbalken, Settings-Eingabe für Parallelität, i18n in 6 Sprachen. Dispatcher-Korrektheit (Opus-Review): Settings-Read + Emit außerhalb des Locks, prädikat-geschütztes `cv.wait` (kein Lost-Wakeup), Worker-Panic-Guard. Final-Review (Opus) fand + behob eine Lost-Wakeup-Regression → SHIP. cargo/clippy/tsc/vite grün, 9 Lib-Tests.
+
+### Offene manuelle Verifikation (echter Server)
+1. 10+ Dateien einreihen: UI bleibt responsiv; max. `max_concurrent_transfers` laufen gleichzeitig, Rest „Warteschlange" und startet, sobald Slots frei werden.
+2. Per-Job-✕ bricht nur diesen Job ab (andere laufen weiter); „Alle abbrechen" stoppt alles; abgebrochene Jobs zeigen „Abgebrochen", nicht „Fehlgeschlagen".
+3. Fehlschlagender Transfer (z.B. Permission denied) → „Fehlgeschlagen" mit Fehler, ohne Geschwister-Jobs abzubrechen.
+4. Ordner-Upload/-Download = ein einzelner Job, Dateiname aktualisiert sich.
+5. Overwrite-Dialog erscheint weiterhin VOR dem Einreihen.
+6. Nach Abschluss: Remote-Browser aktualisiert nach Upload, lokaler nach Download.
+7. App per OS-X schließen während laufender Transfers → sauberer Teardown (`cancel_all()` beim Exit), keine Geister-Sockets.
+8. „Gleichzeitige Übertragungen" in Settings ändern → wirkt auf die nächste Charge (Anhebung sofort via `notify()`).
 
 ## Notizen
 
