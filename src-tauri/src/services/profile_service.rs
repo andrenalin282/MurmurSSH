@@ -86,8 +86,19 @@ pub fn get_profile(id: &str) -> Result<Profile, String> {
     let path = profiles_dir().join(format!("{}.json", id));
     let contents =
         fs::read_to_string(&path).map_err(|_| format!("Profile '{}' not found", id))?;
-    serde_json::from_str(&contents)
-        .map_err(|e| format!("Failed to parse profile '{}': {}", id, e))
+    let mut profile: Profile = serde_json::from_str(&contents)
+        .map_err(|e| format!("Failed to parse profile '{}': {}", id, e))?;
+    // Backfill created_at from the file mtime for legacy profiles, so editing one
+    // preserves its original creation date instead of resetting it to "now".
+    // Single source of truth shared with list_profiles and save_profile's re-read.
+    if profile.created_at.is_none() {
+        profile.created_at = fs::metadata(&path)
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs());
+    }
+    Ok(profile)
 }
 
 pub fn save_profile(profile: &Profile) -> Result<(), String> {
