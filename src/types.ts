@@ -41,6 +41,10 @@ export interface Profile {
    * Local-machine profiles use `local_path` instead.
    */
   local_paths_by_user?: Record<string, string>;
+  /** Optional group/folder name. Empty/absent = ungrouped. */
+  group?: string | null;
+  /** Profile creation time, epoch seconds. Set by the backend. */
+  created_at?: number | null;
 }
 
 export interface Settings {
@@ -53,6 +57,8 @@ export interface Settings {
   local_browser_position?: "left" | "right" | null;
   /** Max concurrent transfers the background queue runs. Null/absent = 2. Clamped 1..8. */
   max_concurrent_transfers?: number | null;
+  /** Profile sort mode: "name" | "created". Null/absent = "name". */
+  profile_sort?: "name" | "created" | null;
 }
 
 export interface FileEntry {
