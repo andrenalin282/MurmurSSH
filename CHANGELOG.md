@@ -12,6 +12,22 @@ No changes yet.
 
 ---
 
+## [1.6.0] - 2026-06-11
+
+### Added
+- **Profile groups.** Profiles can be organized into named groups. The profile list is now a collapsible grouped tree — click a group header to expand or collapse it. Profiles without a group appear under "Ungrouped".
+- **Group field** in the profile form, with autocomplete of your existing group names. Clear it to move a profile back to "Ungrouped".
+- **Sort toggle** in the profile list: sort each group alphabetically (A–Z) or by newest first. The choice is remembered across restarts.
+- Profiles now record a creation date (used by the "Newest" sort). Existing profiles use their file's modification date as a fallback, so sorting works for them too.
+
+### Changed
+- The profile dropdown was replaced by the grouped tree. Single-click selects a profile; double-click connects.
+
+### Notes
+- Group membership and the creation date are stored in the profile JSON; older profiles remain fully compatible and are never rewritten just by being listed.
+
+---
+
 ## [1.5.0] - 2026-06-11
 
 ### Added

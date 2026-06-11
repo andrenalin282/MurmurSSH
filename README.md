@@ -16,6 +16,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 - **Multi-protocol support** — connect via SSH (terminal + file browser), SFTP (file browser only), or FTP (file browser only). Port is pre-filled automatically for each protocol.
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
+- **Profile groups & sorting** — organize profiles into named groups shown as a collapsible tree, and sort each group alphabetically or by newest first (the choice is remembered).
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
 - **Split-pane file browser** — a local file browser panel sits alongside the remote browser, so you can see both sides at once. The panel is toggleable and its position (left or right) is configurable in Settings.
 - **SFTP/FTP remote browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, move, and create files and directories. The listing shows modification dates and permissions, and you can change permissions (chmod) via a right-click dialog with an rwx grid synced to an octal field (SFTP). Works identically over SFTP and FTP.
@@ -129,6 +130,7 @@ Create a profile for each server you connect to:
    - **SSH Agent** — delegates to your running `ssh-agent`
    - **Password** — entered at connection time; you can choose whether to save it
 5. Optionally set:
+   - **Group** — a free-text group name to organize profiles in the sidebar (leave blank for "Ungrouped"). Existing group names are offered as autocomplete.
    - **Default Remote Path** — the directory opened when you connect
    - **Local Path** — a local folder used as the default for uploads and downloads
    - **Editor Command** — the command used to open files for editing (blank = system default)
@@ -136,6 +138,8 @@ Create a profile for each server you connect to:
 6. Click **Save**
 
 The last used profile is restored automatically on startup.
+
+Profiles are shown as a collapsible grouped tree in the sidebar: click a group header to expand or collapse it, single-click a profile to select it, and double-click to connect. Use the **A–Z / Newest** toggle above the list to sort each group alphabetically or by creation date — the choice is remembered across restarts.
 
 ### Connecting
 

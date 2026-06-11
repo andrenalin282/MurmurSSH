@@ -12,7 +12,7 @@ Ausführung: subagent-driven (frischer Subagent pro Task, Spec- + Quality-Review
 | 0 | Bugfixes: Edit-Flow (Hash-Baseline statt mtime) + Cleanup beim Fenster-Schließen | ✅ done — v1.4.7 |
 | 1 | Dateiliste: Änderungsdatum-Spalte + Rechte-Spalte + chmod-Dialog (Häkchen-Grid ↔ Oktal) | ✅ done — v1.4.8 |
 | 2 | Transfer-Background-Queue mit konfigurierbarer Parallelität (Multiverbindung), Queue-UI | ✅ done — v1.5.0 |
-| 3 | Profil-Gruppen (`group` + `created_at`), Baum-Ansicht, Sortierung alphabetisch/Erstellungsdatum | pending |
+| 3 | Profil-Gruppen (`group` + `created_at`), Baum-Ansicht, Sortierung alphabetisch/Erstellungsdatum | ✅ done — v1.6.0 |
 | 4 | FileZilla-Import (sitemanager.xml → Profile + Gruppen, ohne Passwörter) | pending |
 | 5 | Editor-Konfiguration: globaler Default + Pro-Dateityp-Map | pending |
 
@@ -65,6 +65,19 @@ Neuer `transfer_queue`-Service: ein Dispatcher-Thread (`Mutex<QueueState>` + `Co
 6. Nach Abschluss: Remote-Browser aktualisiert nach Upload, lokaler nach Download.
 7. App per OS-X schließen während laufender Transfers → sauberer Teardown (`cancel_all()` beim Exit), keine Geister-Sockets.
 8. „Gleichzeitige Übertragungen" in Settings ändern → wirkt auf die nächste Charge (Anhebung sofort via `notify()`).
+
+## Phase 3 — abgeschlossen (v1.6.0, 2026-06-11)
+
+`Profile` um `group: Option<String>` + `created_at: Option<u64>` erweitert (rückwärtskompatibel, serde `skip_serializing_if`). `save_profile` stempelt `created_at` einmalig (bei Edit erhalten, da zuerst der On-Disk-Wert gelesen wird); `list_profiles` UND `get_profile` füllen `created_at` für Alt-Profile aus der Datei-mtime nach (nur im Speicher, kein Rückschreiben) — `get_profile` ist Single Source of Truth, sodass das Bearbeiten eines Alt-Profils sein ursprüngliches Datum behält statt es auf „jetzt" zu setzen. Neues Settings-Feld `profile_sort` ("name"|"created"). Frontend: Profil-Selector vom `<select>` zur einklappbaren Gruppen-Baumansicht (Gruppen-Header mit Caret/Name/Anzahl, Klick klappt ein/aus, Session-State; Zeilen: Einfachklick wählt, Doppelklick verbindet; „Ohne Gruppe" zuletzt). Persistierter Sortier-Umschalter (A–Z | Neueste) via read-merge-write. Öffentliche API + Button-IDs unverändert → main.ts ohne Änderung. Profil-Formular: `group`-Textfeld mit `<datalist>` bestehender Gruppen; `show()` jetzt async zum Vorladen; `created_at` beim Speichern durchgereicht. i18n in 6 Sprachen. Final-Review (Opus) fand + behob das Zurücksetzen von `created_at` bei Alt-Profilen (get_profile-Backfill) → SHIP. cargo/clippy/tsc/vite grün, 12 Lib-Tests.
+
+### Offene manuelle Verifikation (echter Server / mehrere Profile)
+1. Profile erscheinen gruppiert; ohne Gruppe unter „Ohne Gruppe" (zuletzt).
+2. Gruppen-Header klappt ein/aus (Caret wechselt); Zustand bleibt während der App-Sitzung.
+3. Zeile anklicken wählt (Hervorhebung); Edit/Delete/Connect aktiv; Doppelklick verbindet.
+4. Sortier-Umschalter A–Z ↔ Neueste ordnet je Gruppe um und überlebt App-Neustart.
+5. Gruppe im Formular setzen → Profil wandert nach Speichern in diese Gruppe; leeren → zurück zu „Ohne Gruppe".
+6. Neues Profil bekommt Erstellungsdatum (Neueste oben); Alt-Profile sortieren via mtime; Bearbeiten eines Alt-Profils setzt das Datum NICHT zurück.
+7. Connect/Edit/Delete bleiben bei aktiver Verbindung gesperrt.
 
 ## Notizen
 
