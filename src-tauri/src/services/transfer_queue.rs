@@ -211,10 +211,21 @@ fn dispatcher_loop() {
         for v in &to_emit {
             emit(v);
         }
-        // Re-acquire and wait. Note: limit is re-read at the top of the next
-        // iteration, so a notify() after a settings change re-evaluates it.
+
+        // Re-acquire and decide whether to wait. Re-check the promotion
+        // condition UNDER the lock: a worker may have finished (and its
+        // notify fired) during the emit window above. Only block on the
+        // condvar when nothing is currently promotable — otherwise loop
+        // immediately. The lock is held continuously from this check into
+        // cv.wait (which atomically releases it), so no notify can be lost.
         let st = queue().state.lock().unwrap();
-        drop(queue().cv.wait(st).unwrap());
+        let promotable = st.active < limit
+            && st.jobs.iter().any(|j| j.view.state == TransferState::Queued);
+        if !promotable {
+            drop(queue().cv.wait(st).unwrap());
+        } else {
+            drop(st);
+        }
     }
 }
 
