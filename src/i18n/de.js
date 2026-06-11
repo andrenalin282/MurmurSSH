@@ -142,6 +142,19 @@ const de = {
         logDownloading: "{name} wird heruntergeladen…",
         // Toggle button
         toggleLocalBrowser: "Lokal",
+        // Queued count
+        queuedCount: "{count} eingereiht",
+    },
+    transferQueue: {
+        title: "Übertragungen",
+        cancel: "Abbrechen",
+        cancelAll: "Alle abbrechen",
+        clearFinished: "Abgeschlossene entfernen",
+        state_queued: "Warteschlange",
+        state_active: "Überträgt",
+        state_done: "Fertig",
+        state_failed: "Fehlgeschlagen",
+        state_cancelled: "Abgebrochen",
     },
     localBrowser: {
         // Toolbar
@@ -236,6 +249,8 @@ const de = {
         localBrowserLeft: "Links",
         localBrowserRight: "Rechts",
         labelLanguage: "Sprache",
+        maxConcurrentTransfers: "Gleichzeitige Übertragungen",
+        maxConcurrentTransfersHint: "Wie viele Uploads/Downloads gleichzeitig laufen (1–8)",
         errorSaveFailed: "Einstellungen konnten nicht gespeichert werden: {error}",
     },
     dialogs: {

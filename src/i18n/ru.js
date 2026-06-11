@@ -142,6 +142,19 @@ const ru = {
         logDownloading: "Скачивание {name}…",
         // Toggle button
         toggleLocalBrowser: "Локально",
+        // Queued count
+        queuedCount: "{count} в очереди",
+    },
+    transferQueue: {
+        title: "Передачи",
+        cancel: "Отмена",
+        cancelAll: "Отменить все",
+        clearFinished: "Очистить завершённые",
+        state_queued: "В очереди",
+        state_active: "Передача",
+        state_done: "Готово",
+        state_failed: "Ошибка",
+        state_cancelled: "Отменено",
     },
     localBrowser: {
         // Toolbar
@@ -236,6 +249,8 @@ const ru = {
         localBrowserLeft: "Слева",
         localBrowserRight: "Справа",
         labelLanguage: "Язык",
+        maxConcurrentTransfers: "Одновременные передачи",
+        maxConcurrentTransfersHint: "Сколько загрузок выполняется одновременно (1–8)",
         errorSaveFailed: "Не удалось сохранить настройки: {error}",
     },
     dialogs: {

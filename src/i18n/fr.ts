@@ -144,6 +144,20 @@ const fr = {
     logDownloading: "Téléchargement de {name}…",
     // Toggle button
     toggleLocalBrowser: "Local",
+    // Queued count
+    queuedCount: "{count} en file",
+  },
+
+  transferQueue: {
+    title: "Transferts",
+    cancel: "Annuler",
+    cancelAll: "Tout annuler",
+    clearFinished: "Effacer les terminés",
+    state_queued: "En file",
+    state_active: "Transfert",
+    state_done: "Terminé",
+    state_failed: "Échec",
+    state_cancelled: "Annulé",
   },
 
   localBrowser: {
@@ -242,6 +256,8 @@ const fr = {
     localBrowserLeft: "Gauche",
     localBrowserRight: "Droite",
     labelLanguage: "Langue",
+    maxConcurrentTransfers: "Transferts simultanés",
+    maxConcurrentTransfersHint: "Nombre de transferts simultanés (1–8)",
     errorSaveFailed: "Échec de l'enregistrement des paramètres : {error}",
   },
 

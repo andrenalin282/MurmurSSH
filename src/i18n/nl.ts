@@ -144,6 +144,20 @@ const nl = {
     logDownloading: "{name} downloaden…",
     // Toggle button
     toggleLocalBrowser: "Lokaal",
+    // Queued count
+    queuedCount: "{count} in wachtrij",
+  },
+
+  transferQueue: {
+    title: "Overdrachten",
+    cancel: "Annuleren",
+    cancelAll: "Alles annuleren",
+    clearFinished: "Voltooide wissen",
+    state_queued: "In wachtrij",
+    state_active: "Bezig",
+    state_done: "Klaar",
+    state_failed: "Mislukt",
+    state_cancelled: "Geannuleerd",
   },
 
   localBrowser: {
@@ -242,6 +256,8 @@ const nl = {
     localBrowserLeft: "Links",
     localBrowserRight: "Rechts",
     labelLanguage: "Taal",
+    maxConcurrentTransfers: "Gelijktijdige overdrachten",
+    maxConcurrentTransfersHint: "Hoeveel uploads/downloads tegelijk lopen (1–8)",
     errorSaveFailed: "Opslaan van instellingen mislukt: {error}",
   },
 
