@@ -15,12 +15,22 @@ function fmtPct(j) {
  * Bottom queue panel. Holds a map of jobs keyed by id, updated from the
  * `transfer-update` Tauri event, and re-renders on each change. Hidden when
  * there are no jobs.
+ *
+ * Rendering strategy:
+ *   - Full render (innerHTML rebuild + listener re-attach) only when STRUCTURE
+ *     changes: the set of job ids, any job's state, or empty↔non-empty toggle.
+ *   - Progress-only updates (same ids, same states, only bytesDone/bytesTotal/
+ *     filename changed) use updateRowInPlace() which mutates existing DOM nodes
+ *     without touching listeners — eliminates flicker and dropped clicks at
+ *     high event rates (~80 events/s with 8 concurrent jobs).
  */
 export class TransferQueuePanel {
     constructor(containerId) {
         this.jobs = new Map();
         /** Called when any job reaches a terminal state, with the finished job. */
         this.onJobFinished = null;
+        /** Structure signature of the last full render: sorted "id:state" pairs. */
+        this.lastStructureSig = "";
         const el = document.getElementById(containerId);
         if (!el)
             throw new Error(`Element #${containerId} not found`);
@@ -30,6 +40,13 @@ export class TransferQueuePanel {
     }
     setOnJobFinished(cb) {
         this.onJobFinished = cb;
+    }
+    /** Build a structure signature from sorted id:state pairs. */
+    structureSig() {
+        return [...this.jobs.values()]
+            .sort((a, b) => a.id - b.id)
+            .map((j) => `${j.id}:${j.state}`)
+            .join(",");
     }
     async subscribe() {
         // Seed from any jobs already in the backend (e.g. after a reload).
@@ -44,7 +61,15 @@ export class TransferQueuePanel {
         await listen("transfer-update", (e) => {
             const job = e.payload;
             this.jobs.set(job.id, job);
-            this.render();
+            const sig = this.structureSig();
+            if (sig !== this.lastStructureSig) {
+                // Structural change (new/removed job or state transition) — full render.
+                this.render();
+            }
+            else {
+                // Progress-only change — update existing row without touching listeners.
+                this.updateRowInPlace(job);
+            }
             if (job.state === "done" || job.state === "failed" || job.state === "cancelled") {
                 this.onJobFinished?.(job);
             }
@@ -57,10 +82,42 @@ export class TransferQueuePanel {
         }
         return false;
     }
+    /**
+     * Update a single row's progress elements in place without rebuilding DOM.
+     * Falls back to full render if the row is missing (e.g. first render race).
+     */
+    updateRowInPlace(job) {
+        const row = this.container.querySelector(`.tq-row[data-job="${job.id}"]`);
+        if (!row) {
+            // Row not found — fall back to full render to stay consistent.
+            this.render();
+            return;
+        }
+        // Update filename.
+        const nameEl = row.querySelector(".tq-name");
+        if (nameEl) {
+            nameEl.textContent = job.filename;
+            nameEl.setAttribute("title", job.dst);
+        }
+        // Update state label.
+        const stateEl = row.querySelector(".tq-state");
+        if (stateEl) {
+            stateEl.textContent = t(`transferQueue.state_${job.state}`);
+        }
+        // Update progress bar.
+        const fill = row.querySelector(".tq-fill");
+        if (fill) {
+            const pct = fmtPct(job);
+            const indeterminate = job.state === "active" && job.bytesTotal === 0;
+            fill.style.width = `${pct.toFixed(1)}%`;
+            fill.classList.toggle("tq-fill--indeterminate", indeterminate);
+        }
+    }
     render() {
         if (this.jobs.size === 0) {
             this.container.innerHTML = "";
             this.container.classList.add("hidden");
+            this.lastStructureSig = "";
             return;
         }
         this.container.classList.remove("hidden");
@@ -73,7 +130,7 @@ export class TransferQueuePanel {
             const cancellable = j.state === "queued" || j.state === "active";
             const arrow = j.kind === "upload" || j.kind === "uploadDir" ? "↑" : "↓";
             return `
-          <div class="tq-row tq-row--${j.state}">
+          <div class="tq-row tq-row--${j.state}" data-job="${j.id}">
             <span class="tq-arrow">${arrow}</span>
             <span class="tq-name" title="${escHtml(j.dst)}">${escHtml(j.filename)}</span>
             <span class="tq-state">${escHtml(stateLabel)}</span>
@@ -92,6 +149,7 @@ export class TransferQueuePanel {
         <button class="tq-clear" id="tq-clear">${escHtml(t("transferQueue.clearFinished"))}</button>
       </div>
       <div class="tq-rows">${rows}</div>`;
+        this.lastStructureSig = this.structureSig();
         this.container.querySelectorAll(".tq-cancel").forEach((btn) => {
             btn.addEventListener("click", () => {
                 const id = Number(btn.dataset.job);
