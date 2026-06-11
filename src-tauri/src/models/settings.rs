@@ -19,5 +19,9 @@ pub struct Settings {
     /// When None, defaults to 2. Clamped to 1..=8 at use sites.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_concurrent_transfers: Option<u32>,
+    /// Profile list sort mode: "name" (alphabetical) or "created" (creation date).
+    /// When None, defaults to "name" on the frontend.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub profile_sort: Option<String>,
 }
 
