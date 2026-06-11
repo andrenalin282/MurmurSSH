@@ -221,6 +221,144 @@ button:disabled {
   color: var(--fg-subtle);
 }
 
+/* ── Profile selector head (label + sort toggle) ─────────── */
+
+.profile-selector__head {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+/* ── Profile sort segmented control ──────────────────────── */
+
+.profile-sort {
+  display: inline-flex;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.profile-sort__btn {
+  background: var(--bg-overlay);
+  color: var(--fg-subtle);
+  border: none;
+  border-radius: 0;
+  font-size: 11px;
+  font-weight: 400;
+  padding: 3px 7px;
+  cursor: pointer;
+  line-height: 1.4;
+}
+
+.profile-sort__btn:hover:not(.profile-sort__btn--active) {
+  background: var(--bg-hover);
+  color: var(--fg-text);
+}
+
+.profile-sort__btn--active {
+  background: var(--accent);
+  color: var(--accent-fg);
+  font-weight: 600;
+}
+
+.profile-sort__btn--active:hover {
+  background: var(--accent-hover);
+}
+
+/* ── Profile tree ────────────────────────────────────────── */
+
+.profile-tree {
+  border: 1px solid var(--border-strong);
+  border-radius: 4px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: var(--bg-overlay);
+}
+
+.profile-tree__empty {
+  color: var(--fg-faint);
+  font-size: 12px;
+  padding: 12px 10px;
+  text-align: center;
+}
+
+/* ── Profile group ───────────────────────────────────────── */
+
+.profile-group__header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.profile-group__header:hover {
+  background: var(--bg-hover);
+}
+
+.profile-group__caret {
+  flex-shrink: 0;
+  width: 12px;
+  font-size: 10px;
+  color: var(--fg-subtle);
+  text-align: center;
+}
+
+.profile-group__name {
+  flex: 1;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-subtle);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-group__count {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--fg-faint);
+  background: var(--bg-surface);
+  border-radius: 8px;
+  padding: 1px 5px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* ── Profile row ─────────────────────────────────────────── */
+
+.profile-row {
+  padding: 5px 8px 5px 24px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--fg-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.profile-row:hover {
+  background: var(--bg-hover);
+}
+
+.profile-row--selected {
+  background: var(--accent);
+  color: var(--accent-fg);
+}
+
+.profile-row--selected:hover {
+  background: var(--accent-hover);
+  color: var(--accent-fg);
+}
+
 /* ── Status bar ──────────────────────────────────────────── */
 
 .status-bar {

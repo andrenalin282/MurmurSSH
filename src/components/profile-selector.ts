@@ -20,6 +20,8 @@ export class ProfileSelector {
   private onNewCallback: (() => void) | null = null;
   private onEditCallback: ((profile: Profile) => void) | null = null;
   private onDeleteCallback: ((profileId: string) => Promise<void>) | null = null;
+  private collapsedGroups = new Set<string>();
+  private sortMode: "name" | "created" = "name";
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -31,6 +33,7 @@ export class ProfileSelector {
     this.profiles = await api.listProfiles();
     const settings: Settings = await api.getSettings();
     this.selectedId = settings.last_used_profile_id;
+    this.sortMode = settings.profile_sort === "created" ? "created" : "name";
 
     // Fall back to first profile if last-used is absent or no longer valid
     if (!this.selectedId || !this.profiles.find((p) => p.id === this.selectedId)) {
@@ -132,7 +135,7 @@ export class ProfileSelector {
   /**
    * Update the disabled state of Edit / Delete / Connect buttons to match the
    * current selectedId without triggering a full re-render. Called after the
-   * user changes the dropdown selection.
+   * user changes the tree selection.
    */
   private updateButtonStates(): void {
     const hasSelection = this.selectedId !== null && this.profiles.length > 0;
@@ -152,23 +155,93 @@ export class ProfileSelector {
     }
   }
 
+  private async persistSortMode(): Promise<void> {
+    try {
+      const settings = await api.getSettings();
+      await api.saveSettings({ ...settings, profile_sort: this.sortMode });
+    } catch (e) {
+      console.warn("[ProfileSelector] Failed to persist sort mode:", e);
+    }
+  }
+
+  /** Group profiles by their `group` field; ungrouped under the empty-string key. */
+  private groupedProfiles(): Map<string, Profile[]> {
+    const groups = new Map<string, Profile[]>();
+    for (const p of this.profiles) {
+      const key = (p.group ?? "").trim();
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(p);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => {
+        if (this.sortMode === "created") {
+          return (b.created_at ?? 0) - (a.created_at ?? 0); // newest first
+        }
+        return a.name.localeCompare(b.name);
+      });
+    }
+    return groups;
+  }
+
+  /** Group keys in display order: named groups A–Z, ungrouped ("") last. */
+  private orderedGroupKeys(groups: Map<string, Profile[]>): string[] {
+    return [...groups.keys()].sort((a, b) => {
+      if (a === "") return 1;
+      if (b === "") return -1;
+      return a.localeCompare(b);
+    });
+  }
+
   private render(): void {
     const hasProfiles = this.profiles.length > 0;
     const hasSelection = this.selectedId !== null && hasProfiles;
 
-    const options = hasProfiles
-      ? this.profiles
-          .map(
-            (p) =>
-              `<option value="${escapeHtml(p.id)}" ${p.id === this.selectedId ? "selected" : ""}>${escapeHtml(p.name)}</option>`
-          )
-          .join("")
-      : `<option value="">${t("profiles.noProfiles")}</option>`;
+    let treeHtml: string;
+    if (!hasProfiles) {
+      treeHtml = `<div class="profile-tree__empty">${t("profiles.noProfiles")}</div>`;
+    } else {
+      const groups = this.groupedProfiles();
+      const keys = this.orderedGroupKeys(groups);
+      treeHtml = keys
+        .map((key) => {
+          const list = groups.get(key)!;
+          const label = key === "" ? t("profiles.ungrouped") : escapeHtml(key);
+          const collapsed = this.collapsedGroups.has(key);
+          const caret = collapsed ? "▸" : "▾";
+          const rows = collapsed
+            ? ""
+            : list
+                .map(
+                  (p) =>
+                    `<div class="profile-row${p.id === this.selectedId ? " profile-row--selected" : ""}" data-id="${escapeHtml(p.id)}" role="option" aria-selected="${p.id === this.selectedId}" title="${escapeHtml(p.username)}@${escapeHtml(p.host)}">${escapeHtml(p.name)}</div>`
+                )
+                .join("");
+          return `
+            <div class="profile-group">
+              <div class="profile-group__header" data-group="${escapeHtml(key)}">
+                <span class="profile-group__caret">${caret}</span>
+                <span class="profile-group__name">${label}</span>
+                <span class="profile-group__count">${list.length}</span>
+              </div>
+              <div class="profile-group__rows">${rows}</div>
+            </div>`;
+        })
+        .join("");
+    }
+
+    const sortNameActive = this.sortMode === "name" ? " profile-sort__btn--active" : "";
+    const sortCreatedActive = this.sortMode === "created" ? " profile-sort__btn--active" : "";
 
     this.container.innerHTML = `
       <div class="profile-selector">
-        <label for="profile-select">${t("profiles.label")}</label>
-        <select id="profile-select" ${!hasProfiles ? "disabled" : ""}>${options}</select>
+        <div class="profile-selector__head">
+          <label id="profile-tree-label">${t("profiles.label")}</label>
+          <div class="profile-sort" role="group" aria-label="${t("profiles.sortLabel")}">
+            <button class="profile-sort__btn${sortNameActive}" id="profile-sort-name" title="${t("profiles.sortName")}">${t("profiles.sortNameShort")}</button>
+            <button class="profile-sort__btn${sortCreatedActive}" id="profile-sort-created" title="${t("profiles.sortCreated")}">${t("profiles.sortCreatedShort")}</button>
+          </div>
+        </div>
+        <div class="profile-tree" id="profile-tree" role="listbox" aria-labelledby="profile-tree-label">${treeHtml}</div>
         <div class="profile-mgmt-btns">
           <button class="btn-secondary" id="new-profile-btn">${t("profiles.new")}</button>
           <button class="btn-secondary" id="edit-profile-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.edit")}</button>
@@ -178,29 +251,55 @@ export class ProfileSelector {
       </div>
     `;
 
-    document.getElementById("profile-select")?.addEventListener("change", (e) => {
-      this.selectedId = (e.target as HTMLSelectElement).value || null;
-      // Update button states immediately — no full re-render needed
-      this.updateButtonStates();
+    this.container.querySelectorAll<HTMLElement>(".profile-group__header").forEach((h) => {
+      h.addEventListener("click", () => {
+        const key = h.dataset.group ?? "";
+        if (this.collapsedGroups.has(key)) this.collapsedGroups.delete(key);
+        else this.collapsedGroups.add(key);
+        this.render();
+      });
     });
 
-    document.getElementById("new-profile-btn")?.addEventListener("click", () => {
-      this.onNewCallback?.();
+    this.container.querySelectorAll<HTMLElement>(".profile-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        this.selectedId = row.dataset.id ?? null;
+        this.updateRowSelection();
+        this.updateButtonStates();
+      });
+      row.addEventListener("dblclick", () => {
+        this.selectedId = row.dataset.id ?? null;
+        if (this.selectedId && this.onConnectCallback && !this.isConnected && !this.isConnecting) {
+          this.onConnectCallback(this.selectedId);
+        }
+      });
     });
 
+    document.getElementById("profile-sort-name")?.addEventListener("click", () => {
+      if (this.sortMode !== "name") { this.sortMode = "name"; void this.persistSortMode(); this.render(); }
+    });
+    document.getElementById("profile-sort-created")?.addEventListener("click", () => {
+      if (this.sortMode !== "created") { this.sortMode = "created"; void this.persistSortMode(); this.render(); }
+    });
+
+    document.getElementById("new-profile-btn")?.addEventListener("click", () => this.onNewCallback?.());
     document.getElementById("edit-profile-btn")?.addEventListener("click", () => {
       const profile = this.getSelectedProfile();
       if (profile) this.onEditCallback?.(profile);
     });
-
     document.getElementById("delete-profile-btn")?.addEventListener("click", async () => {
       if (this.selectedId) await this.onDeleteCallback?.(this.selectedId);
     });
-
     document.getElementById("connect-btn")?.addEventListener("click", () => {
-      if (this.selectedId && this.onConnectCallback) {
-        this.onConnectCallback(this.selectedId);
-      }
+      if (this.selectedId && this.onConnectCallback) this.onConnectCallback(this.selectedId);
+    });
+  }
+
+  /** Toggle the selected-row highlight without a full re-render. */
+  private updateRowSelection(): void {
+    this.container.querySelectorAll<HTMLElement>(".profile-row").forEach((row) => {
+      const sel = row.dataset.id === this.selectedId;
+      row.classList.toggle("profile-row--selected", sel);
+      row.setAttribute("aria-selected", String(sel));
     });
   }
 }
