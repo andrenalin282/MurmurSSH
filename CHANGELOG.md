@@ -12,6 +12,17 @@ No changes yet.
 
 ---
 
+## [1.6.1] - 2026-06-12
+
+### Security
+- Updated **Tauri 2.10.3 → 2.11.1**, which fixes an Origin Confusion issue where remote pages could invoke local-only IPC commands (GHSA, medium severity).
+
+### Notes
+- Reviewed remaining transitive advisories: the `glib` (`VariantStrIter` unsoundness) and `rand` (custom-logger unsoundness) advisories are not reachable in MurmurSSH's usage and have no fix path within the current Tauri/GTK3 stack; they are tracked and will be picked up when the upstream stack moves to `glib` 0.20.
+- Added a SourceForge download mirror link (README and website).
+
+---
+
 ## [1.6.0] - 2026-06-11
 
 ### Added

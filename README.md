@@ -8,7 +8,9 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 **Website:** [murmurssh.kai-schultka.de](https://murmurssh.kai-schultka.de)
 
-**Available languages:** English, German, Netherland, France.
+**Download:** [GitHub Releases](../../releases) · [SourceForge](https://sourceforge.net/projects/murmurssh/)
+
+**Available languages:** English, German, French, Dutch, Polish, Russian.
 
 ---
 
@@ -61,6 +63,8 @@ sudo apt install \
   librsvg2-dev \
   libssh2-1-dev
 ```
+
+Releases are published on the [GitHub Releases](../../releases) page and mirrored on [SourceForge](https://sourceforge.net/projects/murmurssh/).
 
 ### Install from .deb
 
