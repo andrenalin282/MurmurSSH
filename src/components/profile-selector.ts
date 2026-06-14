@@ -233,6 +233,9 @@ export class ProfileSelector {
   }
 
   private render(): void {
+    // Close any open row context menu before rebuilding the DOM (it lives on
+    // document.body, so innerHTML replacement would otherwise orphan it).
+    this.hideContextMenu();
     const hasProfiles = this.profiles.length > 0;
     const hasSelection = this.selectedId !== null && hasProfiles;
 
