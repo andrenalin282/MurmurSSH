@@ -1,5 +1,6 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
+import { save } from "@tauri-apps/plugin-dialog";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
 import { LocalFileBrowser } from "./components/local-file-browser";
@@ -570,7 +571,17 @@ profileSelector.onOpenInNewWindow(async (profileId) => {
 });
 profileSelector.onCreateShortcut(async (profileId) => {
     try {
-        const path = await api.createDesktopShortcut(profileId);
+        const profile = profileSelector.getSelectedProfile();
+        const baseName = (profile?.name ?? profileId).replace(/[/\\]/g, "-");
+        const dir = await api.getDesktopDir();
+        const target = await save({
+            defaultPath: `${dir}/MurmurSSH - ${baseName}.desktop`,
+            title: t("profiles.shortcutSaveTitle"),
+            filters: [{ name: "Desktop launcher", extensions: ["desktop"] }],
+        });
+        if (!target)
+            return; // user cancelled the save dialog
+        const path = await api.createDesktopShortcut(profileId, target);
         await showConfirm(t("profiles.shortcutCreated", { path }), t("profiles.createShortcut"));
     }
     catch (e) {

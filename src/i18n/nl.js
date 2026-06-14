@@ -198,6 +198,7 @@ const nl = {
         openInNewWindow: "In nieuw venster openen",
         createShortcut: "Snelkoppeling maken",
         shortcutCreated: "Snelkoppeling aangemaakt:\n{path}",
+        shortcutSaveTitle: "Snelkoppeling opslaan",
     },
     profileForm: {
         titleNew: "Nieuw profiel",

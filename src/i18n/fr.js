@@ -198,6 +198,7 @@ const fr = {
         openInNewWindow: "Ouvrir dans une nouvelle fenêtre",
         createShortcut: "Créer un raccourci bureau",
         shortcutCreated: "Raccourci bureau créé :\n{path}",
+        shortcutSaveTitle: "Enregistrer le raccourci bureau",
     },
     profileForm: {
         titleNew: "Nouveau profil",

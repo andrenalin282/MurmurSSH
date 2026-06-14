@@ -50,6 +50,7 @@ pub fn run() {
             commands::launch::get_launch_profile,
             commands::launch::open_profile_in_new_window,
             commands::launch::create_desktop_shortcut,
+            commands::launch::get_desktop_dir,
             commands::sftp::get_sftp_home,
             commands::sftp::list_directory,
             commands::sftp::remote_file_exists,

@@ -198,6 +198,7 @@ const de = {
         openInNewWindow: "In neuem Fenster öffnen",
         createShortcut: "Desktop-Verknüpfung erstellen",
         shortcutCreated: "Desktop-Verknüpfung erstellt:\n{path}",
+        shortcutSaveTitle: "Desktop-Verknüpfung speichern",
     },
     profileForm: {
         titleNew: "Neues Profil",

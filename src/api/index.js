@@ -294,7 +294,11 @@ export async function getLaunchProfile() {
 export async function openProfileInNewWindow(profileId) {
     return invoke("open_profile_in_new_window", { profileId });
 }
-/** Write a .desktop launcher for the profile; resolves to the written path. */
-export async function createDesktopShortcut(profileId) {
-    return invoke("create_desktop_shortcut", { profileId });
+/** Write a .desktop launcher for the profile to targetPath; resolves to the written path. */
+export async function createDesktopShortcut(profileId, targetPath) {
+    return invoke("create_desktop_shortcut", { profileId, targetPath });
+}
+/** Locale-aware default directory (Desktop) for the shortcut save dialog. */
+export async function getDesktopDir() {
+    return invoke("get_desktop_dir");
 }

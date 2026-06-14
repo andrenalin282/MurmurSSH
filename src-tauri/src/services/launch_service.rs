@@ -90,20 +90,67 @@ pub fn open_in_new_window(profile_id: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to launch new window: {e}"))
 }
 
-/// Write a `.desktop` launcher for `profile_id` into the user's applications dir.
-/// Returns the written path.
-pub fn create_desktop_shortcut(profile_id: &str) -> Result<String, String> {
+/// Locale-aware desktop directory for the save dialog's default location.
+/// Prefers the XDG desktop dir (e.g. `~/Schreibtisch`), then `~/Desktop`, then `$HOME`.
+pub fn desktop_dir() -> String {
+    if let Ok(out) = std::process::Command::new("xdg-user-dir").arg("DESKTOP").output() {
+        if out.status.success() {
+            let p = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if !p.is_empty() && std::path::Path::new(&p).is_dir() {
+                return p;
+            }
+        }
+    }
+    let home = std::env::var("HOME").unwrap_or_default();
+    let desktop = std::path::Path::new(&home).join("Desktop");
+    if desktop.is_dir() {
+        return desktop.to_string_lossy().to_string();
+    }
+    home
+}
+
+/// Stable executable path to bake into a persistent `.desktop` launcher.
+/// For an AppImage `current_exe()` is an ephemeral mount under /tmp that vanishes
+/// on exit, so prefer `$APPIMAGE` (the real .AppImage file) when present.
+fn exec_target() -> Result<String, String> {
+    if let Ok(appimage) = std::env::var("APPIMAGE") {
+        if !appimage.is_empty() {
+            return Ok(appimage);
+        }
+    }
+    std::env::current_exe()
+        .map(|p| p.to_string_lossy().to_string())
+        .map_err(|e| format!("current_exe failed: {e}"))
+}
+
+/// Write a `.desktop` launcher for `profile_id` to a user-chosen `target_path`,
+/// then make it an executable, trusted launcher so desktop environments (GNOME)
+/// run it on double-click instead of showing a dead text file. Returns the path.
+pub fn create_desktop_shortcut(profile_id: &str, target_path: &str) -> Result<String, String> {
     if profile_id.contains('\0') || profile_id.contains('/') {
         return Err("Invalid profile id".to_string());
     }
+    if target_path.is_empty() || target_path.contains('\0') {
+        return Err("Invalid target path".to_string());
+    }
     let profile = profile_service::get_profile(profile_id)?;
-    let exe = std::env::current_exe().map_err(|e| format!("current_exe failed: {e}"))?;
-    let home = std::env::var("HOME").map_err(|_| "HOME not set".to_string())?;
-    let dir = std::path::Path::new(&home).join(".local/share/applications");
-    std::fs::create_dir_all(&dir).map_err(|e| format!("Failed to create dir: {e}"))?;
-    let path = dir.join(format!("murmurssh-{profile_id}.desktop"));
-    let content = desktop_entry(&exe.to_string_lossy(), &profile);
+    let exe = exec_target()?;
+    let path = std::path::PathBuf::from(target_path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create dir: {e}"))?;
+    }
+    let content = desktop_entry(&exe, &profile);
     std::fs::write(&path, content).map_err(|e| format!("Failed to write shortcut: {e}"))?;
+
+    // GNOME (and others) only run a .desktop launcher that is BOTH executable and
+    // marked trusted — otherwise it shows as a plain text file. Both are
+    // best-effort: the file is already written, so we don't fail the whole op.
+    use std::os::unix::fs::PermissionsExt;
+    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755));
+    let _ = std::process::Command::new("gio")
+        .args(["set", &path.to_string_lossy(), "metadata::trusted", "true"])
+        .status();
+
     Ok(path.to_string_lossy().to_string())
 }
 
@@ -196,3 +243,5 @@ mod tests {
         assert!(s.contains("ex  ample.com"));
     }
 }
+
+

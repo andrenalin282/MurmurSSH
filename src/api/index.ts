@@ -410,7 +410,12 @@ export async function openProfileInNewWindow(profileId: string): Promise<void> {
   return invoke("open_profile_in_new_window", { profileId });
 }
 
-/** Write a .desktop launcher for the profile; resolves to the written path. */
-export async function createDesktopShortcut(profileId: string): Promise<string> {
-  return invoke<string>("create_desktop_shortcut", { profileId });
+/** Write a .desktop launcher for the profile to targetPath; resolves to the written path. */
+export async function createDesktopShortcut(profileId: string, targetPath: string): Promise<string> {
+  return invoke<string>("create_desktop_shortcut", { profileId, targetPath });
+}
+
+/** Locale-aware default directory (Desktop) for the shortcut save dialog. */
+export async function getDesktopDir(): Promise<string> {
+  return invoke<string>("get_desktop_dir");
 }

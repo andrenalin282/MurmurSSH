@@ -12,8 +12,14 @@ pub fn open_profile_in_new_window(profile_id: String) -> Result<(), String> {
     launch_service::open_in_new_window(&profile_id)
 }
 
-/// Write a `.desktop` launcher for `profile_id`; returns the written path.
+/// Write a `.desktop` launcher for `profile_id` to a user-chosen path; returns it.
 #[tauri::command]
-pub fn create_desktop_shortcut(profile_id: String) -> Result<String, String> {
-    launch_service::create_desktop_shortcut(&profile_id)
+pub fn create_desktop_shortcut(profile_id: String, target_path: String) -> Result<String, String> {
+    launch_service::create_desktop_shortcut(&profile_id, &target_path)
+}
+
+/// Locale-aware default directory (Desktop) for the shortcut save dialog.
+#[tauri::command]
+pub fn get_desktop_dir() -> String {
+    launch_service::desktop_dir()
 }
