@@ -200,6 +200,9 @@ const nl = {
     sortNameShort: "A–Z",
     sortCreated: "Sorteer op datum",
     sortCreatedShort: "Nieuwste",
+    openInNewWindow: "In nieuw venster openen",
+    createShortcut: "Snelkoppeling maken",
+    shortcutCreated: "Snelkoppeling aangemaakt:\n{path}",
   },
 
   profileForm: {

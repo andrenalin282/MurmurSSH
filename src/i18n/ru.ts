@@ -200,6 +200,9 @@ const ru = {
     sortNameShort: "А–Я",
     sortCreated: "Сортировать по дате",
     sortCreatedShort: "Новые",
+    openInNewWindow: "Открыть в новом окне",
+    createShortcut: "Создать ярлык на рабочем столе",
+    shortcutCreated: "Ярлык создан:\n{path}",
   },
 
   profileForm: {
