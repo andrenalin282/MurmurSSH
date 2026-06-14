@@ -46,6 +46,10 @@ pub fn resolve_profile_id(raw: &str, profiles: &[Profile]) -> Option<String> {
 /// Pure: build the `.desktop` file content for a profile.
 /// The exec path is double-quoted so paths with spaces (e.g. AppImage) stay valid.
 pub fn desktop_entry(exec_path: &str, profile: &Profile) -> String {
+    // Strip CR/LF from free-text profile fields so a newline can't inject extra
+    // Desktop Entry keys into the generated file. The Exec line is already safe
+    // (it uses only the slug `id`, which is validated by the caller).
+    let strip = |s: &str| s.replace(['\n', '\r'], " ");
     format!(
         "[Desktop Entry]\n\
          Type=Application\n\
@@ -55,9 +59,9 @@ pub fn desktop_entry(exec_path: &str, profile: &Profile) -> String {
          Icon=murmurssh\n\
          Terminal=false\n\
          Categories=Network;RemoteAccess;\n",
-        name = profile.name,
-        user = profile.username,
-        host = profile.host,
+        name = strip(&profile.name),
+        user = strip(&profile.username),
+        host = strip(&profile.host),
         exec = exec_path,
         id = profile.id,
     )
@@ -179,5 +183,16 @@ mod tests {
         assert!(s.contains("Exec=\"/opt/My App/murmurssh\" --profile web-1"));
         assert!(s.contains("Name=MurmurSSH — Web One"));
         assert!(s.contains("Comment=Connect to root@example.com"));
+    }
+
+    #[test]
+    fn desktop_entry_strips_newlines_from_fields() {
+        let mut p = mk("web-1", "Web\nOne");
+        p.host = "ex\r\nample.com".to_string();
+        let s = desktop_entry("/opt/murmurssh", &p);
+        // No interpolated field may introduce a bare newline that starts a new key.
+        assert!(s.contains("Name=MurmurSSH — Web One"));
+        assert!(!s.contains("Name=MurmurSSH — Web\nOne"));
+        assert!(s.contains("ex  ample.com"));
     }
 }
