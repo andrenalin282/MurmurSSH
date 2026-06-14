@@ -20,6 +20,10 @@ export class ProfileSelector {
   private onNewCallback: (() => void) | null = null;
   private onEditCallback: ((profile: Profile) => void) | null = null;
   private onDeleteCallback: ((profileId: string) => Promise<void>) | null = null;
+  private connectedId: string | null = null;
+  private onOpenInNewWindowCallback: ((profileId: string) => void) | null = null;
+  private onCreateShortcutCallback: ((profileId: string) => void) | null = null;
+  private contextMenu: HTMLElement | null = null;
   // Accordion: at most one group open at a time. "" = ungrouped bucket, null = none.
   private expandedGroup: string | null = null;
   private sortMode: "name" | "created" = "name";
@@ -86,6 +90,14 @@ export class ProfileSelector {
     this.onDeleteCallback = callback;
   }
 
+  onOpenInNewWindow(callback: (profileId: string) => void): void {
+    this.onOpenInNewWindowCallback = callback;
+  }
+
+  onCreateShortcut(callback: (profileId: string) => void): void {
+    this.onCreateShortcutCallback = callback;
+  }
+
   getSelectedProfile(): Profile | null {
     return this.profiles.find((p) => p.id === this.selectedId) ?? null;
   }
@@ -96,8 +108,9 @@ export class ProfileSelector {
    * are locked to prevent modifying the active profile.
    * When disconnected: buttons are restored based on current selection state.
    */
-  setConnected(isConnected: boolean): void {
+  setConnected(isConnected: boolean, connectedId: string | null = null): void {
     this.isConnected = isConnected;
+    this.connectedId = isConnected ? connectedId : null;
     if (!isConnected) this.isConnecting = false;
     const hasSelection = this.selectedId !== null && this.profiles.length > 0;
     const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
@@ -114,6 +127,7 @@ export class ProfileSelector {
     }
     if (editBtn) editBtn.disabled = isConnected || this.isConnecting || !hasSelection;
     if (deleteBtn) deleteBtn.disabled = isConnected || this.isConnecting || !hasSelection;
+    this.updatePrimaryButtons();
   }
 
   /**
@@ -132,6 +146,7 @@ export class ProfileSelector {
         ? t("profiles.connected")
         : t("profiles.connect");
     }
+    this.updatePrimaryButtons();
   }
 
   /**
@@ -155,6 +170,20 @@ export class ProfileSelector {
         ? t("profiles.connecting")
         : t("profiles.connect");
     }
+    this.updatePrimaryButtons();
+  }
+
+  /**
+   * Show "Open in new window" instead of "Connect" only when a session is active
+   * AND the selected profile differs from the connected one. Otherwise show Connect.
+   */
+  private updatePrimaryButtons(): void {
+    const connectBtn = document.getElementById("connect-btn") as HTMLButtonElement | null;
+    const openBtn = document.getElementById("open-window-btn") as HTMLButtonElement | null;
+    const showOpen =
+      this.isConnected && this.selectedId !== null && this.selectedId !== this.connectedId;
+    if (connectBtn) connectBtn.style.display = showOpen ? "none" : "";
+    if (openBtn) openBtn.style.display = showOpen ? "" : "none";
   }
 
   private async persistSortMode(): Promise<void> {
@@ -259,6 +288,7 @@ export class ProfileSelector {
           <button class="btn-secondary btn-danger" id="delete-profile-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.delete")}</button>
         </div>
         <button id="connect-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.connect")}</button>
+        <button id="open-window-btn" style="display:none">${t("profiles.openInNewWindow")}</button>
       </div>
     `;
 
@@ -284,6 +314,13 @@ export class ProfileSelector {
           this.onConnectCallback(this.selectedId);
         }
       });
+      row.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        this.selectedId = row.dataset.id ?? null;
+        this.updateRowSelection();
+        this.updateButtonStates();
+        if (this.selectedId) this.showRowContextMenu(e.clientX, e.clientY, this.selectedId);
+      });
     });
 
     document.getElementById("profile-sort-name")?.addEventListener("click", () => {
@@ -304,6 +341,10 @@ export class ProfileSelector {
     document.getElementById("connect-btn")?.addEventListener("click", () => {
       if (this.selectedId && this.onConnectCallback) this.onConnectCallback(this.selectedId);
     });
+    document.getElementById("open-window-btn")?.addEventListener("click", () => {
+      if (this.selectedId) this.onOpenInNewWindowCallback?.(this.selectedId);
+    });
+    this.updatePrimaryButtons();
   }
 
   /** Toggle the selected-row highlight without a full re-render. */
@@ -313,5 +354,44 @@ export class ProfileSelector {
       row.classList.toggle("profile-row--selected", sel);
       row.setAttribute("aria-selected", String(sel));
     });
+  }
+
+  private hideContextMenu(): void {
+    this.contextMenu?.remove();
+    this.contextMenu = null;
+  }
+
+  private showRowContextMenu(x: number, y: number, profileId: string): void {
+    this.hideContextMenu();
+    const menu = document.createElement("div");
+    menu.className = "lb-context-menu";
+    menu.innerHTML = `
+      <button data-action="new-window">${t("profiles.openInNewWindow")}</button>
+      <button data-action="shortcut">${t("profiles.createShortcut")}</button>
+    `;
+    document.body.appendChild(menu);
+    const rect = menu.getBoundingClientRect();
+    menu.style.left = `${Math.min(x, window.innerWidth - rect.width - 4)}px`;
+    menu.style.top = `${Math.min(y, window.innerHeight - rect.height - 4)}px`;
+    this.contextMenu = menu;
+
+    menu.addEventListener("click", (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-action]");
+      if (!btn) return;
+      const action = btn.dataset.action;
+      this.hideContextMenu();
+      if (action === "new-window") this.onOpenInNewWindowCallback?.(profileId);
+      else if (action === "shortcut") this.onCreateShortcutCallback?.(profileId);
+    });
+
+    setTimeout(() => {
+      document.addEventListener("mousedown", () => this.hideContextMenu(), { once: true });
+    }, 0);
+  }
+
+  /** Programmatically select a profile by id and re-render (used by launch auto-connect). */
+  selectProfile(id: string): void {
+    this.selectedId = id;
+    this.render();
   }
 }
