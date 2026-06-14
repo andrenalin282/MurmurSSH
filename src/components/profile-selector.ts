@@ -20,7 +20,8 @@ export class ProfileSelector {
   private onNewCallback: (() => void) | null = null;
   private onEditCallback: ((profile: Profile) => void) | null = null;
   private onDeleteCallback: ((profileId: string) => Promise<void>) | null = null;
-  private collapsedGroups = new Set<string>();
+  // Accordion: at most one group open at a time. "" = ungrouped bucket, null = none.
+  private expandedGroup: string | null = null;
   private sortMode: "name" | "created" = "name";
 
   constructor(containerId: string) {
@@ -34,6 +35,7 @@ export class ProfileSelector {
     const settings: Settings = await api.getSettings();
     this.selectedId = settings.last_used_profile_id;
     this.sortMode = settings.profile_sort === "created" ? "created" : "name";
+    this.expandedGroup = settings.expanded_profile_group ?? null;
 
     // Fall back to first profile if last-used is absent or no longer valid
     if (!this.selectedId || !this.profiles.find((p) => p.id === this.selectedId)) {
@@ -164,6 +166,15 @@ export class ProfileSelector {
     }
   }
 
+  private async persistExpandedGroup(): Promise<void> {
+    try {
+      const settings = await api.getSettings();
+      await api.saveSettings({ ...settings, expanded_profile_group: this.expandedGroup });
+    } catch (e) {
+      console.warn("[ProfileSelector] Failed to persist expanded group:", e);
+    }
+  }
+
   /** Group profiles by their `group` field; ungrouped under the empty-string key. */
   private groupedProfiles(): Map<string, Profile[]> {
     const groups = new Map<string, Profile[]>();
@@ -206,7 +217,7 @@ export class ProfileSelector {
         .map((key) => {
           const list = groups.get(key)!;
           const label = key === "" ? t("profiles.ungrouped") : escapeHtml(key);
-          const collapsed = this.collapsedGroups.has(key);
+          const collapsed = key !== this.expandedGroup;
           const caret = collapsed ? "▸" : "▾";
           const rows = collapsed
             ? ""
@@ -254,8 +265,9 @@ export class ProfileSelector {
     this.container.querySelectorAll<HTMLElement>(".profile-group__header").forEach((h) => {
       h.addEventListener("click", () => {
         const key = h.dataset.group ?? "";
-        if (this.collapsedGroups.has(key)) this.collapsedGroups.delete(key);
-        else this.collapsedGroups.add(key);
+        // Accordion: clicking the open group closes it; any other becomes the sole open one.
+        this.expandedGroup = this.expandedGroup === key ? null : key;
+        void this.persistExpandedGroup();
         this.render();
       });
     });
