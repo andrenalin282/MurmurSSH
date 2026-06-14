@@ -286,3 +286,15 @@ export async function renameLocalFile(fromPath, toPath) {
 export async function openLocalFile(path, editor) {
     return invoke("open_local_file", { path, editor: editor ?? null });
 }
+/** Canonical id of the profile this instance was launched to connect to, if any. */
+export async function getLaunchProfile() {
+    return invoke("get_launch_profile");
+}
+/** Open a second, independent window connecting to the given profile. */
+export async function openProfileInNewWindow(profileId) {
+    return invoke("open_profile_in_new_window", { profileId });
+}
+/** Write a .desktop launcher for the profile; resolves to the written path. */
+export async function createDesktopShortcut(profileId) {
+    return invoke("create_desktop_shortcut", { profileId });
+}

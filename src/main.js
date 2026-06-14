@@ -449,7 +449,7 @@ listen("upload-complete", (event) => {
 listen("upload-error", (event) => {
     statusBar.set("error", t("app.autoUploadFailed", { error: event.payload }));
 });
-profileSelector.onConnect(async (profileId) => {
+async function connectToProfile(profileId) {
     const profile = profileSelector.getSelectedProfile();
     if (!profile)
         return;
@@ -494,7 +494,7 @@ profileSelector.onConnect(async (profileId) => {
     connectedProfileId = profileId;
     connectingProfileId = null;
     profileSelector.setConnecting(false);
-    profileSelector.setConnected(true);
+    profileSelector.setConnected(true, profileId);
     // Read current settings before writing to preserve profiles_path, theme, etc.
     try {
         const currentSettings = await api.getSettings();
@@ -558,6 +558,24 @@ profileSelector.onConnect(async (profileId) => {
             await localBrowser.refresh();
         }
     });
+}
+profileSelector.onConnect(connectToProfile);
+profileSelector.onOpenInNewWindow(async (profileId) => {
+    try {
+        await api.openProfileInNewWindow(profileId);
+    }
+    catch (e) {
+        statusBar.set("error", String(e));
+    }
+});
+profileSelector.onCreateShortcut(async (profileId) => {
+    try {
+        const path = await api.createDesktopShortcut(profileId);
+        await showConfirm(t("profiles.shortcutCreated", { path }), t("profiles.createShortcut"));
+    }
+    catch (e) {
+        statusBar.set("error", String(e));
+    }
 });
 profileSelector.init().then(async (lastUsedId) => {
     // Clean up any leftover runtime keys from a previous session that crashed
@@ -582,5 +600,18 @@ profileSelector.init().then(async (lastUsedId) => {
         if (profile) {
             fileBrowser.setProfile(lastUsedId, profile.default_remote_path ?? "/", profile.local_path ?? null, profile.protocol ?? null);
         }
+    }
+    // If launched with `--profile <id>`, auto-connect to it (resolved server-side).
+    try {
+        const launchId = await api.getLaunchProfile();
+        if (launchId) {
+            profileSelector.selectProfile(launchId);
+            if (profileSelector.getSelectedProfile()) {
+                await connectToProfile(launchId);
+            }
+        }
+    }
+    catch {
+        // Non-fatal — fall back to the normal idle UI.
     }
 });

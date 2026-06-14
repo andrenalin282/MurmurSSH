@@ -195,6 +195,9 @@ const fr = {
         sortNameShort: "A–Z",
         sortCreated: "Trier par date",
         sortCreatedShort: "Récents",
+        openInNewWindow: "Ouvrir dans une nouvelle fenêtre",
+        createShortcut: "Créer un raccourci bureau",
+        shortcutCreated: "Raccourci bureau créé :\n{path}",
     },
     profileForm: {
         titleNew: "Nouveau profil",
