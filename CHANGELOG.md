@@ -12,6 +12,25 @@ No changes yet.
 
 ---
 
+## [1.6.2] - 2026-06-15
+
+### Added
+- **Open a profile in a new window.** While one connection is active, selecting a *different* profile turns **Connect** into **Open in new window**, which launches that profile in a second, independent window — so you can browse several servers at once. Each window is its own process with its own credential prompt.
+- **Launch a profile directly.** Start the app already pointed at a profile from the command line with `murmurssh --profile "<name or id>"` (matched by exact id first, then case-insensitively by name).
+- **Desktop shortcuts.** Right-click a profile → **Create desktop shortcut** opens a "Save as" dialog (defaulting to your desktop) and writes an executable, trusted `.desktop` launcher that connects to the profile on double-click.
+
+### Changed
+- **Profile groups are now a single-open accordion.** Opening one group collapses the others, and the last-opened group is remembered across restarts — so the list takes up far less vertical space.
+
+### Security
+- Resolved the esbuild development-server advisory (GHSA-67mh-4wv8-2f99) by updating the frontend build toolchain and pinning esbuild ≥ 0.28.1. esbuild is a build-only dependency and is never shipped in the application.
+
+### Fixed
+- Generated desktop launchers are now marked executable and trusted, so GNOME runs them on double-click instead of showing a plain text file. The `Exec` path also prefers the real AppImage path so launchers created from an AppImage keep working.
+- The profile-row right-click menu items ("Open in new window" / "Create desktop shortcut") are now clickable.
+
+---
+
 ## [1.6.1] - 2026-06-12
 
 ### Security

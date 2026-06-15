@@ -2016,7 +2016,7 @@ dependencies = [
 
 [[package]]
 name = "murmurssh"
-version = "1.6.1"
+version = "1.6.2"
 dependencies = [
  "notify",
  "serde",
