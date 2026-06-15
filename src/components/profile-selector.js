@@ -348,7 +348,11 @@ export class ProfileSelector {
             row.setAttribute("aria-selected", String(sel));
         });
     }
-    hideContextMenu() {
+    hideContextMenu(e) {
+        // Ignore mousedowns inside the menu: they precede the button's `click`, so
+        // removing the menu here would cancel the action before it fires.
+        if (e && this.contextMenu?.contains(e.target))
+            return;
         this.contextMenu?.remove();
         this.contextMenu = null;
     }
@@ -377,7 +381,7 @@ export class ProfileSelector {
                 this.onCreateShortcutCallback?.(profileId);
         });
         setTimeout(() => {
-            document.addEventListener("mousedown", () => this.hideContextMenu(), { once: true });
+            document.addEventListener("mousedown", (e) => this.hideContextMenu(e), { once: true });
         }, 0);
     }
     /** Programmatically select a profile by id and re-render (used by launch auto-connect). */

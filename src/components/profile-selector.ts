@@ -359,7 +359,10 @@ export class ProfileSelector {
     });
   }
 
-  private hideContextMenu(): void {
+  private hideContextMenu(e?: MouseEvent): void {
+    // Ignore mousedowns inside the menu: they precede the button's `click`, so
+    // removing the menu here would cancel the action before it fires.
+    if (e && this.contextMenu?.contains(e.target as Node)) return;
     this.contextMenu?.remove();
     this.contextMenu = null;
   }
@@ -388,7 +391,7 @@ export class ProfileSelector {
     });
 
     setTimeout(() => {
-      document.addEventListener("mousedown", () => this.hideContextMenu(), { once: true });
+      document.addEventListener("mousedown", (e) => this.hideContextMenu(e), { once: true });
     }, 0);
   }
 
