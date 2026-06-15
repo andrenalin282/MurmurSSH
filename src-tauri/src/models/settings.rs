@@ -23,5 +23,10 @@ pub struct Settings {
     /// When None, defaults to "name" on the frontend.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub profile_sort: Option<String>,
+    /// Which profile group is currently expanded in the selector accordion.
+    /// At most one group is open at a time. `Some("")` is the ungrouped bucket;
+    /// `None` means nothing is expanded. Restored on next launch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expanded_profile_group: Option<String>,
 }
 

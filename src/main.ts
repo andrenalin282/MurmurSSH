@@ -1,5 +1,6 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
+import { save } from "@tauri-apps/plugin-dialog";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
 import { LocalFileBrowser } from "./components/local-file-browser";
@@ -507,7 +508,7 @@ listen<string>("upload-error", (event) => {
   statusBar.set("error", t("app.autoUploadFailed", { error: event.payload }));
 });
 
-profileSelector.onConnect(async (profileId: string) => {
+async function connectToProfile(profileId: string) {
   const profile = profileSelector.getSelectedProfile();
   if (!profile) return;
 
@@ -555,7 +556,7 @@ profileSelector.onConnect(async (profileId: string) => {
   connectedProfileId = profileId;
   connectingProfileId = null;
   profileSelector.setConnecting(false);
-  profileSelector.setConnected(true);
+  profileSelector.setConnected(true, profileId);
 
   // Read current settings before writing to preserve profiles_path, theme, etc.
   try {
@@ -621,6 +622,33 @@ profileSelector.onConnect(async (profileId: string) => {
       await localBrowser.refresh();
     }
   });
+}
+profileSelector.onConnect(connectToProfile);
+
+profileSelector.onOpenInNewWindow(async (profileId: string) => {
+  try {
+    await api.openProfileInNewWindow(profileId);
+  } catch (e) {
+    statusBar.set("error", String(e));
+  }
+});
+
+profileSelector.onCreateShortcut(async (profileId: string) => {
+  try {
+    const profile = profileSelector.getSelectedProfile();
+    const baseName = (profile?.name ?? profileId).replace(/[/\\]/g, "-");
+    const dir = await api.getDesktopDir();
+    const target = await save({
+      defaultPath: `${dir}/MurmurSSH - ${baseName}.desktop`,
+      title: t("profiles.shortcutSaveTitle"),
+      filters: [{ name: "Desktop launcher", extensions: ["desktop"] }],
+    });
+    if (!target) return; // user cancelled the save dialog
+    const path = await api.createDesktopShortcut(profileId, target);
+    await showConfirm(t("profiles.shortcutCreated", { path }), t("profiles.createShortcut"));
+  } catch (e) {
+    statusBar.set("error", String(e));
+  }
 });
 
 profileSelector.init().then(async (lastUsedId) => {
@@ -646,5 +674,18 @@ profileSelector.init().then(async (lastUsedId) => {
     if (profile) {
       fileBrowser.setProfile(lastUsedId, profile.default_remote_path ?? "/", profile.local_path ?? null, profile.protocol ?? null);
     }
+  }
+
+  // If launched with `--profile <id>`, auto-connect to it (resolved server-side).
+  try {
+    const launchId = await api.getLaunchProfile();
+    if (launchId) {
+      profileSelector.selectProfile(launchId);
+      if (profileSelector.getSelectedProfile()) {
+        await connectToProfile(launchId);
+      }
+    }
+  } catch {
+    // Non-fatal — fall back to the normal idle UI.
   }
 });

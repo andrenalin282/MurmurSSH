@@ -4,7 +4,6 @@ import fr from "./fr";
 import nl from "./nl";
 import ru from "./ru";
 import pl from "./pl";
-
 const locales = { en, de, fr, nl, ru, pl };
 const STORAGE_KEY = "murmurssh_locale";
 let currentLocaleKey = "en";

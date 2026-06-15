@@ -1,4 +1,5 @@
 pub mod credentials_store;
+pub mod launch_service;
 pub mod ftp_service;
 pub mod local_service;
 pub mod known_hosts_service;

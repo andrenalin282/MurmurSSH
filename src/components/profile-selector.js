@@ -17,7 +17,12 @@ export class ProfileSelector {
         this.onNewCallback = null;
         this.onEditCallback = null;
         this.onDeleteCallback = null;
-        this.collapsedGroups = new Set();
+        this.connectedId = null;
+        this.onOpenInNewWindowCallback = null;
+        this.onCreateShortcutCallback = null;
+        this.contextMenu = null;
+        // Accordion: at most one group open at a time. "" = ungrouped bucket, null = none.
+        this.expandedGroup = null;
         this.sortMode = "name";
         const el = document.getElementById(containerId);
         if (!el)
@@ -29,6 +34,7 @@ export class ProfileSelector {
         const settings = await api.getSettings();
         this.selectedId = settings.last_used_profile_id;
         this.sortMode = settings.profile_sort === "created" ? "created" : "name";
+        this.expandedGroup = settings.expanded_profile_group ?? null;
         // Fall back to first profile if last-used is absent or no longer valid
         if (!this.selectedId || !this.profiles.find((p) => p.id === this.selectedId)) {
             this.selectedId = this.profiles[0]?.id ?? null;
@@ -71,6 +77,12 @@ export class ProfileSelector {
     onDelete(callback) {
         this.onDeleteCallback = callback;
     }
+    onOpenInNewWindow(callback) {
+        this.onOpenInNewWindowCallback = callback;
+    }
+    onCreateShortcut(callback) {
+        this.onCreateShortcutCallback = callback;
+    }
     getSelectedProfile() {
         return this.profiles.find((p) => p.id === this.selectedId) ?? null;
     }
@@ -80,8 +92,9 @@ export class ProfileSelector {
      * are locked to prevent modifying the active profile.
      * When disconnected: buttons are restored based on current selection state.
      */
-    setConnected(isConnected) {
+    setConnected(isConnected, connectedId = null) {
         this.isConnected = isConnected;
+        this.connectedId = isConnected ? connectedId : null;
         if (!isConnected)
             this.isConnecting = false;
         const hasSelection = this.selectedId !== null && this.profiles.length > 0;
@@ -100,6 +113,7 @@ export class ProfileSelector {
             editBtn.disabled = isConnected || this.isConnecting || !hasSelection;
         if (deleteBtn)
             deleteBtn.disabled = isConnected || this.isConnecting || !hasSelection;
+        this.updatePrimaryButtons();
     }
     /**
      * Lock profile actions while a connection attempt is in progress.
@@ -118,6 +132,7 @@ export class ProfileSelector {
                     ? t("profiles.connected")
                     : t("profiles.connect");
         }
+        this.updatePrimaryButtons();
     }
     /**
      * Update the disabled state of Edit / Delete / Connect buttons to match the
@@ -142,6 +157,20 @@ export class ProfileSelector {
                     ? t("profiles.connecting")
                     : t("profiles.connect");
         }
+        this.updatePrimaryButtons();
+    }
+    /**
+     * Show "Open in new window" instead of "Connect" only when a session is active
+     * AND the selected profile differs from the connected one. Otherwise show Connect.
+     */
+    updatePrimaryButtons() {
+        const connectBtn = document.getElementById("connect-btn");
+        const openBtn = document.getElementById("open-window-btn");
+        const showOpen = this.isConnected && this.selectedId !== null && this.selectedId !== this.connectedId;
+        if (connectBtn)
+            connectBtn.style.display = showOpen ? "none" : "";
+        if (openBtn)
+            openBtn.style.display = showOpen ? "" : "none";
     }
     async persistSortMode() {
         try {
@@ -150,6 +179,15 @@ export class ProfileSelector {
         }
         catch (e) {
             console.warn("[ProfileSelector] Failed to persist sort mode:", e);
+        }
+    }
+    async persistExpandedGroup() {
+        try {
+            const settings = await api.getSettings();
+            await api.saveSettings({ ...settings, expanded_profile_group: this.expandedGroup });
+        }
+        catch (e) {
+            console.warn("[ProfileSelector] Failed to persist expanded group:", e);
         }
     }
     /** Group profiles by their `group` field; ungrouped under the empty-string key. */
@@ -182,6 +220,9 @@ export class ProfileSelector {
         });
     }
     render() {
+        // Close any open row context menu before rebuilding the DOM (it lives on
+        // document.body, so innerHTML replacement would otherwise orphan it).
+        this.hideContextMenu();
         const hasProfiles = this.profiles.length > 0;
         const hasSelection = this.selectedId !== null && hasProfiles;
         let treeHtml;
@@ -195,7 +236,7 @@ export class ProfileSelector {
                 .map((key) => {
                 const list = groups.get(key);
                 const label = key === "" ? t("profiles.ungrouped") : escapeHtml(key);
-                const collapsed = this.collapsedGroups.has(key);
+                const collapsed = key !== this.expandedGroup;
                 const caret = collapsed ? "▸" : "▾";
                 const rows = collapsed
                     ? ""
@@ -232,15 +273,15 @@ export class ProfileSelector {
           <button class="btn-secondary btn-danger" id="delete-profile-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.delete")}</button>
         </div>
         <button id="connect-btn" ${!hasSelection ? "disabled" : ""}>${t("profiles.connect")}</button>
+        <button id="open-window-btn" style="display:none">${t("profiles.openInNewWindow")}</button>
       </div>
     `;
         this.container.querySelectorAll(".profile-group__header").forEach((h) => {
             h.addEventListener("click", () => {
                 const key = h.dataset.group ?? "";
-                if (this.collapsedGroups.has(key))
-                    this.collapsedGroups.delete(key);
-                else
-                    this.collapsedGroups.add(key);
+                // Accordion: clicking the open group closes it; any other becomes the sole open one.
+                this.expandedGroup = this.expandedGroup === key ? null : key;
+                void this.persistExpandedGroup();
                 this.render();
             });
         });
@@ -255,6 +296,14 @@ export class ProfileSelector {
                 if (this.selectedId && this.onConnectCallback && !this.isConnected && !this.isConnecting) {
                     this.onConnectCallback(this.selectedId);
                 }
+            });
+            row.addEventListener("contextmenu", (e) => {
+                e.preventDefault();
+                this.selectedId = row.dataset.id ?? null;
+                this.updateRowSelection();
+                this.updateButtonStates();
+                if (this.selectedId)
+                    this.showRowContextMenu(e.clientX, e.clientY, this.selectedId);
             });
         });
         document.getElementById("profile-sort-name")?.addEventListener("click", () => {
@@ -285,6 +334,11 @@ export class ProfileSelector {
             if (this.selectedId && this.onConnectCallback)
                 this.onConnectCallback(this.selectedId);
         });
+        document.getElementById("open-window-btn")?.addEventListener("click", () => {
+            if (this.selectedId)
+                this.onOpenInNewWindowCallback?.(this.selectedId);
+        });
+        this.updatePrimaryButtons();
     }
     /** Toggle the selected-row highlight without a full re-render. */
     updateRowSelection() {
@@ -293,5 +347,42 @@ export class ProfileSelector {
             row.classList.toggle("profile-row--selected", sel);
             row.setAttribute("aria-selected", String(sel));
         });
+    }
+    hideContextMenu() {
+        this.contextMenu?.remove();
+        this.contextMenu = null;
+    }
+    showRowContextMenu(x, y, profileId) {
+        this.hideContextMenu();
+        const menu = document.createElement("div");
+        menu.className = "lb-context-menu";
+        menu.innerHTML = `
+      <button data-action="new-window">${t("profiles.openInNewWindow")}</button>
+      <button data-action="shortcut">${t("profiles.createShortcut")}</button>
+    `;
+        document.body.appendChild(menu);
+        const rect = menu.getBoundingClientRect();
+        menu.style.left = `${Math.min(x, window.innerWidth - rect.width - 4)}px`;
+        menu.style.top = `${Math.min(y, window.innerHeight - rect.height - 4)}px`;
+        this.contextMenu = menu;
+        menu.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-action]");
+            if (!btn)
+                return;
+            const action = btn.dataset.action;
+            this.hideContextMenu();
+            if (action === "new-window")
+                this.onOpenInNewWindowCallback?.(profileId);
+            else if (action === "shortcut")
+                this.onCreateShortcutCallback?.(profileId);
+        });
+        setTimeout(() => {
+            document.addEventListener("mousedown", () => this.hideContextMenu(), { once: true });
+        }, 0);
+    }
+    /** Programmatically select a profile by id and re-render (used by launch auto-connect). */
+    selectProfile(id) {
+        this.selectedId = id;
+        this.render();
     }
 }

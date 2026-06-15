@@ -18,8 +18,9 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 
 - **Multi-protocol support** — connect via SSH (terminal + file browser), SFTP (file browser only), or FTP (file browser only). Port is pre-filled automatically for each protocol.
 - **Profile management** — save connection profiles locally with name, host, port, username, and auth settings. No account required.
-- **Profile groups & sorting** — organize profiles into named groups shown as a collapsible tree, and sort each group alphabetically or by newest first (the choice is remembered).
+- **Profile groups & sorting** — organize profiles into named groups shown as a collapsible accordion (one group open at a time; the last-opened group is remembered across restarts), and sort each group alphabetically or by newest first (the choice is remembered).
 - **SSH sessions** — launch an SSH connection directly in your system terminal with one click.
+- **Parallel connections & launchers** — while one connection is active, open a different profile in a second, independent window. Right-click any profile to open it in a new window or create a desktop launcher (a `.desktop` shortcut for one-click connect from your desktop or app menu). You can also start the app pre-connected from the command line: `murmurssh --profile "<name or id>"`.
 - **Split-pane file browser** — a local file browser panel sits alongside the remote browser, so you can see both sides at once. The panel is toggleable and its position (left or right) is configurable in Settings.
 - **SFTP/FTP remote browser** — browse remote directories, upload files and folders, download files and folders, delete, rename, move, and create files and directories. The listing shows modification dates and permissions, and you can change permissions (chmod) via a right-click dialog with an rwx grid synced to an octal field (SFTP). Works identically over SFTP and FTP.
 - **Drag and drop** — drag local files onto the remote browser to upload; drag remote entries onto the local browser to download. Drop files or folders from your OS file manager onto the remote browser to upload.
@@ -143,7 +144,12 @@ Create a profile for each server you connect to:
 
 The last used profile is restored automatically on startup.
 
-Profiles are shown as a collapsible grouped tree in the sidebar: click a group header to expand or collapse it, single-click a profile to select it, and double-click to connect. Use the **A–Z / Newest** toggle above the list to sort each group alphabetically or by creation date — the choice is remembered across restarts.
+Profiles are shown as a collapsible grouped accordion in the sidebar: click a group header to open it (any other open group collapses, so only one is expanded at a time), single-click a profile to select it, and double-click to connect. The last-opened group is remembered across restarts. Use the **A–Z / Newest** toggle above the list to sort each group alphabetically or by creation date — the choice is remembered across restarts.
+
+Right-click a profile for extra actions:
+
+- **Open in new window** — launch a second, independent MurmurSSH window connected to that profile.
+- **Create desktop shortcut** — pick a location (defaults to your desktop) and MurmurSSH writes an executable, trusted `.desktop` launcher that connects to the profile on double-click.
 
 ### Connecting
 
@@ -154,6 +160,10 @@ Select a profile and click **Connect**. MurmurSSH will:
 3. Load the file browser (all protocols)
 
 While connecting, a cancel button appears in the toolbar so you can abort a slow or unreachable connection.
+
+**Parallel connections.** While one connection is active, selecting a *different* profile turns the **Connect** button into **Open in new window**, which launches that profile in a separate window — so you can browse several servers at once. Each window is an independent process with its own credentials prompt.
+
+**Launch from the command line / a shortcut.** Start the app already pointed at a profile with `murmurssh --profile "<name or id>"` (matched by exact id first, then case-insensitively by name). The **Create desktop shortcut** action above generates a launcher that does exactly this.
 
 ### File browser (SFTP / FTP)
 

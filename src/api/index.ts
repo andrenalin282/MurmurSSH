@@ -399,3 +399,23 @@ export async function renameLocalFile(fromPath: string, toPath: string): Promise
 export async function openLocalFile(path: string, editor: string | null): Promise<void> {
   return invoke("open_local_file", { path, editor: editor ?? null });
 }
+
+/** Canonical id of the profile this instance was launched to connect to, if any. */
+export async function getLaunchProfile(): Promise<string | null> {
+  return invoke<string | null>("get_launch_profile");
+}
+
+/** Open a second, independent window connecting to the given profile. */
+export async function openProfileInNewWindow(profileId: string): Promise<void> {
+  return invoke("open_profile_in_new_window", { profileId });
+}
+
+/** Write a .desktop launcher for the profile to targetPath; resolves to the written path. */
+export async function createDesktopShortcut(profileId: string, targetPath: string): Promise<string> {
+  return invoke<string>("create_desktop_shortcut", { profileId, targetPath });
+}
+
+/** Locale-aware default directory (Desktop) for the shortcut save dialog. */
+export async function getDesktopDir(): Promise<string> {
+  return invoke<string>("get_desktop_dir");
+}

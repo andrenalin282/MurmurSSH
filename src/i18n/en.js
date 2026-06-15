@@ -195,6 +195,10 @@ const en = {
         sortNameShort: "A–Z",
         sortCreated: "Sort by newest",
         sortCreatedShort: "Newest",
+        openInNewWindow: "Open in new window",
+        createShortcut: "Create desktop shortcut",
+        shortcutCreated: "Desktop shortcut created:\n{path}",
+        shortcutSaveTitle: "Save desktop shortcut",
     },
     profileForm: {
         titleNew: "New Profile",

@@ -59,6 +59,8 @@ export interface Settings {
   max_concurrent_transfers?: number | null;
   /** Profile sort mode: "name" | "created". Null/absent = "name". */
   profile_sort?: "name" | "created" | null;
+  /** Which profile group is expanded in the selector accordion (""=ungrouped, absent=none). */
+  expanded_profile_group?: string | null;
 }
 
 export interface FileEntry {

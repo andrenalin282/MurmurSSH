@@ -1,4 +1,5 @@
 pub mod connection;
+pub mod launch;
 pub mod local;
 pub mod profile;
 pub mod settings;

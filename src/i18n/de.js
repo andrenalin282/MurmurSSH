@@ -195,6 +195,10 @@ const de = {
         sortNameShort: "A–Z",
         sortCreated: "Nach Datum sortieren",
         sortCreatedShort: "Neueste",
+        openInNewWindow: "In neuem Fenster öffnen",
+        createShortcut: "Desktop-Verknüpfung erstellen",
+        shortcutCreated: "Desktop-Verknüpfung erstellt:\n{path}",
+        shortcutSaveTitle: "Desktop-Verknüpfung speichern",
     },
     profileForm: {
         titleNew: "Neues Profil",

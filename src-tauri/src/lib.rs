@@ -13,6 +13,7 @@ fn cleanup_on_exit() {
 }
 
 pub fn run() {
+    services::launch_service::capture_launch_arg();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -46,6 +47,10 @@ pub fn run() {
             commands::ssh::copy_key_for_runtime,
             commands::ssh::delete_runtime_key,
             commands::ssh::cleanup_runtime_keys,
+            commands::launch::get_launch_profile,
+            commands::launch::open_profile_in_new_window,
+            commands::launch::create_desktop_shortcut,
+            commands::launch::get_desktop_dir,
             commands::sftp::get_sftp_home,
             commands::sftp::list_directory,
             commands::sftp::remote_file_exists,

@@ -195,6 +195,10 @@ const pl = {
         sortNameShort: "A–Z",
         sortCreated: "Sortuj wg daty",
         sortCreatedShort: "Najnowsze",
+        openInNewWindow: "Otwórz w nowym oknie",
+        createShortcut: "Utwórz skrót na pulpicie",
+        shortcutCreated: "Utworzono skrót:\n{path}",
+        shortcutSaveTitle: "Zapisz skrót na pulpicie",
     },
     profileForm: {
         titleNew: "Nowy profil",
