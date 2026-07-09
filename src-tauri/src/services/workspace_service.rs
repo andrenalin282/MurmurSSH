@@ -42,13 +42,25 @@ fn workspace_base() -> PathBuf {
 }
 
 /// Returns the local cache path for a given profile + remote file.
+///
+/// The remote directory structure is mirrored under the profile's workspace dir
+/// (e.g. `/var/www/config.php` -> `<workspace>/<profile>/var/www/config.php`) so
+/// that identically named files from different remote directories do not collide
+/// in the local edit cache. Path components are sanitized (empty, `.` and `..`
+/// dropped) to keep everything inside the workspace directory.
 fn local_cache_path(profile_id: &str, remote_path: &str) -> PathBuf {
-    let filename = Path::new(remote_path)
-        .file_name()
-        .map(|n| n.to_string_lossy().to_string())
-        .unwrap_or_else(|| "file".to_string());
-
-    workspace_base().join(profile_id).join(filename)
+    let mut path = workspace_base().join(profile_id);
+    let components: Vec<&str> = remote_path
+        .split('/')
+        .filter(|c| !c.is_empty() && *c != "." && *c != "..")
+        .collect();
+    if components.is_empty() {
+        return path.join("file");
+    }
+    for comp in components {
+        path.push(comp);
+    }
+    path
 }
 
 /// Computes a fast content hash of a file. Returns None if the file can't be read.
@@ -109,6 +121,95 @@ fn clear_baseline(path: &Path) {
     if let Ok(mut map) = baselines().lock() {
         map.remove(path);
     }
+}
+
+/// Auto-upload coalescing state per watched path. While an upload is in flight,
+/// further saves only set `dirty`, so exactly one catch-up upload runs after the
+/// current one finishes — turning a burst of N saves into a single upload plus at
+/// most one follow-up, instead of N parallel uploads.
+struct AutoUploadState {
+    in_flight: bool,
+    dirty: bool,
+}
+
+fn auto_uploads() -> &'static Mutex<std::collections::HashMap<PathBuf, AutoUploadState>> {
+    static STATES: OnceLock<Mutex<std::collections::HashMap<PathBuf, AutoUploadState>>> =
+        OnceLock::new();
+    STATES.get_or_init(|| Mutex::new(std::collections::HashMap::new()))
+}
+
+/// Returns true if the caller should spawn a new uploader thread. Returns false
+/// when an upload for this path is already running (the path is marked dirty so a
+/// single catch-up upload runs when the current one completes).
+fn begin_auto_upload(path: &Path) -> bool {
+    if let Ok(mut map) = auto_uploads().lock() {
+        let st = map.entry(path.to_path_buf()).or_insert(AutoUploadState {
+            in_flight: false,
+            dirty: false,
+        });
+        if st.in_flight {
+            st.dirty = true;
+            false
+        } else {
+            st.in_flight = true;
+            st.dirty = false;
+            true
+        }
+    } else {
+        true
+    }
+}
+
+/// Called by the uploader thread after each upload. Returns true if another
+/// upload should run (the path was marked dirty meanwhile), keeping `in_flight`
+/// set; otherwise clears `in_flight` and returns false.
+fn finish_auto_upload(path: &Path) -> bool {
+    if let Ok(mut map) = auto_uploads().lock() {
+        if let Some(st) = map.get_mut(path) {
+            if st.dirty {
+                st.dirty = false;
+                return true;
+            }
+            st.in_flight = false;
+        }
+    }
+    false
+}
+
+fn clear_auto_upload(path: &Path) {
+    if let Ok(mut map) = auto_uploads().lock() {
+        map.remove(path);
+    }
+}
+
+/// Upload the current file contents, retrying once per pending "dirty" mark so a
+/// burst of saves collapses into a single trailing upload.
+fn spawn_auto_upload(
+    app: tauri::AppHandle,
+    profile: Profile,
+    local_path: PathBuf,
+    remote_path: String,
+) {
+    std::thread::spawn(move || loop {
+        let local_str = local_path.to_str().unwrap_or_default();
+        let upload_result = if is_ftp(&profile) {
+            ftp_service::upload_file(&profile, local_str, &remote_path, &|| false, &|_, _, _| {})
+        } else {
+            sftp_service::upload_file(&profile, local_str, &remote_path, &|| false, &|_, _| {})
+        };
+        match upload_result {
+            Ok(()) => {
+                let _ = app.emit("upload-complete", &remote_path);
+            }
+            Err(e) => {
+                eprintln!("[murmurssh] Auto-upload failed: {}", e);
+                let _ = app.emit("upload-error", e);
+            }
+        }
+        if !finish_auto_upload(&local_path) {
+            break;
+        }
+    });
 }
 
 /// Opens a remote text file for editing.
@@ -280,20 +381,16 @@ fn watch_and_upload(
 
                 match profile.upload_mode {
                     UploadMode::Auto => {
-                        let local_str = local_path.to_str().unwrap_or_default();
-                        let upload_result = if is_ftp(&profile) {
-                            ftp_service::upload_file(&profile, local_str, &remote_path, &|| false, &|_, _, _| {})
-                        } else {
-                            sftp_service::upload_file(&profile, local_str, &remote_path, &|| false, &|_, _| {})
-                        };
-                        match upload_result {
-                            Ok(()) => {
-                                let _ = app.emit("upload-complete", &remote_path);
-                            }
-                            Err(e) => {
-                                eprintln!("[murmurssh] Auto-upload failed: {}", e);
-                                let _ = app.emit("upload-error", e);
-                            }
+                        // Coalesce bursts: only spawn an uploader when one is not
+                        // already running for this path; otherwise the path is
+                        // marked dirty and a single catch-up upload follows.
+                        if begin_auto_upload(&local_path) {
+                            spawn_auto_upload(
+                                app.clone(),
+                                profile.clone(),
+                                local_path.clone(),
+                                remote_path.clone(),
+                            );
                         }
                     }
                     UploadMode::Confirm => {
@@ -313,6 +410,7 @@ fn watch_and_upload(
     // Cleanup: remove from active watchers registry and drop the baseline
     unregister_watcher(&local_path);
     clear_baseline(&local_path);
+    clear_auto_upload(&local_path);
 }
 
 #[cfg(test)]

@@ -45,6 +45,11 @@ export interface Profile {
   group?: string | null;
   /** Profile creation time, epoch seconds. Set by the backend. */
   created_at?: number | null;
+  /**
+   * Per-profile override for the remote directory cache.
+   * Null/absent = follow the global setting; true/false = force on/off.
+   */
+  directory_cache?: boolean | null;
 }
 
 export interface Settings {
@@ -61,6 +66,8 @@ export interface Settings {
   profile_sort?: "name" | "created" | null;
   /** Which profile group is expanded in the selector accordion (""=ungrouped, absent=none). */
   expanded_profile_group?: string | null;
+  /** Global default for the remote directory cache. Null/absent = false (disabled). */
+  directory_cache?: boolean | null;
 }
 
 export interface FileEntry {

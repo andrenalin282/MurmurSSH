@@ -28,5 +28,9 @@ pub struct Settings {
     /// `None` means nothing is expanded. Restored on next launch.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub expanded_profile_group: Option<String>,
+    /// Global default for the in-memory remote directory cache. When None,
+    /// defaults to false (disabled). A per-profile `directory_cache` overrides this.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub directory_cache: Option<bool>,
 }
 

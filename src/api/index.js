@@ -184,6 +184,13 @@ export async function deleteDirectory(profileId, remotePath) {
 export async function renameFile(profileId, fromPath, toPath) {
     return invoke("rename_file", { profileId, fromPath, toPath });
 }
+/**
+ * Copy a remote file to another remote path (server-side for SFTP;
+ * temp-file round-trip for FTP). Used by the "Duplicate" action.
+ */
+export async function copyFile(profileId, fromPath, toPath) {
+    return invoke("copy_file", { profileId, fromPath, toPath });
+}
 export async function createDirectory(profileId, path) {
     return invoke("create_directory", { profileId, path });
 }

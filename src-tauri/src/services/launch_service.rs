@@ -178,6 +178,7 @@ mod tests {
             local_paths_by_user: None,
             group: None,
             created_at: None,
+            directory_cache: None,
         }
     }
 

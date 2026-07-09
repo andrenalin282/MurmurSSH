@@ -426,6 +426,43 @@ pub fn rename_file(profile: &Profile, from: &str, to: &str) -> Result<(), String
         .map_err(|e| format!("Failed to rename '{}' to '{}': {}", from, to, e))
 }
 
+/// Copy a remote file to another remote path via a server-side stream copy
+/// (open source, create destination, copy bytes over the same SFTP channel).
+/// On failure the partially written destination is removed on a best-effort basis.
+pub fn copy_file(profile: &Profile, from: &str, to: &str) -> Result<(), String> {
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    let mut src = sftp
+        .open(Path::new(from))
+        .map_err(|e| format!("Failed to open remote file '{}': {}", from, e))?;
+    let mut dst = sftp
+        .create(Path::new(to))
+        .map_err(|e| format!("Failed to create remote file '{}': {}", to, e))?;
+
+    let mut buf = vec![0u8; TRANSFER_CHUNK];
+    let result: Result<(), String> = loop {
+        let n = match src.read(&mut buf) {
+            Ok(v) => v,
+            Err(e) => break Err(format!("Read '{}' failed: {}", from, e)),
+        };
+        if n == 0 {
+            break Ok(());
+        }
+        if let Err(e) = dst.write_all(&buf[..n]) {
+            break Err(format!("Write '{}' failed: {}", to, e));
+        }
+    };
+    if let Err(e) = result {
+        drop(dst);
+        let _ = sftp.unlink(Path::new(to));
+        return Err(e);
+    }
+    Ok(())
+}
+
 /// Change the Unix permission bits of a remote file or directory.
 /// `mode` is the permission value (e.g. 0o644); only the perm field is set,
 /// leaving size/uid/gid/atime/mtime untouched on the server.

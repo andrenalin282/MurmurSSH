@@ -162,6 +162,14 @@ export class ProfileForm {
               </option>
             </select>
           </div>
+          <div class="form-field">
+            <label for="pf-directory-cache">${t("profileForm.labelDirectoryCache")}</label>
+            <select id="pf-directory-cache">
+              <option value="default" ${profile?.directory_cache == null ? "selected" : ""}>${t("profileForm.dirCacheDefault")}</option>
+              <option value="on" ${profile?.directory_cache === true ? "selected" : ""}>${t("profileForm.dirCacheOn")}</option>
+              <option value="off" ${profile?.directory_cache === false ? "selected" : ""}>${t("profileForm.dirCacheOff")}</option>
+            </select>
+          </div>
           ${isEdit ? this.renderSavedCredentialSection(profile) : ""}
           <div class="form-error" id="pf-error" style="display:none"></div>
           <div class="modal__actions">
@@ -454,6 +462,9 @@ export class ProfileForm {
     const localPath = get("pf-local-path");
     const editorCommand = get("pf-editor");
     const uploadMode = get("pf-upload-mode") as UploadMode;
+    const dirCacheRaw = get("pf-directory-cache");
+    const directoryCache: boolean | undefined =
+      dirCacheRaw === "on" ? true : dirCacheRaw === "off" ? false : undefined;
 
     // Validate
     const errors: string[] = [];
@@ -534,6 +545,7 @@ export class ProfileForm {
         : existingProfile?.stored_secret_portable,
       group: group || undefined,
       created_at: existingProfile?.created_at ?? undefined,
+      directory_cache: directoryCache,
     };
 
     try {

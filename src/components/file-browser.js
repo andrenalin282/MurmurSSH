@@ -30,6 +30,7 @@ const ICONS = {
     newFolder: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`,
     openFolder: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
     permissions: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+    duplicate: `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
 };
 function formatBytes(bytes) {
     if (bytes < 1024)
@@ -93,6 +94,12 @@ export class FileBrowser {
         this.logEntries = [];
         this.inlineError = null;
         this.isDragOver = false; // Tauri OS→app drag indicator
+        // Directory cache (optional). Keyed by remote path; holds the last-seen listing.
+        this.cacheEnabled = false;
+        this.dirCache = new Map();
+        // Type-ahead navigation state
+        this.typeAheadBuffer = "";
+        this.typeAheadTimer = null;
         this.onStatusMessage = null;
         this.onDisconnectCallback = null;
         this.uploadApplyToAllDecision = null;
@@ -116,6 +123,20 @@ export class FileBrowser {
             // Skip when an input or textarea has focus (user is typing)
             const tag = document.activeElement?.tagName?.toLowerCase();
             const isInput = tag === "input" || tag === "textarea";
+            // Type-ahead: a single printable character jumps to the first matching
+            // entry. Handled before the switch so plain letters don't fall through.
+            if (!isInput &&
+                !e.ctrlKey &&
+                !e.altKey &&
+                !e.metaKey &&
+                e.key.length === 1 &&
+                /\S/.test(e.key) &&
+                this.profileId &&
+                !this.busy) {
+                e.preventDefault();
+                this.handleTypeAhead(e.key);
+                return;
+            }
             switch (e.key) {
                 case "F5":
                     if (!isInput && this.profileId && !this.busy) {
@@ -219,12 +240,14 @@ export class FileBrowser {
             el.classList.toggle("file-browser--dragover", value);
         }
     }
-    setProfile(profileId, defaultPath = "/", localPath = null, protocol = null) {
+    setProfile(profileId, defaultPath = "/", localPath = null, protocol = null, cacheEnabled = false) {
         this.profileId = profileId;
         this.protocol = protocol;
         this.localPath = localPath;
         this.currentPath = defaultPath;
         this.homePath = defaultPath;
+        this.cacheEnabled = cacheEnabled;
+        this.dirCache.clear();
         this.clearSelection();
     }
     /** Return the current remote path being browsed. */
@@ -256,10 +279,15 @@ export class FileBrowser {
     async refresh() {
         if (!this.profileId)
             return;
+        // A refresh is an explicit reload: drop the whole cache so any change
+        // (uploads, deletes, moves, etc.) is reflected, then re-cache this dir.
+        this.dirCache.clear();
         this.log(t("fileBrowser.logListing", { path: this.currentPath }));
         this.setBusy(true);
         try {
             this.entries = await api.listDirectory(this.profileId, this.currentPath);
+            if (this.cacheEnabled)
+                this.dirCache.set(this.currentPath, this.entries);
             this.log(t("fileBrowser.logListed", { count: this.entries.length }), "ok");
             this.clearSelection();
             this.inlineError = null;
@@ -437,7 +465,6 @@ export class FileBrowser {
         </table>
         </div>
         ${selectionInfo}
-        <div class="log-panel" id="log-panel">${this.logEntries.map((e) => `<div class="log-panel__line log-panel__line--${e.level}">[${e.time}] ${escHtml(e.msg)}</div>`).join("")}</div>
         <div class="file-browser__actions">
           <button id="upload-btn"        ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.upload")}">${ICONS.upload}</button>
           <button id="upload-folder-btn" ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.uploadFolder")}">${ICONS.uploadFolder}</button>
@@ -450,6 +477,7 @@ export class FileBrowser {
           <button id="new-folder-btn"    ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFolder")}">${ICONS.newFolder}</button>
         </div>
         ${hasProfile ? `<div class="file-browser__dl-dropzone" id="dl-dropzone">${ICONS.download} ${t("fileBrowser.downloadDropZone")}</div>` : ""}
+        <div class="log-panel" id="log-panel">${this.logEntries.map((e) => `<div class="log-panel__line log-panel__line--${e.level}">[${e.time}] ${escHtml(e.msg)}</div>`).join("")}</div>
       </div>
     `;
         // Restore scroll position after DOM rebuild.
@@ -873,16 +901,62 @@ export class FileBrowser {
         });
     }
     // ── Navigation ────────────────────────────────────────────────────────────
+    /**
+     * If the directory cache is enabled and holds a listing for `targetPath`,
+     * switch to it instantly (no network round-trip) and return true. Otherwise
+     * return false so the caller performs a fresh fetch.
+     */
+    useCachedListing(targetPath) {
+        if (!this.cacheEnabled)
+            return false;
+        const cached = this.dirCache.get(targetPath);
+        if (!cached)
+            return false;
+        this.currentPath = targetPath;
+        this.entries = cached;
+        this.log(t("fileBrowser.logListed", { count: cached.length }), "ok");
+        this.clearSelection();
+        this.inlineError = null;
+        this.render();
+        return true;
+    }
+    /**
+     * Accumulate typed characters and select/scroll to the first entry whose name
+     * starts with the buffer. The buffer resets after a short idle period.
+     */
+    handleTypeAhead(char) {
+        this.typeAheadBuffer += char.toLowerCase();
+        if (this.typeAheadTimer !== null)
+            window.clearTimeout(this.typeAheadTimer);
+        this.typeAheadTimer = window.setTimeout(() => {
+            this.typeAheadBuffer = "";
+            this.typeAheadTimer = null;
+        }, 800);
+        const buf = this.typeAheadBuffer;
+        const match = this.entries.find((entry) => entry.name.toLowerCase().startsWith(buf));
+        if (!match)
+            return;
+        this.selectedNames.clear();
+        this.selectedNames.add(match.name);
+        this.anchorName = match.name;
+        this.render();
+        const row = this.container.querySelector(`tr.file-entry[data-name="${CSS.escape(match.name)}"]`);
+        row?.scrollIntoView({ block: "nearest" });
+    }
     async navigateInto(dirName) {
         if (!this.profileId || this.busy)
             return;
         const targetPath = joinPath(this.currentPath, dirName);
+        if (this.useCachedListing(targetPath))
+            return;
         this.log(t("fileBrowser.logListing", { path: targetPath }));
         this.setBusy(true);
         try {
             const newEntries = await api.listDirectory(this.profileId, targetPath);
             this.currentPath = targetPath;
             this.entries = newEntries;
+            if (this.cacheEnabled)
+                this.dirCache.set(targetPath, newEntries);
             this.log(t("fileBrowser.logListed", { count: this.entries.length }), "ok");
             this.clearSelection();
             this.inlineError = null;
@@ -910,12 +984,16 @@ export class FileBrowser {
     async navigateToPath(targetPath) {
         if (!this.profileId || this.busy)
             return;
+        if (this.useCachedListing(targetPath))
+            return;
         this.log(t("fileBrowser.logListing", { path: targetPath }));
         this.setBusy(true);
         try {
             const newEntries = await api.listDirectory(this.profileId, targetPath);
             this.currentPath = targetPath;
             this.entries = newEntries;
+            if (this.cacheEnabled)
+                this.dirCache.set(targetPath, newEntries);
             this.log(t("fileBrowser.logListed", { count: this.entries.length }), "ok");
             this.clearSelection();
             this.inlineError = null;
@@ -1108,37 +1186,21 @@ export class FileBrowser {
     async handleDownloadFile() {
         if (!this.profileId || !this.selectedRemotePath || !this.selectedEntry)
             return;
-        let savePath;
-        let skipOverwriteCheck = false;
-        if (this.localPath) {
-            savePath = this.localPath.replace(/\/?$/, "/") + this.selectedEntry.name;
-        }
-        else {
-            const chosen = await save({
-                defaultPath: this.selectedEntry.name,
-                title: "Save file",
-            });
-            if (!chosen)
-                return;
-            savePath = chosen;
-            // The system save dialog already confirmed overwrite on the user's behalf.
-            skipOverwriteCheck = true;
-        }
-        this.resetOverwriteDecisions();
-        if (!skipOverwriteCheck) {
-            const decision = await this.confirmLocalOverwrite(savePath, this.selectedEntry.name);
-            if (decision === "skip") {
-                this.status(t("fileBrowser.downloadSkipped"), false);
-                return;
-            }
-            if (decision === "cancel") {
-                this.status(t("fileBrowser.downloadCancelledSimple"), false);
-                return;
-            }
-        }
+        // Always ask for the destination. A configured local path is only used as
+        // the pre-selected default, never as a silent target.
+        const defaultPath = this.localPath
+            ? this.localPath.replace(/\/?$/, "/") + this.selectedEntry.name
+            : this.selectedEntry.name;
+        const chosen = await save({
+            defaultPath,
+            title: t("fileBrowser.saveFileTitle"),
+        });
+        if (!chosen)
+            return;
+        // The system save dialog already confirmed overwrite on the user's behalf.
         try {
             this.log(t("fileBrowser.logDownloading", { name: this.selectedEntry.name }));
-            await this.enqueue("download", this.selectedRemotePath, savePath, this.selectedEntry.name);
+            await this.enqueue("download", this.selectedRemotePath, chosen, this.selectedEntry.name);
             this.status(t("fileBrowser.queuedCount", { count: 1 }), false);
         }
         catch (err) {
@@ -1148,20 +1210,16 @@ export class FileBrowser {
     async handleDownloadFolder() {
         if (!this.profileId || !this.selectedRemotePath || !this.selectedEntry)
             return;
-        let localDestPath;
-        if (this.localPath) {
-            localDestPath = this.localPath.replace(/\/?$/, "/") + this.selectedEntry.name;
-        }
-        else {
-            const chosen = await open({
-                multiple: false,
-                directory: true,
-                title: "Select destination folder",
-            });
-            if (!chosen || typeof chosen !== "string")
-                return;
-            localDestPath = chosen.replace(/\/?$/, "/") + this.selectedEntry.name;
-        }
+        // Always ask for the destination directory (local path pre-selected).
+        const chosen = await open({
+            multiple: false,
+            directory: true,
+            title: t("fileBrowser.selectFolderDownload"),
+            defaultPath: this.localPath ?? undefined,
+        });
+        if (!chosen || typeof chosen !== "string")
+            return;
+        const localDestPath = chosen.replace(/\/?$/, "/") + this.selectedEntry.name;
         try {
             this.log(t("fileBrowser.logDownloading", { name: this.selectedEntry.name }));
             await this.enqueue("downloadDir", this.selectedRemotePath, localDestPath, this.selectedEntry.name);
@@ -1174,21 +1232,16 @@ export class FileBrowser {
     async handleDownloadMulti() {
         if (!this.profileId || this.selectedNames.size === 0)
             return;
-        // Determine destination directory
-        let destDir;
-        if (this.localPath) {
-            destDir = this.localPath;
-        }
-        else {
-            const chosen = await open({
-                multiple: false,
-                directory: true,
-                title: "Select destination folder for download",
-            });
-            if (!chosen || typeof chosen !== "string")
-                return;
-            destDir = chosen;
-        }
+        // Always ask for the destination directory (local path pre-selected).
+        const chosen = await open({
+            multiple: false,
+            directory: true,
+            title: t("fileBrowser.selectFolderDownload"),
+            defaultPath: this.localPath ?? undefined,
+        });
+        if (!chosen || typeof chosen !== "string")
+            return;
+        const destDir = chosen;
         const entries = this.selectedEntries;
         this.resetOverwriteDecisions();
         let queued = 0;
@@ -1234,14 +1287,13 @@ export class FileBrowser {
         if (explicitDestDir) {
             destDir = explicitDestDir;
         }
-        else if (this.localPath) {
-            destDir = this.localPath;
-        }
         else {
+            // Always ask for the destination directory (local path pre-selected).
             const chosen = await open({
                 multiple: false,
                 directory: true,
                 title: t("fileBrowser.selectFolderDownload"),
+                defaultPath: this.localPath ?? undefined,
             });
             if (!chosen || typeof chosen !== "string")
                 return;
@@ -1303,6 +1355,42 @@ export class FileBrowser {
         }
         catch (err) {
             this.status(t("fileBrowser.renameFailed", { error: this.normalizeRemoteError(err) }), true);
+        }
+        finally {
+            this.setBusy(false);
+        }
+    }
+    // ── Duplicate ─────────────────────────────────────────────────────────────
+    /** Build a "<base>_copy<.ext>" name, bumping to _copy2, _copy3, … if taken. */
+    makeCopyName(name) {
+        const dot = name.lastIndexOf(".");
+        const hasExt = dot > 0; // ignore leading-dot dotfiles
+        const base = hasExt ? name.slice(0, dot) : name;
+        const ext = hasExt ? name.slice(dot) : "";
+        const existing = new Set(this.entries.map((e) => e.name));
+        let candidate = `${base}_copy${ext}`;
+        let n = 2;
+        while (existing.has(candidate)) {
+            candidate = `${base}_copy${n}${ext}`;
+            n++;
+        }
+        return candidate;
+    }
+    async handleDuplicate() {
+        const entry = this.selectedEntry;
+        if (!this.profileId || !entry || entry.is_dir)
+            return;
+        const targetName = this.makeCopyName(entry.name);
+        const fromPath = joinPath(this.currentPath, entry.name);
+        const toPath = joinPath(this.currentPath, targetName);
+        try {
+            this.setBusy(true);
+            await api.copyFile(this.profileId, fromPath, toPath);
+            this.status(t("fileBrowser.duplicated", { name: targetName }), false);
+            await this.refresh();
+        }
+        catch (err) {
+            this.status(t("fileBrowser.duplicateFailed", { error: this.normalizeRemoteError(err) }), true);
         }
         finally {
             this.setBusy(false);
@@ -1539,6 +1627,7 @@ export class FileBrowser {
         return [
             { icon: ICONS.download, label: t("fileBrowser.download"), action: () => this.handleDownload() },
             { icon: ICONS.edit, label: t("fileBrowser.edit"), action: () => this.handleEdit() },
+            { icon: ICONS.duplicate, label: t("fileBrowser.duplicate"), action: () => this.handleDuplicate() },
             { separator: true },
             { icon: ICONS.rename, label: t("fileBrowser.rename"), action: () => this.handleRename() },
             { icon: ICONS.moveTo, label: t("fileBrowser.moveTo"), action: () => this.handleMoveTo() },

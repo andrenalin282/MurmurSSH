@@ -293,7 +293,16 @@ export class ProfileSelector {
             });
             row.addEventListener("dblclick", () => {
                 this.selectedId = row.dataset.id ?? null;
-                if (this.selectedId && this.onConnectCallback && !this.isConnected && !this.isConnecting) {
+                if (!this.selectedId)
+                    return;
+                if (this.isConnected) {
+                    // Already connected: double-clicking a *different* profile opens it
+                    // in a new window; double-clicking the connected one does nothing.
+                    if (this.selectedId !== this.connectedId) {
+                        this.onOpenInNewWindowCallback?.(this.selectedId);
+                    }
+                }
+                else if (this.onConnectCallback && !this.isConnecting) {
                     this.onConnectCallback(this.selectedId);
                 }
             });

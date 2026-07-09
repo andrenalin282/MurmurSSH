@@ -1,5 +1,6 @@
 import "./styles.css";
 import { listen } from "@tauri-apps/api/event";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { save } from "@tauri-apps/plugin-dialog";
 import * as api from "./api/index";
 import { FileBrowser } from "./components/file-browser";
@@ -173,12 +174,15 @@ let connectionCancelled = false;
 fileBrowser.setStatusCallback((msg, isError) => {
     statusBar.set(isError ? "error" : "connected", msg);
 });
+// Default window title, restored on disconnect (matches tauri.conf.json).
+const DEFAULT_WINDOW_TITLE = "MurmurSSH - Opensource SSH and SFTP client";
 // Disconnect: stop SSH SSO session, clear session credentials, clean up runtime keys
 fileBrowser.onDisconnect(async () => {
     fileBrowser.log("Disconnected");
     const profileId = connectedProfileId;
     connectedProfileId = null;
     profileSelector.setConnected(false);
+    getCurrentWindow().setTitle(DEFAULT_WINDOW_TITLE).catch(() => { });
     if (profileId) {
         // Save local browser path before clearing (best-effort, non-fatal)
         const localPath = localBrowser.getCurrentPath();
@@ -408,37 +412,49 @@ async function verifyConnection(profileId, password, passphrase) {
         return false;
     }
 }
-// Handle confirm-mode upload: backend detected a save, ask the user
+// Handle confirm-mode upload: backend detected a save, ask the user.
+// Coalesce repeated saves: while a confirm/upload for a remote path is still
+// being resolved, ignore further upload-ready events for that same path so
+// multiple saves collapse into a single upload of the latest content.
+const pendingUploadPaths = new Set();
 listen("upload-ready", async (event) => {
     const { profile_id, local_path, remote_path } = event.payload;
-    const filename = remote_path.split("/").pop() ?? remote_path;
-    const confirmed = await showConfirm(t("app.uploadReadyMsg", { filename, remotePath: remote_path }), t("app.uploadFileTitle"));
-    if (!confirmed)
+    if (pendingUploadPaths.has(remote_path))
         return;
-    // Keep overwrite behavior consistent with all other upload paths.
+    pendingUploadPaths.add(remote_path);
     try {
-        const exists = await api.remoteFileExists(profile_id, remote_path);
-        if (exists) {
-            const overwrite = await showOverwriteDialog(filename);
-            if (overwrite.action === "cancel") {
-                statusBar.set("connected", t("app.uploadCancelled"));
-                return;
-            }
-            if (overwrite.action === "no") {
-                statusBar.set("connected", t("app.uploadSkipped"));
-                return;
+        const filename = remote_path.split("/").pop() ?? remote_path;
+        const confirmed = await showConfirm(t("app.uploadReadyMsg", { filename, remotePath: remote_path }), t("app.uploadFileTitle"));
+        if (!confirmed)
+            return;
+        // Keep overwrite behavior consistent with all other upload paths.
+        try {
+            const exists = await api.remoteFileExists(profile_id, remote_path);
+            if (exists) {
+                const overwrite = await showOverwriteDialog(filename);
+                if (overwrite.action === "cancel") {
+                    statusBar.set("connected", t("app.uploadCancelled"));
+                    return;
+                }
+                if (overwrite.action === "no") {
+                    statusBar.set("connected", t("app.uploadSkipped"));
+                    return;
+                }
             }
         }
+        catch {
+            // Non-fatal: if conflict check fails, proceed with upload attempt.
+        }
+        try {
+            await api.enqueueTransfer(profile_id, "upload", local_path, remote_path, filename);
+            statusBar.set("connected", t("app.uploadedFile", { filename }));
+        }
+        catch (err) {
+            statusBar.set("error", t("app.uploadFailed", { error: String(err) }));
+        }
     }
-    catch {
-        // Non-fatal: if conflict check fails, proceed with upload attempt.
-    }
-    try {
-        await api.enqueueTransfer(profile_id, "upload", local_path, remote_path, filename);
-        statusBar.set("connected", t("app.uploadedFile", { filename }));
-    }
-    catch (err) {
-        statusBar.set("error", t("app.uploadFailed", { error: String(err) }));
+    finally {
+        pendingUploadPaths.delete(remote_path);
     }
 });
 // Auto-upload mode: backend uploaded without asking, just show confirmation
@@ -496,9 +512,17 @@ async function connectToProfile(profileId) {
     connectingProfileId = null;
     profileSelector.setConnecting(false);
     profileSelector.setConnected(true, profileId);
+    // Show the connection in the window title (user@host) so it is identifiable
+    // in the Alt/Shift-Tab window switcher.
+    getCurrentWindow()
+        .setTitle(`${profile.username}@${profile.host} — MurmurSSH`)
+        .catch(() => { });
     // Read current settings before writing to preserve profiles_path, theme, etc.
+    // Also derive the effective directory-cache flag (per-profile override wins).
+    let cacheEnabled = profile.directory_cache ?? false;
     try {
         const currentSettings = await api.getSettings();
+        cacheEnabled = profile.directory_cache ?? currentSettings.directory_cache ?? false;
         await api.saveSettings({ ...currentSettings, last_used_profile_id: profileId });
     }
     catch {
@@ -520,7 +544,7 @@ async function connectToProfile(profileId) {
             startPath = "/";
         }
     }
-    fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null, profile.protocol ?? null);
+    fileBrowser.setProfile(profileId, startPath, profile.local_path ?? null, profile.protocol ?? null, cacheEnabled);
     try {
         await fileBrowser.refresh();
     }

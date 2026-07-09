@@ -58,6 +58,7 @@ pub fn run() {
             commands::sftp::delete_file,
             commands::sftp::delete_directory,
             commands::sftp::rename_file,
+            commands::sftp::copy_file,
             commands::sftp::set_permissions,
             commands::sftp::create_directory,
             commands::sftp::local_file_exists,

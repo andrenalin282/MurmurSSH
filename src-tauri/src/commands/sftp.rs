@@ -82,6 +82,22 @@ pub fn rename_file(
     }
 }
 
+/// Copy a remote file to another remote path (server-side for SFTP; temp-file
+/// round-trip for FTP). Used by the "Duplicate" action.
+#[tauri::command]
+pub fn copy_file(
+    profile_id: String,
+    from_path: String,
+    to_path: String,
+) -> Result<(), String> {
+    let profile = profile_service::get_profile(&profile_id)?;
+    if is_ftp(&profile) {
+        ftp_service::copy_file(&profile, &from_path, &to_path)
+    } else {
+        sftp_service::copy_file(&profile, &from_path, &to_path)
+    }
+}
+
 /// Change the Unix permission bits (mode) of a remote file or directory.
 #[tauri::command]
 pub fn set_permissions(

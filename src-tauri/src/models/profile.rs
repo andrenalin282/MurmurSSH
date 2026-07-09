@@ -66,6 +66,11 @@ pub struct Profile {
     /// Legacy profiles without it are backfilled from the JSON file mtime at list time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<u64>,
+
+    /// Per-profile override for the in-memory remote directory cache.
+    /// `None` = follow the global `directory_cache` setting; `Some(bool)` = force on/off.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub directory_cache: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

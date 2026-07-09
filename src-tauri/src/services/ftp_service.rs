@@ -250,6 +250,19 @@ pub fn rename_file(profile: &Profile, from: &str, to: &str) -> Result<(), String
     Ok(())
 }
 
+/// Copy a remote file to another remote path. FTP has no server-side copy, so
+/// this round-trips the file through a local temp file (download then upload).
+pub fn copy_file(profile: &Profile, from: &str, to: &str) -> Result<(), String> {
+    let mut tmp = std::env::temp_dir();
+    tmp.push(format!("murmurssh_ftpcopy_{}", std::process::id()));
+    let tmp_str = tmp.to_string_lossy().to_string();
+
+    download_file_to(profile, from, &tmp_str, &|| false, &|_, _, _| {})?;
+    let result = upload_file(profile, &tmp_str, to, &|| false, &|_, _, _| {});
+    let _ = std::fs::remove_file(&tmp);
+    result
+}
+
 /// Create a remote directory (non-recursive).
 pub fn create_directory(profile: &Profile, path: &str) -> Result<(), String> {
     let mut ftp = connect(profile)?;

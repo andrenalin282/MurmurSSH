@@ -12,6 +12,25 @@ No changes yet.
 
 ---
 
+## [1.7.0] - 2026-07-09
+
+### Added
+- **Type-ahead navigation in the remote list.** Start typing a name and the file browser jumps to and selects the first matching file or folder.
+- **Duplicate a remote file.** Right-click a file → **Duplicate** creates a server-side copy with `_copy` appended to the name (`_copy2`, `_copy3`, … if the name is taken).
+- **Optional directory cache.** Freshly visited remote directories can be cached in memory so switching back and forth is instant. Configurable globally in Settings and overridable per profile. Any change (refresh/F5, upload, delete, rename, move, new file/folder) invalidates the affected directory.
+- **Connection name in the window title.** While connected the window title shows `user@host`, so it is identifiable in the Alt/Shift-Tab window switcher.
+
+### Changed
+- **Double-click behaviour.** Double-clicking a profile connects to it; while a connection is already active, double-clicking a *different* profile opens it in a new window.
+- **File browser layout.** The action buttons and the download drop zone now sit directly below the file list, above the activity log — which stays at the bottom.
+- **Downloads always ask for a destination.** The save/destination dialog is shown for every download (single file, folder, and multi-selection); a profile's configured local path is used as the pre-selected default instead of silently saving there.
+
+### Fixed
+- **Repeated saves no longer stack uploads.** Saving an edited file several times in a row now results in a single upload of the latest content instead of one prompt/upload per save.
+- **Same-named files from different folders can now be edited at once.** The local edit cache mirrors the remote directory structure, so opening `config.php` from two different directories no longer collides.
+
+---
+
 ## [1.6.2] - 2026-06-15
 
 ### Added
