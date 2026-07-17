@@ -170,41 +170,33 @@ pub fn rename_local_file(from_path: &str, to_path: &str) -> Result<(), String> {
         .map_err(|e| format!("Rename failed: {}", e))
 }
 
-/// Open a local file with xdg-open or a custom editor command.
+/// Open a local file with xdg-open or a configured editor.
 ///
-/// If `editor` is Some and non-empty, the first whitespace-separated token is
-/// treated as the program and the rest as additional arguments, followed by
-/// `path`. This matches the behaviour of `workspace_service::open_in_editor`
-/// so `"code --new-window"` and similar settings work consistently.
+/// When `use_configured_editor` is false (context-menu "Open"), always uses
+/// `xdg-open` so the system MIME handler runs.
 ///
-/// Otherwise falls back to `xdg-open <path>`.
-pub fn open_local_file(path: &str, editor: Option<&str>) -> Result<(), String> {
+/// When `use_configured_editor` is true (context-menu "Edit"), resolves:
+/// profile override (`editor`) → per-extension map → global default → xdg-open.
+pub fn open_local_file(
+    path: &str,
+    editor: Option<&str>,
+    use_configured_editor: bool,
+) -> Result<(), String> {
     reject_null_bytes(path)?;
 
     if !path.starts_with('/') {
         return Err("Only absolute paths are accepted".to_string());
     }
 
-    match editor {
-        Some(e) if !e.trim().is_empty() => {
-            let mut parts = e.split_whitespace();
-            let cmd = parts.next().ok_or("Editor command is empty")?;
-            let extra_args: Vec<&str> = parts.collect();
-            std::process::Command::new(cmd)
-                .args(&extra_args)
-                .arg(path)
-                .spawn()
-                .map_err(|err| format!("Failed to open '{}' with '{}': {}", path, e, err))?;
-        }
-        _ => {
-            std::process::Command::new("xdg-open")
-                .arg(path)
-                .spawn()
-                .map_err(|e| format!("Failed to open '{}' with xdg-open: {}", path, e))?;
-        }
+    let path_buf = Path::new(path);
+    if use_configured_editor {
+        let settings = crate::services::settings_service::get_settings().unwrap_or_default();
+        let resolved =
+            crate::services::editor_service::resolve_editor(editor, path_buf, &settings);
+        crate::services::editor_service::launch_editor(resolved.as_deref(), path_buf)
+    } else {
+        crate::services::editor_service::launch_editor(None, path_buf)
     }
-
-    Ok(())
 }
 
 /// Persist the local browser path for the current user and profile.

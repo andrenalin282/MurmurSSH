@@ -405,11 +405,20 @@ export async function renameLocalFile(fromPath: string, toPath: string): Promise
 }
 
 /**
- * Open a local file with the system default app, or with a custom editor command.
- * If editor is null/"", falls back to xdg-open.
+ * Open a local file with the system default app, or with a configured editor.
+ * When `useConfiguredEditor` is true, resolves profile override → extension map
+ * → global default → xdg-open. When false, always uses xdg-open (MIME handler).
  */
-export async function openLocalFile(path: string, editor: string | null): Promise<void> {
-  return invoke("open_local_file", { path, editor: editor ?? null });
+export async function openLocalFile(
+  path: string,
+  editor: string | null,
+  useConfiguredEditor = false,
+): Promise<void> {
+  return invoke("open_local_file", {
+    path,
+    editor: editor ?? null,
+    useConfiguredEditor,
+  });
 }
 
 /** Canonical id of the profile this instance was launched to connect to, if any. */

@@ -31,6 +31,16 @@ export class SettingsDialog {
         const currentPosition = settings.local_browser_position ?? "left";
         const currentConcurrency = settings.max_concurrent_transfers ?? 2;
         const currentDirCache = settings.directory_cache ?? false;
+        const currentDefaultEditor = settings.default_editor ?? "";
+        const currentExtMap = settings.editor_by_extension ?? {};
+        const extRowsHtml = Object.entries(currentExtMap)
+            .map(([ext, cmd]) => `
+          <div class="settings-editor-ext-row">
+            <input class="editor-ext-key" type="text" value="${escHtml(ext)}" placeholder="${t("settings.editorExtPlaceholder")}" spellcheck="false">
+            <input class="editor-ext-val" type="text" value="${escHtml(cmd)}" placeholder="${t("settings.editorCmdPlaceholder")}" spellcheck="false">
+            <button type="button" class="editor-ext-remove btn-secondary" title="${t("settings.editorExtRemove")}">&times;</button>
+          </div>`)
+            .join("");
         const currentLocale = getLocale();
         const availableLocales = getAvailableLocales();
         const localeOptions = availableLocales
@@ -128,6 +138,24 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label for="default-editor-input">${t("settings.defaultEditor")}</label>
+          <input id="default-editor-input" type="text" value="${escHtml(currentDefaultEditor)}"
+            placeholder="${t("settings.defaultEditorPlaceholder")}" spellcheck="false">
+          <div class="form-field__hint">${t("settings.defaultEditorHint")}</div>
+        </div>
+
+        <div class="form-field">
+          <label>${t("settings.editorByExtension")}</label>
+          <div class="form-field__hint">${t("settings.editorByExtensionHint")}</div>
+          <div id="editor-ext-rows" class="settings-editor-ext-list">
+            ${extRowsHtml}
+          </div>
+          <button type="button" id="editor-ext-add" class="btn-secondary" style="margin-top:6px">
+            ${t("settings.editorExtAdd")}
+          </button>
+        </div>
+
+        <div class="form-field">
           <label for="lang-select-settings">${t("settings.labelLanguage")}</label>
           <select id="lang-select-settings" style="width:100%">
             ${localeOptions}
@@ -156,6 +184,24 @@ export class SettingsDialog {
                 pathInput.value = selected;
             }
         });
+        const extRowsEl = overlay.querySelector("#editor-ext-rows");
+        const addExtRow = (ext = "", cmd = "") => {
+            const row = document.createElement("div");
+            row.className = "settings-editor-ext-row";
+            row.innerHTML = `
+        <input class="editor-ext-key" type="text" value="${escHtml(ext)}" placeholder="${t("settings.editorExtPlaceholder")}" spellcheck="false">
+        <input class="editor-ext-val" type="text" value="${escHtml(cmd)}" placeholder="${t("settings.editorCmdPlaceholder")}" spellcheck="false">
+        <button type="button" class="editor-ext-remove btn-secondary" title="${t("settings.editorExtRemove")}">&times;</button>
+      `;
+            extRowsEl.appendChild(row);
+            row.querySelector(".editor-ext-remove")?.addEventListener("click", () => row.remove());
+        };
+        overlay.querySelector("#editor-ext-add")?.addEventListener("click", () => addExtRow());
+        extRowsEl.querySelectorAll(".editor-ext-remove").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                btn.closest(".settings-editor-ext-row")?.remove();
+            });
+        });
         overlay.querySelector("#settings-cancel")?.addEventListener("click", () => {
             overlay.remove();
         });
@@ -174,6 +220,15 @@ export class SettingsDialog {
             const rawConcurrency = parseInt(overlay.querySelector("#concurrency-input")?.value ?? "2", 10);
             const newConcurrency = Math.min(8, Math.max(1, Number.isNaN(rawConcurrency) ? 2 : rawConcurrency));
             const newDirCache = overlay.querySelector("#dir-cache-checkbox")?.checked ?? false;
+            const newDefaultEditor = overlay.querySelector("#default-editor-input")?.value.trim() || null;
+            const editorByExt = {};
+            extRowsEl.querySelectorAll(".settings-editor-ext-row").forEach((row) => {
+                const rawKey = row.querySelector(".editor-ext-key")?.value ?? "";
+                const val = row.querySelector(".editor-ext-val")?.value.trim() ?? "";
+                const key = rawKey.trim().replace(/^\.+/, "").toLowerCase();
+                if (key && val)
+                    editorByExt[key] = val;
+            });
             const updated = {
                 ...settings,
                 profiles_path: newPath ?? null,
@@ -181,6 +236,8 @@ export class SettingsDialog {
                 local_browser_position: newPosition,
                 max_concurrent_transfers: newConcurrency,
                 directory_cache: newDirCache,
+                default_editor: newDefaultEditor,
+                editor_by_extension: Object.keys(editorByExt).length > 0 ? editorByExt : null,
             };
             try {
                 await api.saveSettings(updated);

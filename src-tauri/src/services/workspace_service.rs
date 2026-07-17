@@ -289,26 +289,13 @@ pub fn open_for_edit(
 }
 
 fn open_in_editor(profile: &Profile, local_path: &Path) -> Result<(), String> {
-    let path_str = local_path.to_string_lossy();
-
-    if let Some(editor) = &profile.editor_command {
-        let mut parts = editor.split_whitespace();
-        let cmd = parts.next().ok_or("editor_command is empty")?;
-        let extra_args: Vec<&str> = parts.collect();
-
-        std::process::Command::new(cmd)
-            .args(&extra_args)
-            .arg(path_str.as_ref())
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| format!("Failed to launch editor '{}': {}", editor, e))
-    } else {
-        std::process::Command::new("xdg-open")
-            .arg(path_str.as_ref())
-            .spawn()
-            .map(|_| ())
-            .map_err(|e| format!("Failed to open file with xdg-open: {}. Is xdg-utils installed?", e))
-    }
+    let settings = crate::services::settings_service::get_settings().unwrap_or_default();
+    let resolved = crate::services::editor_service::resolve_editor(
+        profile.editor_command.as_deref(),
+        local_path,
+        &settings,
+    );
+    crate::services::editor_service::launch_editor(resolved.as_deref(), local_path)
 }
 
 fn watch_and_upload(

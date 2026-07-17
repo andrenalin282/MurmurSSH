@@ -12,6 +12,16 @@ No changes yet.
 
 ---
 
+## [1.7.1] - 2026-07-17
+
+### Added
+- **Editor configuration in Settings.** Set a global default editor and per-extension editors (e.g. `conf` → `nano`). Resolution order: profile editor command → extension map → global default → `xdg-open`. Applies to remote Edit and local-browser Edit (Open still uses the system MIME handler).
+
+### Fixed
+- **Drag remote files onto the local browser now starts a download.** Remote drag used `effectAllowed = "move"` only, which blocked the local panel's `dropEffect = "copy"`; it now allows `copyMove`.
+
+---
+
 ## [1.7.0] - 2026-07-09
 
 ### Added

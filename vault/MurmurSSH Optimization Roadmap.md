@@ -14,7 +14,7 @@ Ausführung: subagent-driven (frischer Subagent pro Task, Spec- + Quality-Review
 | 2 | Transfer-Background-Queue mit konfigurierbarer Parallelität (Multiverbindung), Queue-UI | ✅ done — v1.5.0 |
 | 3 | Profil-Gruppen (`group` + `created_at`), Baum-Ansicht, Sortierung alphabetisch/Erstellungsdatum | ✅ done — v1.6.0 |
 | 4 | FileZilla-Import (sitemanager.xml → Profile + Gruppen, ohne Passwörter) | pending |
-| 5 | Editor-Konfiguration: globaler Default + Pro-Dateityp-Map | pending |
+| 5 | Editor-Konfiguration: globaler Default + Pro-Dateityp-Map | ✅ done |
 
 ## Locked Decisions
 
@@ -83,3 +83,7 @@ Neuer `transfer_queue`-Service: ein Dispatcher-Thread (`Mutex<QueueState>` + `Co
 
 - Pläne für Phase 1–5 werden je vor Ausführung erstellt (Phase 4 hängt am Datenmodell aus Phase 3).
 - Modellzuweisung: Haiku = mechanisch (i18n, Docs, einfache Spalten), Sonnet = Implementierung, Opus = Architektur/Root-Cause/Final-Review.
+
+## Phase 5 — abgeschlossen (Editor-Konfiguration)
+
+`Settings` um `default_editor` + `editor_by_extension` erweitert. Neuer `editor_service` mit Auflösung Profil → Endung → Default → xdg-open; verdrahtet in `open_in_editor` und lokalem Edit (`use_configured_editor`). Settings-UI: Default-Feld + Endungszeilen. Nebenbei: Remote→Lokal-DnD Fix (`effectAllowed = "copyMove"`).

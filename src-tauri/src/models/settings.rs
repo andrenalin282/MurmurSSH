@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Settings {
@@ -32,5 +33,13 @@ pub struct Settings {
     /// defaults to false (disabled). A per-profile `directory_cache` overrides this.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub directory_cache: Option<bool>,
+    /// Global default editor command (e.g. "code", "gedit"). When None/empty,
+    /// falls through to xdg-open after the per-extension map.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_editor: Option<String>,
+    /// Map of file extension (lowercase, no leading dot) → editor command.
+    /// Used when the profile has no `editor_command` override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub editor_by_extension: Option<HashMap<String, String>>,
 }
 

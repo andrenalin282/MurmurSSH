@@ -68,6 +68,10 @@ export interface Settings {
   expanded_profile_group?: string | null;
   /** Global default for the remote directory cache. Null/absent = false (disabled). */
   directory_cache?: boolean | null;
+  /** Global default editor command (e.g. "code"). Null/absent = fall through to xdg-open. */
+  default_editor?: string | null;
+  /** Map of extension (lowercase, no leading dot) → editor command. */
+  editor_by_extension?: Record<string, string> | null;
 }
 
 export interface FileEntry {

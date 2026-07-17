@@ -43,8 +43,19 @@ pub fn rename_local_file(from_path: String, to_path: String) -> Result<(), Strin
     local_service::rename_local_file(&from_path, &to_path)
 }
 
-/// Open a local file with the system default app or a custom editor command.
+/// Open a local file with the system default app or a configured editor.
+///
+/// `use_configured_editor`: when true, applies profile override + Settings
+/// resolution (Edit). When false/None, always uses xdg-open (Open).
 #[tauri::command]
-pub fn open_local_file(path: String, editor: Option<String>) -> Result<(), String> {
-    local_service::open_local_file(&path, editor.as_deref())
+pub fn open_local_file(
+    path: String,
+    editor: Option<String>,
+    use_configured_editor: Option<bool>,
+) -> Result<(), String> {
+    local_service::open_local_file(
+        &path,
+        editor.as_deref(),
+        use_configured_editor.unwrap_or(false),
+    )
 }

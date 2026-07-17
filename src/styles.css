@@ -1145,6 +1145,36 @@ button:disabled {
   word-break: break-all;
 }
 
+.settings-editor-ext-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.settings-editor-ext-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.settings-editor-ext-row .editor-ext-key {
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.settings-editor-ext-row .editor-ext-val {
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-editor-ext-row .editor-ext-remove {
+  flex-shrink: 0;
+  width: 32px;
+  padding: 4px 0;
+  line-height: 1;
+}
+
 /* ── Transfer progress bar ────────────────────────────────── */
 
 .form-field__hint {

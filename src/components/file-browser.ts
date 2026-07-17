@@ -620,7 +620,8 @@ export class FileBrowser {
           this.dragSourceNames = new Set([name]);
         }
         this.isDraggingInternal = true;
-        e.dataTransfer!.effectAllowed = "move";
+        // copyMove: internal folder move uses "move"; drop on local browser uses "copy"
+        e.dataTransfer!.effectAllowed = "copyMove";
         e.dataTransfer!.setData("text/plain", "internal-move");
         // Publish to shared DnD state so the local browser can receive the drop
         if (this.profileId) {
@@ -684,7 +685,9 @@ export class FileBrowser {
         this.isDraggingInternal = false;
         this.dragSourceNames = new Set();
         this.setDropTarget(null);
-        clearDragSource();
+        // Defer clear so drop handlers (local panel) still see the source if
+        // the WebView delivers dragend before drop.
+        queueMicrotask(() => clearDragSource());
       });
     }
 

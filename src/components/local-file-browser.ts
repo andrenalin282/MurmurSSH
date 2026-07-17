@@ -244,8 +244,8 @@ export class LocalFileBrowser {
       const action = btn.dataset.action;
       this._hideContextMenu();
       const path = joinPath(this.currentPath, name);
-      if      (action === "open")   void this._ctxOpen(path, null);
-      else if (action === "edit")   void this._ctxOpen(path, this.editorCommand);
+      if      (action === "open")   void this._ctxOpen(path, null, false);
+      else if (action === "edit")   void this._ctxOpen(path, this.editorCommand, true);
       else if (action === "upload") void this._ctxUpload(path, name);
       else if (action === "rename") void this._ctxRename(name);
     });
@@ -261,9 +261,13 @@ export class LocalFileBrowser {
     this._contextMenu = null;
   }
 
-  private async _ctxOpen(path: string, editor: string | null): Promise<void> {
+  private async _ctxOpen(
+    path: string,
+    editor: string | null,
+    useConfiguredEditor: boolean,
+  ): Promise<void> {
     try {
-      await api.openLocalFile(path, editor);
+      await api.openLocalFile(path, editor, useConfiguredEditor);
     } catch (err) {
       this.inlineError = t("localBrowser.openFailed", { error: String(err) });
       this.render();
@@ -368,6 +372,7 @@ export class LocalFileBrowser {
       const src = getDragSource();
       if (!src || src.type !== "remote" || this.busy) return;
       e.preventDefault();
+      e.stopPropagation(); // don't let Tauri's OS-drag handler see it
       e.dataTransfer!.dropEffect = "copy";
       this.setDragOver(true);
     });
@@ -381,6 +386,7 @@ export class LocalFileBrowser {
 
     localBrowserEl?.addEventListener("drop", async (e) => {
       e.preventDefault();
+      e.stopPropagation();
       this.setDragOver(false);
       const src = getDragSource();
       if (!src || src.type !== "remote" || this.busy) return;

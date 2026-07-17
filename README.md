@@ -27,7 +27,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Background transfer queue** — uploads and downloads run in a background queue, so the app stays responsive even during large or numerous transfers. A transfer panel lists every job (queued, transferring, done, failed, cancelled) with a live progress bar and per-job cancel, plus "Cancel all" and "Clear finished".
 - **Concurrent transfers** — several transfers run at once, each on its own connection (FileZilla-style). The number that run simultaneously is configurable in Settings (1–8, default 2).
 - **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
-- **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first.
+- **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first. Choose a global default editor and per-extension editors in Settings; a profile's editor command still overrides those.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
 - **Host key verification** — unknown host keys are shown with their fingerprint before you accept them. Trusted keys are stored locally.
@@ -204,6 +204,8 @@ The last visited path is saved per profile. For shared (portable) profiles each 
 **Panel position** — go to Settings → Local browser position to move the panel to the right side of the remote browser instead of the left.
 
 **Concurrent transfers** — go to Settings → Concurrent transfers to set how many uploads/downloads run at the same time (1–8, default 2). Each runs on its own connection.
+
+**Editors** — go to Settings → Default editor / Editors by file extension to control which program opens files for Edit. Leave the default blank to use `xdg-open`. A profile's Editor Command field still overrides both.
 
 ### Credential storage
 
