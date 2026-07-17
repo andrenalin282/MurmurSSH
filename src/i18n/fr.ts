@@ -289,6 +289,12 @@ const fr = {
     editorCmdPlaceholder: "commande éditeur",
     editorExtAdd: "Ajouter une extension",
     editorExtRemove: "Supprimer",
+    checkUpdatesOnStartup: "Vérifier les mises à jour au démarrage",
+    checkUpdatesNow: "Vérifier maintenant",
+    updateStatusChecking: "Vérification…",
+    updateStatusUpToDate: "Vous êtes à jour ({version})",
+    updateStatusAvailable: "La version {version} est disponible",
+    updateStatusError: "Impossible de vérifier les mises à jour",
     errorSaveFailed: "Échec de l'enregistrement des paramètres : {error}",
   },
 
@@ -313,6 +319,10 @@ const fr = {
     overwriteCancel: "Annuler",
     overwriteNo: "Non",
     overwriteYes: "Oui",
+    updateAvailableTitle: "Mise à jour disponible",
+    updateAvailableBody: "MurmurSSH <strong>{latest}</strong> est publié. Vous utilisez <strong>{current}</strong>.",
+    updateOpenReleases: "Ouvrir les releases",
+    updateLater: "Plus tard",
   },
 
   credentials: {

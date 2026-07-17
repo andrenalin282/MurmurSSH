@@ -2,6 +2,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../api/index";
 import type { Settings } from "../types";
 import { t, getLocale, setLocale, getAvailableLocales } from "../i18n/index";
+import { showUpdateAvailableDialog } from "./update-dialog";
 
 function escHtml(s: string): string {
   return s
@@ -37,6 +38,7 @@ export class SettingsDialog {
     const currentDirCache = settings.directory_cache ?? false;
     const currentDefaultEditor = settings.default_editor ?? "";
     const currentExtMap = settings.editor_by_extension ?? {};
+    const checkOnStartup = settings.check_updates_on_startup !== false;
     const extRowsHtml = Object.entries(currentExtMap)
       .map(
         ([ext, cmd]) => `
@@ -163,6 +165,17 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label>
+            <input type="checkbox" id="check-updates-startup" ${checkOnStartup ? "checked" : ""}>
+            ${t("settings.checkUpdatesOnStartup")}
+          </label>
+          <div class="form-field__row" style="margin-top:8px;gap:8px;align-items:center">
+            <button type="button" id="check-updates-btn" class="btn-secondary">${t("settings.checkUpdatesNow")}</button>
+            <div id="update-check-status" class="form-field__hint" style="margin:0"></div>
+          </div>
+        </div>
+
+        <div class="form-field">
           <label for="lang-select-settings">${t("settings.labelLanguage")}</label>
           <select id="lang-select-settings" style="width:100%">
             ${localeOptions}
@@ -217,6 +230,33 @@ export class SettingsDialog {
       });
     });
 
+    let updateCheckInFlight = false;
+    const statusEl = overlay.querySelector<HTMLElement>("#update-check-status");
+    overlay.querySelector("#check-updates-btn")?.addEventListener("click", async () => {
+      if (updateCheckInFlight) return;
+      updateCheckInFlight = true;
+      if (statusEl) statusEl.textContent = t("settings.updateStatusChecking");
+      try {
+        const result = await api.checkForUpdates();
+        if (result.update_available) {
+          if (statusEl) {
+            statusEl.textContent = t("settings.updateStatusAvailable", {
+              version: result.latest_version,
+            });
+          }
+          showUpdateAvailableDialog(result);
+        } else if (statusEl) {
+          statusEl.textContent = t("settings.updateStatusUpToDate", {
+            version: result.current_version,
+          });
+        }
+      } catch {
+        if (statusEl) statusEl.textContent = t("settings.updateStatusError");
+      } finally {
+        updateCheckInFlight = false;
+      }
+    });
+
     overlay.querySelector("#settings-cancel")?.addEventListener("click", () => {
       overlay.remove();
     });
@@ -253,6 +293,9 @@ export class SettingsDialog {
       const newDefaultEditor =
         overlay.querySelector<HTMLInputElement>("#default-editor-input")?.value.trim() || null;
 
+      const newCheckUpdatesOnStartup =
+        overlay.querySelector<HTMLInputElement>("#check-updates-startup")?.checked ?? true;
+
       const editorByExt: Record<string, string> = {};
       extRowsEl.querySelectorAll<HTMLElement>(".settings-editor-ext-row").forEach((row) => {
         const rawKey = row.querySelector<HTMLInputElement>(".editor-ext-key")?.value ?? "";
@@ -270,6 +313,7 @@ export class SettingsDialog {
         directory_cache: newDirCache,
         default_editor: newDefaultEditor,
         editor_by_extension: Object.keys(editorByExt).length > 0 ? editorByExt : null,
+        check_updates_on_startup: newCheckUpdatesOnStartup,
       };
 
       try {

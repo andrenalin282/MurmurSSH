@@ -14,4 +14,5 @@ pub mod sftp_service;
 pub mod ssh_service;
 pub mod ssh_session_service;
 pub mod transfer_queue;
+pub mod update_service;
 pub mod workspace_service;

@@ -282,6 +282,12 @@ const en = {
         editorCmdPlaceholder: "editor command",
         editorExtAdd: "Add extension",
         editorExtRemove: "Remove",
+        checkUpdatesOnStartup: "Check for updates on startup",
+        checkUpdatesNow: "Check now",
+        updateStatusChecking: "Checking…",
+        updateStatusUpToDate: "You're up to date ({version})",
+        updateStatusAvailable: "Version {version} is available",
+        updateStatusError: "Could not check for updates",
         errorSaveFailed: "Failed to save settings: {error}",
     },
     dialogs: {
@@ -305,6 +311,10 @@ const en = {
         overwriteCancel: "Cancel",
         overwriteNo: "No",
         overwriteYes: "Yes",
+        updateAvailableTitle: "Update available",
+        updateAvailableBody: "MurmurSSH <strong>{latest}</strong> is published. You are on <strong>{current}</strong>.",
+        updateOpenReleases: "Open releases",
+        updateLater: "Later",
     },
     credentials: {
         passwordTitle: "Password Required",

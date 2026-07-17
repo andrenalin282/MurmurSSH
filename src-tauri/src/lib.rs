@@ -43,6 +43,7 @@ pub fn run() {
             commands::ssh::quit_app,
             commands::ssh::open_url,
             commands::ssh::get_app_version,
+            commands::update::check_for_updates,
             commands::ssh::check_key_needs_copy,
             commands::ssh::copy_key_for_runtime,
             commands::ssh::delete_runtime_key,

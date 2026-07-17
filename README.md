@@ -28,6 +28,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Concurrent transfers** — several transfers run at once, each on its own connection (FileZilla-style). The number that run simultaneously is configurable in Settings (1–8, default 2).
 - **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first. Choose a global default editor and per-extension editors in Settings; a profile's editor command still overrides those.
+- **Update check** — optionally check GitHub Releases when the app starts (on by default; toggle in Settings). Use **Check now** anytime for an immediate check. If a newer version exists, MurmurSSH shows a dialog with a link to the Releases page (no auto-install).
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
 - **Host key verification** — unknown host keys are shown with their fingerprint before you accept them. Trusted keys are stored locally.

@@ -72,6 +72,15 @@ export interface Settings {
   default_editor?: string | null;
   /** Map of extension (lowercase, no leading dot) → editor command. */
   editor_by_extension?: Record<string, string> | null;
+  /** When true (default), check GitHub for updates on startup. Absent/null = true. */
+  check_updates_on_startup?: boolean | null;
+}
+
+export interface UpdateCheckResult {
+  update_available: boolean;
+  current_version: string;
+  latest_version: string;
+  release_url: string;
 }
 
 export interface FileEntry {

@@ -41,5 +41,9 @@ pub struct Settings {
     /// Used when the profile has no `editor_command` override.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub editor_by_extension: Option<HashMap<String, String>>,
+    /// When true (default), check GitHub Releases once after app start.
+    /// Absent/None = true (opt-out).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub check_updates_on_startup: Option<bool>,
 }
 

@@ -12,6 +12,13 @@ No changes yet.
 
 ---
 
+## [1.7.2] - 2026-07-17
+
+### Added
+- **GitHub update check.** On startup (enabled by default; toggle in Settings) MurmurSSH compares the running version to the latest GitHub Release. **Check now** in Settings always reports a result. When an update is available, a dialog offers a link to the Releases page (no auto-download).
+
+---
+
 ## [1.7.1] - 2026-07-17
 
 ### Added

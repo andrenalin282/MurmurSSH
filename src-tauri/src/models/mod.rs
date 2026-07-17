@@ -2,6 +2,7 @@ pub mod profile;
 pub mod settings;
 pub mod sftp;
 pub mod transfer;
+pub mod update;
 
 pub use profile::{AuthType, CredentialStorageMode, Profile, Protocol, UploadMode};
 pub use settings::Settings;

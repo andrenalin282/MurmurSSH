@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { FileEntry, Profile, Settings, TransferJobView } from "../types";
+import type { FileEntry, Profile, Settings, TransferJobView, UpdateCheckResult } from "../types";
 
 export async function listProfiles(): Promise<Profile[]> {
   return invoke("list_profiles");
@@ -359,6 +359,11 @@ export async function quitApp(): Promise<void> {
 /** Return the application version string (e.g. "1.0.0"). */
 export async function getAppVersion(): Promise<string> {
   return invoke("get_app_version");
+}
+
+/** Compare the running version to the latest GitHub Release. */
+export async function checkForUpdates(): Promise<UpdateCheckResult> {
+  return invoke("check_for_updates");
 }
 
 /** Open a URL in the system default browser using xdg-open. Only https/http allowed. */

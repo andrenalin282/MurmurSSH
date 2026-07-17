@@ -251,6 +251,10 @@ export async function quitApp() {
 export async function getAppVersion() {
     return invoke("get_app_version");
 }
+/** Compare the running version to the latest GitHub Release. */
+export async function checkForUpdates() {
+    return invoke("check_for_updates");
+}
 /** Open a URL in the system default browser using xdg-open. Only https/http allowed. */
 export async function openUrl(url) {
     return invoke("open_url", { url });

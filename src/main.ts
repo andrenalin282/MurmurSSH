@@ -9,6 +9,7 @@ import { TransferQueuePanel } from "./components/transfer-queue";
 import { ProfileForm } from "./components/profile-form";
 import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
+import { showUpdateAvailableDialog } from "./components/update-dialog";
 import { StatusBar } from "./components/status-bar";
 import { showConfirm } from "./components/dialog";
 import { showOverwriteDialog } from "./components/dialog";
@@ -684,11 +685,23 @@ profileSelector.init().then(async (lastUsedId) => {
     // Non-fatal — startup cleanup is best-effort
   }
 
-  // Load and apply persisted theme on startup
+  // Load and apply persisted theme on startup; optionally check for updates.
   try {
     const settings = await api.getSettings();
     applyTheme((settings.theme as Theme) ?? "system");
     applyLocalBrowserPosition(settings.local_browser_position);
+    if (settings.check_updates_on_startup !== false) {
+      void api
+        .checkForUpdates()
+        .then((result) => {
+          if (result.update_available) {
+            showUpdateAvailableDialog(result);
+          }
+        })
+        .catch(() => {
+          // Silent on startup — offline / GitHub unreachable
+        });
+    }
   } catch {
     // Non-fatal — default theme (dark) stays active
   }

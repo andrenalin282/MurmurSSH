@@ -289,6 +289,12 @@ const nl = {
     editorCmdPlaceholder: "editorcommando",
     editorExtAdd: "Extensie toevoegen",
     editorExtRemove: "Verwijderen",
+    checkUpdatesOnStartup: "Bij opstarten controleren op updates",
+    checkUpdatesNow: "Nu controleren",
+    updateStatusChecking: "Controleren…",
+    updateStatusUpToDate: "Je bent up-to-date ({version})",
+    updateStatusAvailable: "Versie {version} is beschikbaar",
+    updateStatusError: "Kon niet controleren op updates",
     errorSaveFailed: "Opslaan van instellingen mislukt: {error}",
   },
 
@@ -313,6 +319,10 @@ const nl = {
     overwriteCancel: "Annuleren",
     overwriteNo: "Nee",
     overwriteYes: "Ja",
+    updateAvailableTitle: "Update beschikbaar",
+    updateAvailableBody: "MurmurSSH <strong>{latest}</strong> is gepubliceerd. Je gebruikt <strong>{current}</strong>.",
+    updateOpenReleases: "Releases openen",
+    updateLater: "Later",
   },
 
   credentials: {

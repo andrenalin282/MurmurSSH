@@ -282,6 +282,12 @@ const ru = {
         editorCmdPlaceholder: "команда редактора",
         editorExtAdd: "Добавить расширение",
         editorExtRemove: "Удалить",
+        checkUpdatesOnStartup: "Проверять обновления при запуске",
+        checkUpdatesNow: "Проверить сейчас",
+        updateStatusChecking: "Проверка…",
+        updateStatusUpToDate: "У вас актуальная версия ({version})",
+        updateStatusAvailable: "Доступна версия {version}",
+        updateStatusError: "Не удалось проверить обновления",
         errorSaveFailed: "Не удалось сохранить настройки: {error}",
     },
     dialogs: {
@@ -305,6 +311,10 @@ const ru = {
         overwriteCancel: "Отмена",
         overwriteNo: "Нет",
         overwriteYes: "Да",
+        updateAvailableTitle: "Доступно обновление",
+        updateAvailableBody: "Опубликован MurmurSSH <strong>{latest}</strong>. У вас <strong>{current}</strong>.",
+        updateOpenReleases: "Открыть релизы",
+        updateLater: "Позже",
     },
     credentials: {
         passwordTitle: "Требуется пароль",

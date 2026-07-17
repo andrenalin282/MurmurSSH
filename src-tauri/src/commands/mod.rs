@@ -6,4 +6,5 @@ pub mod settings;
 pub mod sftp;
 pub mod ssh;
 pub mod transfer;
+pub mod update;
 pub mod workspace;
