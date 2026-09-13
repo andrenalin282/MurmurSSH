@@ -193,10 +193,14 @@ fn put_via_part(ftp: &mut FtpStream, local: &std::path::Path, remote_path: &str)
         return Err(format!("FTP upload '{}' failed: {}", remote_path, e));
     }
     // RNTO onto an existing file is server-dependent; remove the target first (ignore not-found).
+    // The target is gone from this point on, so a failing rename below must NOT also delete
+    // the part file — that would leave neither old nor new content on the server.
     let _ = ftp.rm(remote_path);
     ftp.rename(part.as_str(), remote_path).map_err(|e| {
-        let _ = ftp.rm(&part);
-        format!("FTP finalize '{}' failed: {}", remote_path, e)
+        format!(
+            "FTP finalize '{}' failed: {} (uploaded data kept at '{}')",
+            remote_path, e, part
+        )
     })
 }
 
@@ -335,6 +339,7 @@ pub fn upload_directory(
     cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
+    crate::services::transfer_paths::validate_local_root(local_path)?;
     let mut ftp = connect(profile)?;
     let mut guard = crate::services::transfer_paths::LoopGuard::new();
     let mut failures = Vec::new();
@@ -363,7 +368,7 @@ fn upload_dir_recursive(
         return Err(CANCELLED_ERROR.to_string());
     }
     if !guard.enter(local_dir) {
-        return Ok(());
+        return Ok(()); // already on the recursion stack (cycle) or unresolvable
     }
     // Create the remote directory; ignore error if it already exists.
     let _ = ftp.mkdir(remote_dir);

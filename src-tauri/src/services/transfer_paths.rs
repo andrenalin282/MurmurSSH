@@ -45,6 +45,18 @@ impl Default for LoopGuard {
     }
 }
 
+/// Validates that `path` exists and is a local directory. Callers must run this before any
+/// remote side effect (mkdir/connect) so a missing or non-directory root fails loudly instead
+/// of silently reporting success via `LoopGuard::enter` returning false for an unresolvable path.
+pub fn validate_local_root(path: &str) -> Result<(), String> {
+    let meta = std::fs::metadata(path)
+        .map_err(|e| format!("Failed to read local directory '{}': {}", path, e))?;
+    if !meta.is_dir() {
+        return Err(format!("'{}' is not a directory", path));
+    }
+    Ok(())
+}
+
 /// `Ok(())` when nothing failed, otherwise one error line listing up to 3 failures.
 pub fn summarize_failures(failures: &[String], total: usize) -> Result<(), String> {
     if failures.is_empty() {
@@ -87,6 +99,29 @@ mod tests {
         assert!(g.enter(&root.join("sub")), "re-enter after leave is allowed");
 
         std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn validate_local_root_rejects_missing_path() {
+        let path = std::env::temp_dir().join(format!("murmur-missing-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&path);
+        let err = validate_local_root(path.to_str().unwrap()).unwrap_err();
+        assert!(err.contains("Failed to read local directory"));
+    }
+
+    #[test]
+    fn validate_local_root_rejects_file() {
+        let path = std::env::temp_dir().join(format!("murmur-notadir-{}", std::process::id()));
+        std::fs::write(&path, b"x").unwrap();
+        let err = validate_local_root(path.to_str().unwrap()).unwrap_err();
+        assert!(err.contains("is not a directory"));
+        std::fs::remove_file(&path).unwrap();
+    }
+
+    #[test]
+    fn validate_local_root_accepts_directory() {
+        let path = std::env::temp_dir();
+        assert!(validate_local_root(path.to_str().unwrap()).is_ok());
     }
 
     #[test]

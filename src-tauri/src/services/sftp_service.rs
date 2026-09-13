@@ -317,13 +317,24 @@ fn finalize_part(sftp: &ssh2::Sftp, part: &str, target: &str) -> Result<(), Stri
     if sftp.rename(Path::new(part), Path::new(target), Some(flags)).is_ok() {
         return Ok(());
     }
+    let mut removed_target = false;
     if sftp.stat(Path::new(target)).is_ok() {
         sftp.unlink(Path::new(target))
             .map_err(|e| format!("Cannot replace '{}': {}", target, e))?;
+        removed_target = true;
     }
     sftp.rename(Path::new(part), Path::new(target), None).map_err(|e| {
-        let _ = sftp.unlink(Path::new(part));
-        format!("Failed to finalize '{}': {}", target, e)
+        if removed_target {
+            // The old target is already gone — keep the part file so the just-uploaded
+            // data is not lost too (neither old nor new would otherwise survive).
+            format!(
+                "Failed to finalize '{}': {} (uploaded data kept at '{}')",
+                target, e, part
+            )
+        } else {
+            let _ = sftp.unlink(Path::new(part));
+            format!("Failed to finalize '{}': {}", target, e)
+        }
     })
 }
 
@@ -679,6 +690,7 @@ fn upload_directory_inner(
     cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
+    crate::services::transfer_paths::validate_local_root(local_path)?;
     let session = connect(profile)?;
     let sftp = session
         .sftp()
@@ -725,7 +737,7 @@ fn upload_directory_recursive(
         return Err(CANCELLED_ERROR.to_string());
     }
     if !guard.enter(local_dir) {
-        return Ok(()); // symlink cycle — skip silently
+        return Ok(()); // already on the recursion stack (cycle) or unresolvable
     }
     let read_dir = match std::fs::read_dir(local_dir) {
         Ok(r) => r,
