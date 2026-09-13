@@ -182,6 +182,34 @@ pub fn upload_bytes(profile: &Profile, remote_path: &str, content: &[u8]) -> Res
     Ok(())
 }
 
+/// Upload to `.<name>.murmur-part`, then replace the target. On failure only the part file
+/// is removed so an existing remote file survives.
+fn put_via_part(ftp: &mut FtpStream, local: &std::path::Path, remote_path: &str) -> Result<(), String> {
+    let mut file = std::fs::File::open(local)
+        .map_err(|e| format!("Cannot read '{}': {}", local.display(), e))?;
+    let part = crate::services::transfer_paths::part_path(remote_path);
+    if let Err(e) = ftp.put_file(&part, &mut file) {
+        let _ = ftp.rm(&part);
+        return Err(format!("FTP upload '{}' failed: {}", remote_path, e));
+    }
+    // RNTO onto an existing file is server-dependent; remove the target first (ignore not-found).
+    let _ = ftp.rm(remote_path);
+    ftp.rename(part.as_str(), remote_path).map_err(|e| {
+        let _ = ftp.rm(&part);
+        format!("FTP finalize '{}' failed: {}", remote_path, e)
+    })
+}
+
+/// True when `path` is a directory on the server (CWD succeeds).
+// Consumed by a later task in this plan (folder-drop-target detection); unused for now.
+#[allow(dead_code)]
+pub fn is_remote_dir(profile: &Profile, path: &str) -> Result<bool, String> {
+    let mut ftp = connect(profile)?;
+    let is_dir = ftp.cwd(path).is_ok();
+    let _ = ftp.quit();
+    Ok(is_dir)
+}
+
 /// Upload a local file to a remote path by streaming directly from the file
 /// handle — avoids loading the entire file into RAM (audit F8 partial).
 /// `on_progress(bytes_done, bytes_total, filename)` is called at start and end.
@@ -192,9 +220,7 @@ pub fn upload_file(
     cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
-    let mut file = std::fs::File::open(local_path)
-        .map_err(|e| format!("Cannot read local file '{}': {}", local_path, e))?;
-    let total = file.metadata().map(|m| m.len()).unwrap_or(0);
+    let total = std::fs::metadata(local_path).map(|m| m.len()).unwrap_or(0);
     let name = std::path::Path::new(remote_path)
         .file_name()
         .map(|n| n.to_string_lossy().to_string())
@@ -203,12 +229,9 @@ pub fn upload_file(
     // FTP upload is a single atomic put_file; there is no mid-stream cancel point (suppaftp limitation).
     let _ = cancel;
     let mut ftp = connect(profile)?;
-    if let Err(e) = ftp.put_file(remote_path, &mut file) {
-        let _ = ftp.rm(remote_path);
-        let _ = ftp.quit();
-        return Err(format!("FTP upload failed: {}", e));
-    }
+    let result = put_via_part(&mut ftp, std::path::Path::new(local_path), remote_path);
     let _ = ftp.quit();
+    result?;
     on_progress(total, total, &name);
     Ok(())
 }
@@ -313,59 +336,76 @@ pub fn upload_directory(
     on_progress: &dyn Fn(u64, u64, &str),
 ) -> Result<(), String> {
     let mut ftp = connect(profile)?;
-    let result = upload_dir_recursive(cancel, &mut ftp, std::path::Path::new(local_path), remote_path, on_progress);
+    let mut guard = crate::services::transfer_paths::LoopGuard::new();
+    let mut failures = Vec::new();
+    let mut total = 0usize;
+    let result = upload_dir_recursive(
+        cancel, &mut ftp, std::path::Path::new(local_path), remote_path, on_progress,
+        &mut guard, &mut failures, &mut total,
+    );
     let _ = ftp.quit();
-    result
+    result?;
+    crate::services::transfer_paths::summarize_failures(&failures, total)
 }
 
+#[allow(clippy::too_many_arguments)]
 fn upload_dir_recursive(
     cancel: &dyn Fn() -> bool,
     ftp: &mut FtpStream,
     local_dir: &std::path::Path,
     remote_dir: &str,
     on_progress: &dyn Fn(u64, u64, &str),
+    guard: &mut crate::services::transfer_paths::LoopGuard,
+    failures: &mut Vec<String>,
+    total: &mut usize,
 ) -> Result<(), String> {
     if cancel() {
         return Err(CANCELLED_ERROR.to_string());
     }
+    if !guard.enter(local_dir) {
+        return Ok(());
+    }
     // Create the remote directory; ignore error if it already exists.
     let _ = ftp.mkdir(remote_dir);
 
-    let read_dir = std::fs::read_dir(local_dir)
-        .map_err(|e| format!("Failed to read local directory '{}': {}", local_dir.display(), e))?;
+    let read_dir = match std::fs::read_dir(local_dir) {
+        Ok(r) => r,
+        Err(e) => {
+            failures.push(format!("{}: {}", local_dir.display(), e));
+            guard.leave(local_dir);
+            return Ok(());
+        }
+    };
 
     for entry in read_dir {
-        let entry = entry.map_err(|e| format!("Directory entry error: {}", e))?;
-        let local_entry = entry.path();
-        let name = local_entry
-            .file_name()
-            .map(|n| n.to_string_lossy().to_string())
-            .unwrap_or_default();
+        if cancel() {
+            guard.leave(local_dir);
+            return Err(CANCELLED_ERROR.to_string());
+        }
+        let local_entry = match entry {
+            Ok(e) => e.path(),
+            Err(e) => { failures.push(format!("{}: {}", local_dir.display(), e)); continue; }
+        };
+        let name = local_entry.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         if name.is_empty() {
             continue;
         }
         let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
 
-        if cancel() {
-            return Err(CANCELLED_ERROR.to_string());
-        }
         if local_entry.is_dir() {
-            upload_dir_recursive(cancel, ftp, &local_entry, &remote_entry, on_progress)?;
+            *total += 1;
+            upload_dir_recursive(cancel, ftp, &local_entry, &remote_entry, on_progress, guard, failures, total)?;
         } else if local_entry.is_file() {
-            // Stream from the open file handle directly (F8 partial).
-            let mut file = std::fs::File::open(&local_entry)
-                .map_err(|e| format!("Cannot read '{}': {}", local_entry.display(), e))?;
-            let file_size = file.metadata().map(|m| m.len()).unwrap_or(0);
-            on_progress(0, file_size, &name);
-            if let Err(e) = ftp.put_file(&remote_entry, &mut file) {
-                let _ = ftp.rm(&remote_entry);
-                return Err(format!("FTP upload '{}' failed: {}", remote_entry, e));
+            *total += 1;
+            let size = local_entry.metadata().map(|m| m.len()).unwrap_or(0);
+            on_progress(0, size, &name);
+            match put_via_part(ftp, &local_entry, &remote_entry) {
+                Ok(()) => on_progress(size, size, &name),
+                Err(e) => failures.push(format!("{}: {}", name, e)),
             }
-            on_progress(file_size, file_size, &name);
         }
-        // Broken symlinks and special files are skipped.
     }
-
+    guard.leave(local_dir);
     Ok(())
 }
 
