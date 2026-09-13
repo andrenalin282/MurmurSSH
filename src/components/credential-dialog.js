@@ -56,8 +56,8 @@ export function showPasswordPrompt(username, host) {
             </div>
           </div>
           <div class="modal__actions">
-            <button type="button" class="btn-secondary" id="cred-cancel">${t("common.cancel")}</button>
-            <button type="submit">${t("credentials.connect")}</button>
+            <button type="button" class="btn-secondary" id="cred-cancel" data-modal-cancel>${t("common.cancel")}</button>
+            <button type="submit" data-modal-primary>${t("credentials.connect")}</button>
           </div>
         </form>
       </div>
@@ -127,8 +127,8 @@ export function showPassphrasePrompt(keyPath) {
             ${t("credentials.passphraseNote")}
           </div>
           <div class="modal__actions">
-            <button type="button" class="btn-secondary" id="pp-cancel">${t("common.cancel")}</button>
-            <button type="submit">${t("credentials.unlock")}</button>
+            <button type="button" class="btn-secondary" id="pp-cancel" data-modal-cancel>${t("common.cancel")}</button>
+            <button type="submit" data-modal-primary>${t("credentials.unlock")}</button>
           </div>
         </form>
       </div>
@@ -172,7 +172,7 @@ export function showHostKeyDialog(host, fingerprint) {
           <p>${t("credentials.hostKeyBody3")}</p>
         </div>
         <div class="modal__actions modal__actions--hostkey">
-          <button class="btn-secondary" id="hk-cancel">${t("credentials.hostKeyCancel")}</button>
+          <button class="btn-secondary" id="hk-cancel" data-modal-cancel>${t("credentials.hostKeyCancel")}</button>
           <button class="btn-secondary" id="hk-once">${t("credentials.hostKeyOnce")}</button>
           <button id="hk-save">${t("credentials.hostKeySave")}</button>
         </div>

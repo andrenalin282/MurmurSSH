@@ -24,8 +24,8 @@ export function showPrompt(title: string, placeholder = "", initialValue = ""): 
           <input id="modal-prompt-input" type="text" placeholder="${escHtml(placeholder)}" value="${escHtml(initialValue)}" autocomplete="off">
         </div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="modal-cancel">${t("dialogs.promptCancel")}</button>
-          <button id="modal-confirm">${t("dialogs.promptOk")}</button>
+          <button class="btn-secondary" id="modal-cancel" data-modal-cancel>${t("dialogs.promptCancel")}</button>
+          <button id="modal-confirm" data-modal-primary>${t("dialogs.promptOk")}</button>
         </div>
       </div>
     `;
@@ -45,11 +45,6 @@ export function showPrompt(title: string, placeholder = "", initialValue = ""): 
       const val = input.value.trim();
       cleanup(val || null);
     };
-
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") submit();
-      if (e.key === "Escape") cleanup(null);
-    });
 
     overlay.querySelector("#modal-cancel")?.addEventListener("click", () => cleanup(null));
     overlay.querySelector("#modal-confirm")?.addEventListener("click", submit);
@@ -85,9 +80,9 @@ export function showOverwriteDialog(
           </label>
         </div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="overwrite-cancel">${t("dialogs.overwriteCancel")}</button>
+          <button class="btn-secondary" id="overwrite-cancel" data-modal-cancel>${t("dialogs.overwriteCancel")}</button>
           <button class="btn-secondary" id="overwrite-no">${t("dialogs.overwriteNo")}</button>
-          <button id="overwrite-yes">${t("dialogs.overwriteYes")}</button>
+          <button id="overwrite-yes" data-modal-primary>${t("dialogs.overwriteYes")}</button>
         </div>
       </div>
     `;
@@ -175,8 +170,8 @@ export function showPermissionsDialog(
           </label>
         </div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="perm-cancel">${t("dialogs.promptCancel")}</button>
-          <button id="perm-apply">${t("dialogs.permApply")}</button>
+          <button class="btn-secondary" id="perm-cancel" data-modal-cancel>${t("dialogs.promptCancel")}</button>
+          <button id="perm-apply" data-modal-primary>${t("dialogs.permApply")}</button>
         </div>
       </div>
     `;
@@ -250,8 +245,8 @@ export function showConfirm(message: string, title?: string): Promise<boolean> {
         <div class="modal__title">${escHtml(resolvedTitle)}</div>
         <div class="modal__body">${escHtml(message)}</div>
         <div class="modal__actions">
-          <button class="btn-secondary" id="modal-cancel">${t("dialogs.confirmCancel")}</button>
-          <button id="modal-confirm">${t("dialogs.confirmConfirm")}</button>
+          <button class="btn-secondary" id="modal-cancel" data-modal-cancel>${t("dialogs.confirmCancel")}</button>
+          <button id="modal-confirm" data-modal-primary>${t("dialogs.confirmConfirm")}</button>
         </div>
       </div>
     `;
@@ -265,5 +260,7 @@ export function showConfirm(message: string, title?: string): Promise<boolean> {
 
     overlay.querySelector("#modal-cancel")?.addEventListener("click", () => cleanup(false));
     overlay.querySelector("#modal-confirm")?.addEventListener("click", () => cleanup(true));
+
+    setTimeout(() => overlay.querySelector<HTMLButtonElement>("#modal-confirm")?.focus(), 10);
   });
 }

@@ -15,6 +15,7 @@ import { showConfirm } from "./components/dialog";
 import { showOverwriteDialog } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
+import { installModalKeyHandler } from "./components/modal-keys";
 // ── Help / About dialog ───────────────────────────────────────────────────────
 async function showHelpDialog() {
     // Fetch the version from the backend (reads tauri.conf.json at build time)
@@ -47,11 +48,12 @@ async function showHelpDialog() {
         </p>
       </div>
       <div class="modal__actions">
-        <button id="help-close">${t("app.helpClose")}</button>
+        <button id="help-close" data-modal-cancel data-modal-primary>${t("app.helpClose")}</button>
       </div>
     </div>
   `;
     document.body.appendChild(overlay);
+    setTimeout(() => overlay.querySelector("#help-close")?.focus(), 10);
     overlay.querySelector("#help-close")?.addEventListener("click", () => overlay.remove());
     overlay.querySelector("#help-website-link")?.addEventListener("click", (e) => {
         e.preventDefault();
@@ -99,6 +101,7 @@ systemThemeQuery.addEventListener("change", () => {
         applyTheme("system");
     }
 });
+installModalKeyHandler();
 const profileSelector = new ProfileSelector("profile-selector");
 const statusBar = new StatusBar("status-bar");
 const fileBrowser = new FileBrowser("file-browser");

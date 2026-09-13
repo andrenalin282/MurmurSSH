@@ -21,6 +21,7 @@ import {
 } from "./components/credential-dialog";
 import type { Settings, UploadReadyPayload } from "./types";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
+import { installModalKeyHandler } from "./components/modal-keys";
 
 // ── Help / About dialog ───────────────────────────────────────────────────────
 
@@ -56,12 +57,14 @@ async function showHelpDialog(): Promise<void> {
         </p>
       </div>
       <div class="modal__actions">
-        <button id="help-close">${t("app.helpClose")}</button>
+        <button id="help-close" data-modal-cancel data-modal-primary>${t("app.helpClose")}</button>
       </div>
     </div>
   `;
 
   document.body.appendChild(overlay);
+
+  setTimeout(() => overlay.querySelector<HTMLButtonElement>("#help-close")?.focus(), 10);
 
   overlay.querySelector("#help-close")?.addEventListener("click", () => overlay.remove());
 
@@ -123,6 +126,8 @@ systemThemeQuery.addEventListener("change", () => {
     applyTheme("system");
   }
 });
+
+installModalKeyHandler();
 
 const profileSelector = new ProfileSelector("profile-selector");
 const statusBar = new StatusBar("status-bar");

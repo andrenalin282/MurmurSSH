@@ -22,8 +22,8 @@ export function showUpdateAvailableDialog(result: UpdateCheckResult): void {
         current: escHtml(result.current_version),
       })}</div>
       <div class="modal__actions">
-        <button type="button" class="btn-secondary" id="update-later">${t("dialogs.updateLater")}</button>
-        <button type="button" id="update-open">${t("dialogs.updateOpenReleases")}</button>
+        <button type="button" class="btn-secondary" id="update-later" data-modal-cancel>${t("dialogs.updateLater")}</button>
+        <button type="button" id="update-open" data-modal-primary>${t("dialogs.updateOpenReleases")}</button>
       </div>
     </div>`;
   document.body.appendChild(overlay);

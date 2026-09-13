@@ -183,13 +183,15 @@ export class SettingsDialog {
         </div>
 
         <div class="modal__actions">
-          <button type="button" class="btn-secondary" id="settings-cancel">${t("common.cancel")}</button>
-          <button type="button" id="settings-apply">${t("common.apply")}</button>
+          <button type="button" class="btn-secondary" id="settings-cancel" data-modal-cancel>${t("common.cancel")}</button>
+          <button type="button" id="settings-apply" data-modal-primary>${t("common.apply")}</button>
         </div>
       </div>
     `;
 
     document.body.appendChild(overlay);
+
+    setTimeout(() => overlay.querySelector<HTMLInputElement>("input")?.focus(), 10);
 
     const pathInput = overlay.querySelector<HTMLInputElement>("#custom-path-input")!;
     const customRow = overlay.querySelector<HTMLElement>("#custom-path-row")!;

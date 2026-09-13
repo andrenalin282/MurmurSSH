@@ -160,14 +160,15 @@ export class ProfileForm {
           ${isEdit ? this.renderSavedCredentialSection(profile) : ""}
           <div class="form-error" id="pf-error" style="display:none"></div>
           <div class="modal__actions">
-            <button type="button" class="btn-secondary" id="pf-cancel">${t("common.cancel")}</button>
+            <button type="button" class="btn-secondary" id="pf-cancel" data-modal-cancel>${t("common.cancel")}</button>
             ${!isEdit ? `<button type="button" class="btn-secondary" id="pf-import-ssh">${t("profileForm.importSsh")}</button>` : ""}
-            <button type="submit" id="pf-save">${t("common.save")}</button>
+            <button type="submit" id="pf-save" data-modal-primary>${t("common.save")}</button>
           </div>
         </form>
       </div>
     `;
         document.body.appendChild(this.overlay);
+        setTimeout(() => this.overlay?.querySelector("#pf-name")?.focus(), 10);
         // Protocol selector — auto-fill port and toggle auth visibility.
         let prevProtocol = protocol;
         this.overlay.querySelector("#pf-protocol")?.addEventListener("change", (e) => {
@@ -338,7 +339,7 @@ export class ProfileForm {
             ${details.length > 0 ? `<div style="margin-top:10px">${details.join("")}</div>` : ""}
           </div>
           <div class="modal__actions">
-            <button id="ssh-import-result-ok">${t("common.ok")}</button>
+            <button id="ssh-import-result-ok" data-modal-cancel data-modal-primary>${t("common.ok")}</button>
           </div>
         </div>
       `;
@@ -388,8 +389,8 @@ export class ProfileForm {
           </div>
           <div class="ssh-import__list">${rows}</div>
           <div class="modal__actions">
-            <button class="btn-secondary" id="ssh-import-cancel">${t("common.cancel")}</button>
-            <button id="ssh-import-confirm">${t("import.importSelected")}</button>
+            <button class="btn-secondary" id="ssh-import-cancel" data-modal-cancel>${t("common.cancel")}</button>
+            <button id="ssh-import-confirm" data-modal-primary>${t("import.importSelected")}</button>
           </div>
         </div>
       `;
