@@ -126,6 +126,8 @@ const ru = {
     moveToTitle: "Переместить {label} в каталог",
     moveToPlaceholder: "например /home/user/docs",
     copyToTitle: "Копировать {label} в каталог",
+    clipCopied: "{count} отмечено для копирования — Ctrl+V вставит",
+    clipCut: "{count} отмечено для перемещения — Ctrl+V вставит",
     newFileTitle: "Новый файл",
     newFilePlaceholder: "имя-файла.txt",
     newFolderTitle: "Новая папка",

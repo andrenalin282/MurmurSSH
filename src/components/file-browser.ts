@@ -7,6 +7,8 @@ import type { FileEntry, Protocol, TransferJobView } from "../types";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
 import { matchShortcut } from "../shortcuts";
+import { getActivePanel } from "../panel-focus";
+import { moveCursor, type SelectionState } from "./list-selection";
 
 function escHtml(s: string): string {
   return s
@@ -98,6 +100,7 @@ export class FileBrowser {
   // Multi-selection state
   private selectedNames: Set<string> = new Set();
   private anchorName: string | null = null; // for Shift+click range
+  private cursorName: string | null = null; // keyboard cursor position
 
   // Drag-and-drop (internal move) state
   private dragSourceNames: Set<string> = new Set();
@@ -126,6 +129,9 @@ export class FileBrowser {
   private downloadApplyToAllDecision: OverwriteAction | null = null;
   private onToggleLocalBrowserCallback: ((visible: boolean) => void) | null = null;
   private localBrowserVisible: boolean = false;
+  private clipboard: { mode: "copy" | "cut"; profileId: string; dir: string; names: string[] } | null = null;
+  private localDirProvider: (() => string | null) | null = null;
+  private onLocalDownloadDoneCallback: (() => void) | null = null;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -136,99 +142,118 @@ export class FileBrowser {
     this.setupKeyboardShortcuts();
   }
 
+  setLocalDirProvider(fn: () => string | null): void {
+    this.localDirProvider = fn;
+  }
+
+  /** Provide a callback invoked after a keyboard-triggered download-into-local-panel completes. */
+  onLocalDownloadDone(cb: () => void): void {
+    this.onLocalDownloadDoneCallback = cb;
+  }
+
+  private applyKeyboardSelection(st: SelectionState): void {
+    this.selectedNames = st.selected;
+    this.anchorName = st.anchor;
+    this.cursorName = st.cursor;
+    this.render();
+    this.container
+      .querySelector<HTMLElement>(`tr.file-entry[data-name="${CSS.escape(this.cursorName ?? "")}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }
+
   /** Register global keyboard shortcuts. Called once from constructor. */
   private setupKeyboardShortcuts(): void {
     document.addEventListener("keydown", (e) => {
-      // Skip when any modal/dialog is open
       if (document.querySelector(".modal-overlay")) return;
-      // Skip when an input or textarea has focus (user is typing)
+      if (getActivePanel() !== "remote") return;
       const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
-      const isInput = tag === "input" || tag === "textarea";
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (!this.profileId) return;
 
-      // Type-ahead: a single printable character jumps to the first matching
-      // entry. Handled before the switch so plain letters don't fall through.
-      if (
-        !isInput &&
-        !e.ctrlKey &&
-        !e.altKey &&
-        !e.metaKey &&
-        e.key.length === 1 &&
-        /\S/.test(e.key) &&
-        this.profileId &&
-        !this.busy &&
-        !matchShortcut(e, "global")
-      ) {
-        e.preventDefault();
-        this.handleTypeAhead(e.key);
+      const id = matchShortcut(e, ["panels", "remote"]);
+      if (!id) {
+        if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && /\S/.test(e.key)
+            && !this.busy && !matchShortcut(e, "global")) {
+          e.preventDefault();
+          this.handleTypeAhead(e.key);
+        }
         return;
       }
+      if (this.busy && id !== "clearSelection") return;
 
-      switch (e.key) {
-        case "F5":
-          if (!isInput && this.profileId && !this.busy) {
-            e.preventDefault();
-            void this.refresh();
-          }
-          break;
+      const names = this.entries.map((x) => x.name);
+      const st = (): SelectionState => ({ selected: this.selectedNames, anchor: this.anchorName, cursor: this.cursorName });
+      const page = Math.max(1, Math.floor((this.container.querySelector<HTMLElement>(".file-browser__scroll")?.clientHeight ?? 300) / 24) - 1);
+      const one = this.selectedNames.size === 1;
+      const any = this.selectedNames.size > 0;
 
-        case "F2":
-          if (!isInput && this.profileId && !this.busy && this.selectedNames.size === 1) {
-            e.preventDefault();
-            void this.handleRename();
-          }
-          break;
-
-        case "F11":
-          if (!isInput && this.profileId && !this.busy &&
-              (!this.protocol || this.protocol === "ssh")) {
-            e.preventDefault();
-            void this.handleTerminal();
-          }
-          break;
-
-        case "Delete":
-          if (!isInput && this.profileId && !this.busy && this.selectedNames.size > 0) {
-            e.preventDefault();
-            void this.handleDelete();
-          }
-          break;
-
-        case "a":
-          if (e.ctrlKey && !isInput && this.profileId && !this.busy) {
-            e.preventDefault();
-            this.entries.forEach((entry) => this.selectedNames.add(entry.name));
-            this.render();
-          }
-          break;
-
-        case "Enter":
-          if (!isInput && this.profileId && !this.busy && this.selectedNames.size === 1) {
-            const entry = this.selectedEntry;
-            if (entry?.is_dir) {
-              e.preventDefault();
-              void this.navigateInto(entry.name);
-            } else if (entry && !entry.is_dir) {
-              e.preventDefault();
-              void this.handleEdit();
-            }
-          }
-          break;
-
-        case "Escape": {
-          // Close context menu first; if none open, clear selection
-          const ctxMenu = document.getElementById("ctx-menu");
-          if (ctxMenu) {
-            ctxMenu.remove();
-            return;
-          }
-          if (!isInput && this.selectedNames.size > 0) {
-            this.clearSelection();
-            this.render();
-          }
-          break;
-        }
-      }
+      const run: Record<string, () => void> = {
+        cursorUp: () => this.applyKeyboardSelection(moveCursor(names, st(), -1, false)),
+        cursorDown: () => this.applyKeyboardSelection(moveCursor(names, st(), 1, false)),
+        extendUp: () => this.applyKeyboardSelection(moveCursor(names, st(), -1, true)),
+        extendDown: () => this.applyKeyboardSelection(moveCursor(names, st(), 1, true)),
+        first: () => this.applyKeyboardSelection(moveCursor(names, st(), "start", false)),
+        last: () => this.applyKeyboardSelection(moveCursor(names, st(), "end", false)),
+        pageUp: () => this.applyKeyboardSelection(moveCursor(names, st(), -page, false)),
+        pageDown: () => this.applyKeyboardSelection(moveCursor(names, st(), page, false)),
+        open: () => {
+          const entry = this.selectedEntry;
+          if (!entry) return;
+          if (entry.is_dir) void this.navigateInto(entry.name);
+          else void this.handleEdit();
+        },
+        parent: () => this.navigateUp(),
+        focusPath: () => {
+          const input = this.container.querySelector<HTMLInputElement>("#path-input");
+          input?.focus();
+          input?.select();
+        },
+        refresh: () => void this.refresh(),
+        rename: () => { if (one) void this.handleRename(); },
+        newFolder: () => void this.handleNewFolder(),
+        newFile: () => void this.handleNewFile(),
+        delete: () => { if (any) void this.handleDelete(); },
+        selectAll: () => { names.forEach((n) => this.selectedNames.add(n)); this.render(); },
+        clearSelection: () => {
+          const ctx = document.getElementById("ctx-menu");
+          if (ctx) { ctx.remove(); return; }
+          if (any) { this.clearSelection(); this.render(); }
+        },
+        moveTo: () => { if (any) void this.handleMoveTo(); },
+        copyTo: () => { if (any) void this.handleCopyTo(); },
+        clipCopy: () => this.setClipboard("copy"),
+        clipCut: () => this.setClipboard("cut"),
+        clipPaste: () => void this.pasteClipboard(),
+        download: () => {
+          if (!any) return;
+          const dir = this.localDirProvider?.() ?? null;
+          void this.downloadNamesToLocal([...this.selectedNames], dir ?? undefined).then(() => this.onLocalDownloadDoneCallback?.());
+        },
+        terminal: () => { if (!this.protocol || this.protocol === "ssh") void this.handleTerminal(); },
+      };
+      const action = run[id];
+      if (!action) return;
+      e.preventDefault();
+      action();
     });
+  }
+
+  private setClipboard(mode: "copy" | "cut"): void {
+    if (!this.profileId || this.selectedNames.size === 0) return;
+    this.clipboard = { mode, profileId: this.profileId, dir: this.currentPath, names: [...this.selectedNames] };
+    this.status(t(mode === "copy" ? "fileBrowser.clipCopied" : "fileBrowser.clipCut", { count: this.clipboard.names.length }), false);
+  }
+
+  private async pasteClipboard(): Promise<void> {
+    const clip = this.clipboard;
+    if (!clip || !this.profileId || clip.profileId !== this.profileId) return;
+    if (clip.mode === "copy") {
+      await this.copyNamesToDir(clip.dir, clip.names, this.currentPath);
+    } else {
+      if (clip.dir === this.currentPath) return;
+      this.clipboard = null; // a moved item cannot be pasted twice
+      await this.moveNamesToDir(clip.names, this.currentPath, clip.dir);
+    }
   }
 
   /** Set up the Tauri window drag-and-drop listener (once, for the lifetime of the component). */
@@ -349,6 +374,7 @@ export class FileBrowser {
   private clearSelection(): void {
     this.selectedNames.clear();
     this.anchorName = null;
+    this.cursorName = null;
   }
 
   private setBusy(value: boolean): void {
@@ -475,6 +501,7 @@ export class FileBrowser {
                 let cls = "file-entry";
                 if (entry.is_dir) cls += " file-entry--dir";
                 if (isSelected) cls += " file-entry--selected";
+                if (entry.name === this.cursorName) cls += " file-entry--cursor";
                 if (isDropTarget) cls += " file-entry--drop-target";
                 return `<tr class="${cls}" data-name="${escHtml(entry.name)}" data-isdir="${entry.is_dir}" draggable="true">
                    <td>${entry.is_dir ? "&#128193; " : ""}${escHtml(entry.name)}</td>
@@ -581,6 +608,7 @@ export class FileBrowser {
           return;
         }
 
+        this.cursorName = name;
         const me = e as MouseEvent;
         if (me.ctrlKey || me.metaKey) {
           // Toggle individual entry
@@ -1148,6 +1176,7 @@ export class FileBrowser {
     this.isDraggingInternal = false;
     this.dragSourceNames = new Set();
     this.dropTargetName = null;
+    this.clipboard = null;
     this.onDisconnectCallback?.();
     this.renderEmpty();
   }
@@ -1596,8 +1625,8 @@ export class FileBrowser {
     await this.moveNamesToDir(names, targetDir);
   }
 
-  /** Move a list of names (from the current directory) into targetDir. */
-  private async moveNamesToDir(names: string[], targetDir: string): Promise<void> {
+  /** Move a list of names (from sourceDir, default the current directory) into targetDir. */
+  private async moveNamesToDir(names: string[], targetDir: string, sourceDir: string = this.currentPath): Promise<void> {
     if (!this.profileId) return;
 
     this.setBusy(true);
@@ -1606,7 +1635,7 @@ export class FileBrowser {
     const failedItems: string[] = [];
 
     for (const name of names) {
-      const fromPath = joinPath(this.currentPath, name);
+      const fromPath = joinPath(sourceDir, name);
       const toPath = targetDir.replace(/\/?$/, "/") + name;
       // Skip if source and dest are identical
       if (fromPath === toPath) continue;

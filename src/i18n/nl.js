@@ -124,6 +124,8 @@ const nl = {
         moveToTitle: "{label} verplaatsen naar map",
         moveToPlaceholder: "bijv. /home/user/docs",
         copyToTitle: "{label} kopiëren naar map",
+        clipCopied: "{count} gemarkeerd om te kopiëren — Ctrl+V plakt",
+        clipCut: "{count} gemarkeerd om te verplaatsen — Ctrl+V plakt",
         newFileTitle: "Nieuw bestand",
         newFilePlaceholder: "bestandsnaam.txt",
         newFolderTitle: "Nieuwe map",

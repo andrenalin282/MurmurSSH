@@ -126,6 +126,8 @@ const pl = {
     moveToTitle: "Przenieś {label} do katalogu",
     moveToPlaceholder: "np. /home/user/docs",
     copyToTitle: "Kopiuj {label} do katalogu",
+    clipCopied: "Zaznaczono {count} do skopiowania — Ctrl+V wkleja",
+    clipCut: "Zaznaczono {count} do przeniesienia — Ctrl+V wkleja",
     newFileTitle: "Nowy plik",
     newFilePlaceholder: "nazwa-pliku.txt",
     newFolderTitle: "Nowy folder",

@@ -190,6 +190,13 @@ fileBrowser.onToggleLocalBrowser((visible) => {
   setLocalBrowserVisible(visible);
 });
 
+fileBrowser.setLocalDirProvider(() => {
+  const visible = !!localBrowserEl && !localBrowserEl.hasAttribute("hidden");
+  const p = localBrowser.getCurrentPath();
+  return visible && p ? p : null;
+});
+fileBrowser.onLocalDownloadDone(() => void localBrowser.refresh());
+
 // ── Resizable panel drag ──────────────────────────────────────────────────────
 
 if (resizerEl) {

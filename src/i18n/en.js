@@ -124,6 +124,8 @@ const en = {
         moveToTitle: "Move {label} to directory",
         moveToPlaceholder: "e.g. /home/user/docs",
         copyToTitle: "Copy {label} to directory",
+        clipCopied: "{count} marked for copying — Ctrl+V pastes",
+        clipCut: "{count} marked for moving — Ctrl+V pastes",
         newFileTitle: "New File",
         newFilePlaceholder: "filename.txt",
         newFolderTitle: "New Folder",
