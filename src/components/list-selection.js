@@ -35,8 +35,10 @@ export function moveCursor(names, state, delta, extend) {
     const target = names[next];
     if (!extend)
         return { selected: new Set([target]), anchor: target, cursor: target };
-    const anchor = state.anchor ?? state.cursor ?? target;
-    const a = names.indexOf(anchor);
+    const anchorName = state.anchor ?? state.cursor ?? target;
+    const a0 = names.indexOf(anchorName);
+    const a = a0 < 0 ? next : a0;
+    const anchor = a0 < 0 ? names[a] : anchorName;
     const selected = new Set();
     for (let i = Math.min(a, next); i <= Math.max(a, next); i++)
         selected.add(names[i]);
