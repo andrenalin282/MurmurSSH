@@ -189,6 +189,17 @@ const nl = {
         uploadFailed: "{count} mislukt",
         downloadDone: "{count} gedownload",
         downloadFailed: "{count} mislukt",
+        // Aanmaken / verwijderen
+        newFolderTitle: "Nieuwe map",
+        newFolderPlaceholder: "Mapnaam",
+        nameContainsSlash: "Naam mag geen \"/\" bevatten",
+        createFolderFailed: "Map aanmaken mislukt: {error}",
+        itemsLabel: "{count} items",
+        deleteConfirmTitle: "Lokaal verwijderen",
+        deleteConfirmMsg: "{label} permanent van deze computer verwijderen? Mappen worden met volledige inhoud verwijderd.",
+        deleteFailed: "Verwijderen mislukt: {error}",
+        ctxNewFolder: "Nieuwe map",
+        ctxDelete: "Verwijderen",
     },
     profiles: {
         label: "Profiel",

@@ -189,6 +189,17 @@ const en = {
         uploadFailed: "{count} failed",
         downloadDone: "{count} downloaded",
         downloadFailed: "{count} failed",
+        // Create / delete
+        newFolderTitle: "New folder",
+        newFolderPlaceholder: "Folder name",
+        nameContainsSlash: "Name cannot contain \"/\"",
+        createFolderFailed: "Create folder failed: {error}",
+        itemsLabel: "{count} items",
+        deleteConfirmTitle: "Delete locally",
+        deleteConfirmMsg: "Permanently delete {label} from this computer? Folders are deleted with all contents.",
+        deleteFailed: "Delete failed: {error}",
+        ctxNewFolder: "New folder",
+        ctxDelete: "Delete",
     },
     profiles: {
         label: "Profile",

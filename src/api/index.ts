@@ -450,3 +450,13 @@ export async function getDesktopDir(): Promise<string> {
 export async function listTerminals(): Promise<string[]> {
   return invoke("list_terminals");
 }
+
+/** Create a new local directory. Parent must exist; fails if the path already exists. */
+export async function createLocalDir(path: string): Promise<void> {
+  return invoke("create_local_dir", { path });
+}
+
+/** Delete a local file, symlink (never its target), or directory recursively. */
+export async function deleteLocalPath(path: string): Promise<void> {
+  return invoke("delete_local_path", { path });
+}

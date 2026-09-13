@@ -80,6 +80,8 @@ pub fn run() {
             commands::local::save_local_browser_path,
             commands::local::rename_local_file,
             commands::local::open_local_file,
+            commands::local::create_local_dir,
+            commands::local::delete_local_path,
         ])
         .build(tauri::generate_context!())
         .expect("error while building MurmurSSH")

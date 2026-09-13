@@ -193,6 +193,17 @@ const ru = {
     uploadFailed: "ошибок: {count}",
     downloadDone: "скачано: {count}",
     downloadFailed: "ошибок: {count}",
+    // Создание / удаление
+    newFolderTitle: "Новая папка",
+    newFolderPlaceholder: "Имя папки",
+    nameContainsSlash: "Имя не может содержать «/»",
+    createFolderFailed: "Не удалось создать папку: {error}",
+    itemsLabel: "элементов: {count}",
+    deleteConfirmTitle: "Удалить локально",
+    deleteConfirmMsg: "Окончательно удалить {label} с этого компьютера? Папки удаляются со всем содержимым.",
+    deleteFailed: "Не удалось удалить: {error}",
+    ctxNewFolder: "Новая папка",
+    ctxDelete: "Удалить",
   },
 
   profiles: {

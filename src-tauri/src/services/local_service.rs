@@ -238,3 +238,73 @@ pub fn save_local_browser_path(profile_id: &str, path: &str) -> Result<(), Strin
 
     profile_service::save_profile(&profile)
 }
+
+/// Create a new directory. Parent must exist; the path must be absolute and new.
+pub fn create_local_dir(path: &str) -> Result<(), String> {
+    reject_null_bytes(path)?;
+    if !path.starts_with('/') {
+        return Err("Only absolute paths are accepted".to_string());
+    }
+    let p = Path::new(path);
+    if p.exists() {
+        return Err(format!("'{}' already exists", path));
+    }
+    std::fs::create_dir(p).map_err(|e| format!("Create folder failed: {}", e))
+}
+
+/// Delete a file, a symlink (never its target) or a directory recursively.
+pub fn delete_local_path(path: &str) -> Result<(), String> {
+    reject_null_bytes(path)?;
+    if !path.starts_with('/') {
+        return Err("Only absolute paths are accepted".to_string());
+    }
+    let p = Path::new(path);
+    if p.parent().is_none() || p == Path::new(&get_home_dir()) {
+        return Err("Refusing to delete this path".to_string());
+    }
+    let meta = std::fs::symlink_metadata(p).map_err(|e| format!("'{}': {}", path, e))?;
+    if meta.is_dir() {
+        std::fs::remove_dir_all(p)
+    } else {
+        std::fs::remove_file(p)
+    }
+    .map_err(|e| format!("Delete failed: {}", e))
+}
+
+#[cfg(test)]
+mod local_ops_tests {
+    use super::*;
+
+    #[test]
+    fn create_and_delete_local_dir_tree() {
+        let root = std::env::temp_dir().join(format!("murmur-localops-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let dir = root.join("new");
+        let dir_s = dir.to_string_lossy().to_string();
+        create_local_dir(&dir_s).unwrap();
+        assert!(create_local_dir(&dir_s).is_err(), "second create must fail");
+        std::fs::write(dir.join("f.txt"), b"x").unwrap();
+        delete_local_path(&dir_s).unwrap();
+        assert!(!dir.exists());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn delete_symlink_keeps_target() {
+        let root = std::env::temp_dir().join(format!("murmur-localops-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("target")).unwrap();
+        std::os::unix::fs::symlink(root.join("target"), root.join("link")).unwrap();
+        delete_local_path(&root.join("link").to_string_lossy()).unwrap();
+        assert!(root.join("target").exists());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn rejects_relative_and_root() {
+        assert!(delete_local_path("relative").is_err());
+        assert!(delete_local_path("/").is_err());
+        assert!(create_local_dir("rel").is_err());
+    }
+}

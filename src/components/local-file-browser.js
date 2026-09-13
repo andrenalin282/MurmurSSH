@@ -1,7 +1,10 @@
 import * as api from "../api/index";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
-import { clickSelect } from "./list-selection";
+import { clickSelect, moveCursor } from "./list-selection";
+import { showPrompt, showConfirm } from "./dialog";
+import { matchShortcut } from "../shortcuts";
+import { getActivePanel } from "../panel-focus";
 // ── Helpers ────────────────────────────────────────────────────────────────────
 function escHtml(s) {
     return s
@@ -58,11 +61,15 @@ export class LocalFileBrowser {
         // Context menu
         this._contextMenu = null;
         this._hideContextMenuBound = (e) => this._hideContextMenu(e);
+        // Type-ahead
+        this.typeAheadBuffer = "";
+        this.typeAheadTimer = null;
         const el = document.getElementById(containerId);
         if (!el)
             throw new Error(`Element #${containerId} not found`);
         this.container = el;
         this.renderEmpty();
+        this.setupKeyboardShortcuts();
     }
     // ── Public API ───────────────────────────────────────────────────────────────
     /** Called when a profile connects. Loads the saved path or $HOME. */
@@ -216,6 +223,8 @@ export class LocalFileBrowser {
       ${isFile ? `<button data-action="edit">${t("localBrowser.ctxEdit")}</button>` : ""}
       ${this.onUploadCallback ? `<button data-action="upload">${t("localBrowser.ctxUpload")}</button>` : ""}
       <button data-action="rename">${t("localBrowser.ctxRename")}</button>
+      <button data-action="newFolder">${t("localBrowser.ctxNewFolder")}</button>
+      <button data-action="delete">${t("localBrowser.ctxDelete")}</button>
     `;
         document.body.appendChild(menu);
         // Clamp to viewport
@@ -238,6 +247,12 @@ export class LocalFileBrowser {
                 void this._ctxUpload(path, name);
             else if (action === "rename")
                 void this._ctxRename(name);
+            else if (action === "newFolder")
+                void this.createFolder();
+            else if (action === "delete") {
+                this.applySelection({ selected: new Set([name]), anchor: name, cursor: name });
+                void this.deleteSelected();
+            }
         });
         setTimeout(() => {
             document.addEventListener("mousedown", this._hideContextMenuBound, { once: true });
@@ -264,7 +279,7 @@ export class LocalFileBrowser {
         await this.onUploadCallback([path], name);
     }
     async _ctxRename(oldName) {
-        const newName = window.prompt(t("localBrowser.renameTitle"), oldName);
+        const newName = await showPrompt(t("localBrowser.renameTitle"), "", oldName);
         if (!newName || newName === oldName)
             return;
         if (newName.includes("/")) {
@@ -282,6 +297,142 @@ export class LocalFileBrowser {
             this.inlineError = t("localBrowser.renameFailed", { error: String(err) });
             this.render();
         }
+    }
+    async createFolder() {
+        const name = await showPrompt(t("localBrowser.newFolderTitle"), t("localBrowser.newFolderPlaceholder"));
+        if (!name)
+            return;
+        if (name.includes("/")) {
+            this.inlineError = t("localBrowser.nameContainsSlash");
+            this.render();
+            return;
+        }
+        try {
+            await api.createLocalDir(joinPath(this.currentPath, name));
+            await this.refresh();
+        }
+        catch (err) {
+            this.inlineError = t("localBrowser.createFolderFailed", { error: String(err) });
+            this.render();
+        }
+    }
+    async deleteSelected() {
+        const paths = this.getSelectedPaths();
+        if (paths.length === 0)
+            return;
+        const label = paths.length === 1 ? paths[0] : t("localBrowser.itemsLabel", { count: paths.length });
+        const ok = await showConfirm(t("localBrowser.deleteConfirmMsg", { label }), t("localBrowser.deleteConfirmTitle"));
+        if (!ok)
+            return;
+        const failed = [];
+        for (const p of paths) {
+            try {
+                await api.deleteLocalPath(p);
+            }
+            catch (err) {
+                failed.push(`${p}: ${String(err)}`);
+            }
+        }
+        await this.refresh();
+        if (failed.length) {
+            this.inlineError = t("localBrowser.deleteFailed", { error: failed.slice(0, 2).join("; ") });
+            this.render();
+        }
+    }
+    /** Register local-panel keyboard shortcuts (navigation, rename, new folder, delete, upload, type-ahead). */
+    setupKeyboardShortcuts() {
+        document.addEventListener("keydown", (e) => {
+            if (document.querySelector(".modal-overlay"))
+                return;
+            if (getActivePanel() !== "local" || !this.profileId)
+                return;
+            const tag = document.activeElement?.tagName?.toLowerCase();
+            if (tag === "input" || tag === "textarea" || tag === "select")
+                return;
+            const id = matchShortcut(e, ["panels", "local"]);
+            if (!id) {
+                if (!e.ctrlKey && !e.altKey && !e.metaKey && e.key.length === 1 && /\S/.test(e.key)
+                    && !this.busy && !matchShortcut(e, "global")) {
+                    e.preventDefault();
+                    this.typeAhead(e.key);
+                }
+                return;
+            }
+            if (this.busy)
+                return;
+            const names = this.entries.map((x) => x.name);
+            const st = () => ({ selected: this.selectedNames, anchor: this.anchorName, cursor: this.cursorName });
+            const page = Math.max(1, Math.floor((this.container.querySelector(".local-browser__scroll")?.clientHeight ?? 300) / 24) - 1);
+            const selected = this.entries.filter((x) => this.selectedNames.has(x.name));
+            // Returning `false` means "not handled": skip preventDefault so native
+            // browser behavior (e.g. text copy, native select-all) still runs.
+            const run = {
+                cursorUp: () => this.applySelection(moveCursor(names, st(), -1, false)),
+                cursorDown: () => this.applySelection(moveCursor(names, st(), 1, false)),
+                extendUp: () => this.applySelection(moveCursor(names, st(), -1, true)),
+                extendDown: () => this.applySelection(moveCursor(names, st(), 1, true)),
+                first: () => this.applySelection(moveCursor(names, st(), "start", false)),
+                last: () => this.applySelection(moveCursor(names, st(), "end", false)),
+                pageUp: () => this.applySelection(moveCursor(names, st(), -page, false)),
+                pageDown: () => this.applySelection(moveCursor(names, st(), page, false)),
+                open: () => {
+                    if (selected.length !== 1)
+                        return;
+                    const p = joinPath(this.currentPath, selected[0].name);
+                    if (selected[0].is_dir)
+                        void this.navigateTo(p);
+                    else
+                        void this._ctxOpen(p, this.editorCommand, true);
+                },
+                parent: () => { if (this.currentPath !== "/")
+                    void this.navigateTo(parentPath(this.currentPath)); },
+                focusPath: () => {
+                    const input = this.container.querySelector("#lb-path-input");
+                    input?.focus();
+                    input?.select();
+                },
+                refresh: () => void this.refresh(),
+                rename: () => { if (selected.length === 1)
+                    void this._ctxRename(selected[0].name); },
+                newFolder: () => void this.createFolder(),
+                delete: () => { if (selected.length > 0)
+                    void this.deleteSelected(); },
+                selectAll: () => {
+                    if ((window.getSelection()?.toString().length ?? 0) > 0)
+                        return false;
+                    this.applySelection({ selected: new Set(names), anchor: names[0] ?? null, cursor: this.cursorName });
+                },
+                clearSelection: () => {
+                    if (this._contextMenu) {
+                        this._hideContextMenu();
+                        return;
+                    }
+                    this.applySelection({ selected: new Set(), anchor: null, cursor: null });
+                },
+                upload: () => {
+                    const paths = this.getSelectedPaths();
+                    if (paths.length === 0 || !this.onUploadCallback)
+                        return;
+                    const label = paths.length === 1 ? selected[0].name : t("localBrowser.itemsLabel", { count: paths.length });
+                    void this.onUploadCallback(paths, label);
+                },
+            };
+            const action = run[id];
+            if (!action)
+                return;
+            if (action() === false)
+                return;
+            e.preventDefault();
+        });
+    }
+    typeAhead(ch) {
+        this.typeAheadBuffer += ch.toLowerCase();
+        if (this.typeAheadTimer !== null)
+            window.clearTimeout(this.typeAheadTimer);
+        this.typeAheadTimer = window.setTimeout(() => { this.typeAheadBuffer = ""; this.typeAheadTimer = null; }, 800);
+        const match = this.entries.find((x) => x.name.toLowerCase().startsWith(this.typeAheadBuffer));
+        if (match)
+            this.applySelection({ selected: new Set([match.name]), anchor: match.name, cursor: match.name });
     }
     wireEvents() {
         // ── Path input ────────────────────────────────────────────────────────────

@@ -193,6 +193,17 @@ const pl = {
     uploadFailed: "nieudane: {count}",
     downloadDone: "pobrano: {count}",
     downloadFailed: "nieudane: {count}",
+    // Tworzenie / usuwanie
+    newFolderTitle: "Nowy folder",
+    newFolderPlaceholder: "Nazwa folderu",
+    nameContainsSlash: "Nazwa nie może zawierać „/”",
+    createFolderFailed: "Nie udało się utworzyć folderu: {error}",
+    itemsLabel: "elementów: {count}",
+    deleteConfirmTitle: "Usuń lokalnie",
+    deleteConfirmMsg: "Trwale usunąć {label} z tego komputera? Foldery są usuwane wraz z całą zawartością.",
+    deleteFailed: "Usuwanie nie powiodło się: {error}",
+    ctxNewFolder: "Nowy folder",
+    ctxDelete: "Usuń",
   },
 
   profiles: {

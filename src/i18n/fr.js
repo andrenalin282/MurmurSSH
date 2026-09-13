@@ -189,6 +189,17 @@ const fr = {
         uploadFailed: "{count} échoué(s)",
         downloadDone: "{count} téléchargé(s)",
         downloadFailed: "{count} échoué(s)",
+        // Créer / supprimer
+        newFolderTitle: "Nouveau dossier",
+        newFolderPlaceholder: "Nom du dossier",
+        nameContainsSlash: "Le nom ne peut pas contenir « / »",
+        createFolderFailed: "Échec de la création du dossier : {error}",
+        itemsLabel: "{count} éléments",
+        deleteConfirmTitle: "Supprimer localement",
+        deleteConfirmMsg: "Supprimer définitivement {label} de cet ordinateur ? Les dossiers sont supprimés avec tout leur contenu.",
+        deleteFailed: "Échec de la suppression : {error}",
+        ctxNewFolder: "Nouveau dossier",
+        ctxDelete: "Supprimer",
     },
     profiles: {
         label: "Profil",

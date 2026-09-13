@@ -59,3 +59,15 @@ pub fn open_local_file(
         use_configured_editor.unwrap_or(false),
     )
 }
+
+/// Create a new local directory. Fails if it already exists.
+#[tauri::command]
+pub fn create_local_dir(path: String) -> Result<(), String> {
+    local_service::create_local_dir(&path)
+}
+
+/// Delete a local file, symlink (never its target), or directory recursively.
+#[tauri::command]
+pub fn delete_local_path(path: String) -> Result<(), String> {
+    local_service::delete_local_path(&path)
+}

@@ -189,6 +189,17 @@ const de = {
         uploadFailed: "{count} fehlgeschlagen",
         downloadDone: "{count} heruntergeladen",
         downloadFailed: "{count} fehlgeschlagen",
+        // Anlegen / Löschen
+        newFolderTitle: "Neuer Ordner",
+        newFolderPlaceholder: "Ordnername",
+        nameContainsSlash: "Name darf kein \"/\" enthalten",
+        createFolderFailed: "Ordner anlegen fehlgeschlagen: {error}",
+        itemsLabel: "{count} Elemente",
+        deleteConfirmTitle: "Lokal löschen",
+        deleteConfirmMsg: "{label} endgültig von diesem Rechner löschen? Ordner werden mit gesamtem Inhalt gelöscht.",
+        deleteFailed: "Löschen fehlgeschlagen: {error}",
+        ctxNewFolder: "Neuer Ordner",
+        ctxDelete: "Löschen",
     },
     profiles: {
         label: "Profil",
