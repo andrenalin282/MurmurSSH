@@ -42,9 +42,14 @@ function parse(spec) {
 function keyMatches(e, spec) {
     const p = parse(spec);
     const isSymbol = p.key.length === 1 && !/[a-z0-9]/i.test(p.key);
+    const isLetter = p.key.length === 1 && /[a-z]/i.test(p.key);
     const evKey = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     const specKey = p.key.length === 1 ? p.key.toLowerCase() : p.key;
-    if (evKey !== specKey)
+    // M9: non-Latin keyboard layouts (e.g. Russian) report a localized e.key for a Ctrl+<letter>
+    // combo (Ctrl+C -> "с") even though the physical key is the same. e.code stays
+    // layout-independent ("KeyC" etc.), so fall back to it for single-letter shortcuts.
+    const codeMatches = isLetter && e.code === `Key${p.key.toUpperCase()}`;
+    if (evKey !== specKey && !codeMatches)
         return false;
     if ((e.ctrlKey || e.metaKey) !== p.ctrl)
         return false;

@@ -375,6 +375,9 @@ export class LocalFileBrowser {
       if (getActivePanel() !== "local" || !this.profileId) return;
       const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
+      // Enter on a focused toolbar button should trigger the button's own click, not the
+      // panel's "open selected entry" shortcut (M2a).
+      if (e.key === "Enter" && tag === "button") return;
 
       const id = matchShortcut(e, ["panels", "local"]);
       if (!id) {

@@ -141,8 +141,16 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     void showHelpDialog();
   } else if (id === "switchPanel" && connectedProfileId && localBrowserEl && !localBrowserEl.hasAttribute("hidden")) {
-    e.preventDefault();
-    setActivePanel(getActivePanel() === "remote" ? "local" : "remote");
+    // M2b: only steal Tab to switch panels when focus is on the page body or inside one of
+    // the file tables themselves — not on a toolbar button/input, where native Tab must be
+    // free to move focus to the next control.
+    const active = document.activeElement;
+    const inTableArea = active === document.body
+      || !!active?.closest(".file-browser__scroll, .local-browser__scroll");
+    if (inTableArea) {
+      e.preventDefault();
+      setActivePanel(getActivePanel() === "remote" ? "local" : "remote");
+    }
   }
 });
 
@@ -162,7 +170,12 @@ const transferQueue = new TransferQueuePanel("transfer-queue");
 // job (enqueue_transfer) returns immediately, before the worker has copied
 // anything, so refreshes must be triggered from job completion, not enqueue.
 transferQueue.setOnJobFinished((job) => {
-  if (job.state !== "done") return;
+  // M5: a recursive job (folder upload/download, remote copy) can partially succeed and
+  // still report "failed" overall (transfer_paths::summarize_failures) — the panel must
+  // refresh so what did land is visible. A single-file upload/download has no partial
+  // state, so "failed" there stays a no-op refresh-wise.
+  const isDirOrCopy = job.kind === "uploadDir" || job.kind === "downloadDir" || job.kind === "remoteCopy";
+  if (job.state !== "done" && !(job.state === "failed" && isDirOrCopy)) return;
   if (job.kind === "upload" || job.kind === "uploadDir" || job.kind === "remoteCopy") {
     fileBrowser.refresh().catch(() => {});
   } else {

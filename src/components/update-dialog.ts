@@ -27,7 +27,10 @@ export function showUpdateAvailableDialog(result: UpdateCheckResult): void {
       </div>
     </div>`;
   document.body.appendChild(overlay);
-  setTimeout(() => overlay.querySelector<HTMLButtonElement>("#update-open")?.focus(), 10);
+  // M3: this dialog can appear asynchronously right at startup, so an unrelated Enter
+  // keypress must not open the release page — focus the safe "Later" action instead.
+  // Escape still cancels via the shared modal-key handler.
+  setTimeout(() => overlay.querySelector<HTMLButtonElement>("#update-later")?.focus(), 10);
   const close = () => overlay.remove();
   overlay.querySelector("#update-later")?.addEventListener("click", close);
   overlay.querySelector("#update-open")?.addEventListener("click", () => {

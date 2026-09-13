@@ -162,6 +162,9 @@ export class FileBrowser {
       if (getActivePanel() !== "remote") return;
       const tag = (document.activeElement as HTMLElement)?.tagName?.toLowerCase();
       if (tag === "input" || tag === "textarea" || tag === "select") return;
+      // Enter on a focused toolbar button should trigger the button's own click, not the
+      // panel's "open selected entry" shortcut (M2a).
+      if (e.key === "Enter" && tag === "button") return;
       if (!this.profileId) return;
 
       const id = matchShortcut(e, ["panels", "remote"]);
@@ -256,6 +259,10 @@ export class FileBrowser {
     const clip = this.clipboard;
     if (!clip || !this.profileId || clip.profileId !== this.profileId) return;
     if (clip.mode === "copy") {
+      if (clip.dir === this.currentPath) {
+        this.status(t("fileBrowser.clipSameDir"), false);
+        return;
+      }
       await this.copyNamesToDir(clip.dir, clip.names, this.currentPath);
     } else {
       if (clip.dir === this.currentPath) {
@@ -275,13 +282,20 @@ export class FileBrowser {
         if (type === "enter" || type === "over") {
           // Only show visual indicator for external (OS) drags, not internal row drags
           if (this.profileId && !this.busy && !this.isDraggingInternal) {
-            this.setDragOver(true);
-            if (type === "over") {
-              const payload = event.payload as { type: "over"; position: { x: number; y: number } };
-              const dpr = window.devicePixelRatio || 1;
-              const el = document.elementFromPoint(payload.position.x / dpr, payload.position.y / dpr);
-              const row = el ? (el as HTMLElement).closest<HTMLElement>("tr.file-entry") : null;
+            // M8: the OS drag position spans the whole window, not just this panel — only
+            // highlight the remote browser when the pointer is actually over it, and clear
+            // the highlight (and drop target) otherwise so e.g. dragging over the local
+            // panel does not light up the remote one too.
+            const payload = event.payload as { type: "enter" | "over"; position: { x: number; y: number } };
+            const dpr = window.devicePixelRatio || 1;
+            const el = document.elementFromPoint(payload.position.x / dpr, payload.position.y / dpr);
+            const insideRemote = el ? this.container.contains(el) : false;
+            this.setDragOver(insideRemote);
+            if (insideRemote && type === "over") {
+              const row = (el as HTMLElement).closest<HTMLElement>("tr.file-entry");
               this.setDropTarget(row?.dataset.isdir === "true" ? row.dataset.name ?? null : null);
+            } else {
+              this.setDropTarget(null);
             }
           }
         } else if (type === "leave") {
@@ -1072,6 +1086,7 @@ export class FileBrowser {
     this.selectedNames.clear();
     this.selectedNames.add(match.name);
     this.anchorName = match.name;
+    this.cursorName = match.name;
     this.render();
 
     const row = this.container.querySelector<HTMLElement>(
