@@ -10,6 +10,7 @@ fn cleanup_on_exit() {
     services::ssh_session_service::stop_all_sessions();
     services::runtime_key_service::cleanup_all_runtime_keys();
     services::credentials_store::clear_all();
+    services::remote_copy::wipe_tmp_root();
 }
 
 pub fn run() {
@@ -17,6 +18,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            services::remote_copy::wipe_tmp_root();
             services::transfer_queue::init(app.handle());
             Ok(())
         })

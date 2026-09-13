@@ -2,8 +2,9 @@ use crate::models::{TransferJobView, TransferKind};
 use crate::services::transfer_queue;
 
 /// Enqueue a transfer job. `kind` is one of "upload" | "download" | "uploadDir"
-/// | "downloadDir". For uploads: src = local path, dst = remote path. For
-/// downloads: src = remote path, dst = local path. Returns the new job id.
+/// | "downloadDir" | "remoteCopy". For uploads: src = local path, dst = remote path. For
+/// downloads: src = remote path, dst = local path. For remoteCopy: src/dst are both remote
+/// paths on the same profile. Returns the new job id.
 #[tauri::command]
 pub fn enqueue_transfer(
     profile_id: String,
@@ -17,6 +18,7 @@ pub fn enqueue_transfer(
         "download" => TransferKind::Download,
         "uploadDir" => TransferKind::UploadDir,
         "downloadDir" => TransferKind::DownloadDir,
+        "remoteCopy" => TransferKind::RemoteCopy,
         other => return Err(format!("Unknown transfer kind: {}", other)),
     };
     Ok(transfer_queue::enqueue(profile_id, kind, src, dst, filename))

@@ -24,6 +24,7 @@ pub enum TransferKind {
     Download,
     UploadDir,
     DownloadDir,
+    RemoteCopy,
 }
 
 /// Lifecycle state of a queued job. Serialized to the frontend in camelCase.
@@ -83,6 +84,10 @@ mod tests {
         assert_eq!(
             serde_json::to_string(&TransferState::Cancelled).unwrap(),
             "\"cancelled\""
+        );
+        assert_eq!(
+            serde_json::to_string(&TransferKind::RemoteCopy).unwrap(),
+            "\"remoteCopy\""
         );
     }
 }

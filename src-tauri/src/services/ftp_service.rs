@@ -205,8 +205,6 @@ fn put_via_part(ftp: &mut FtpStream, local: &std::path::Path, remote_path: &str)
 }
 
 /// True when `path` is a directory on the server (CWD succeeds).
-// Consumed by a later task in this plan (folder-drop-target detection); unused for now.
-#[allow(dead_code)]
 pub fn is_remote_dir(profile: &Profile, path: &str) -> Result<bool, String> {
     let mut ftp = connect(profile)?;
     let is_dir = ftp.cwd(path).is_ok();

@@ -103,7 +103,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "connected" | "er
 export interface TransferJobView {
   id: number;
   profileId: string;
-  kind: "upload" | "download" | "uploadDir" | "downloadDir";
+  kind: "upload" | "download" | "uploadDir" | "downloadDir" | "remoteCopy";
   src: string;
   dst: string;
   filename: string;

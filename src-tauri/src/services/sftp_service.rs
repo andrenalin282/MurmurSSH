@@ -833,3 +833,60 @@ fn delete_directory_recursive(sftp: &ssh2::Sftp, path: &str) -> Result<(), Strin
     sftp.rmdir(Path::new(path))
         .map_err(|e| format!("Failed to remove directory '{}': {}", path, e))
 }
+
+/// True when `path` is a directory (stat follows symlinks).
+pub fn is_remote_dir(profile: &Profile, path: &str) -> Result<bool, String> {
+    let session = connect(profile)?;
+    let sftp = session.sftp().map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+    let stat = sftp.stat(Path::new(path)).map_err(|e| format!("Cannot stat '{}': {}", path, e))?;
+    Ok(stat.is_dir())
+}
+
+/// Run `cmd` on the server over an exec channel. Polls non-blocking so `cancel` is honoured
+/// and long commands are not cut by the per-op timeout. Returns (exit status, stdout, stderr).
+pub fn exec_command(
+    profile: &Profile,
+    cmd: &str,
+    cancel: &dyn Fn() -> bool,
+) -> Result<(i32, String, String), String> {
+    let session = connect(profile)?;
+    let mut channel = session
+        .channel_session()
+        .map_err(|e| format!("Cannot open exec channel: {}", e))?;
+    channel.exec(cmd).map_err(|e| format!("Exec failed: {}", e))?;
+
+    session.set_blocking(false);
+    let mut out = Vec::new();
+    let mut err = Vec::new();
+    let mut buf = [0u8; 8192];
+    loop {
+        if cancel() {
+            session.set_blocking(true);
+            let _ = channel.close();
+            return Err(CANCELLED_ERROR.to_string());
+        }
+        let mut progressed = false;
+        match channel.read(&mut buf) {
+            Ok(0) => {}
+            Ok(n) => { out.extend_from_slice(&buf[..n]); progressed = true; }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(e) => { session.set_blocking(true); return Err(format!("Exec read failed: {}", e)); }
+        }
+        match channel.stderr().read(&mut buf) {
+            Ok(0) => {}
+            Ok(n) => { err.extend_from_slice(&buf[..n]); progressed = true; }
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {}
+            Err(e) => { session.set_blocking(true); return Err(format!("Exec read failed: {}", e)); }
+        }
+        if channel.eof() {
+            break;
+        }
+        if !progressed {
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+    }
+    session.set_blocking(true);
+    let _ = channel.wait_close();
+    let status = channel.exit_status().unwrap_or(-1);
+    Ok((status, String::from_utf8_lossy(&out).into_owned(), String::from_utf8_lossy(&err).into_owned()))
+}

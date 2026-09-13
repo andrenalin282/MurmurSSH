@@ -358,6 +358,9 @@ fn run_job(view: &TransferJobView, cancel: &Arc<AtomicBool>) -> Result<(), Strin
                 })
             }
         }
+        TransferKind::RemoteCopy => crate::services::remote_copy::run(
+            &profile, job_id, &view.src, &view.dst, &cancel_fn, &|d, t, n| emit_progress(d, t, n),
+        ),
     }
 }
 

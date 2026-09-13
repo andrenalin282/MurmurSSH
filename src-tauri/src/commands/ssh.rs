@@ -57,6 +57,7 @@ pub fn start_ssh_session(profile_id: String) -> Result<(), String> {
 #[tauri::command]
 pub fn stop_ssh_session(profile_id: String) -> Result<(), String> {
     ssh_session_service::stop_session(&profile_id);
+    crate::services::remote_copy::forget_profile(&profile_id);
     Ok(())
 }
 

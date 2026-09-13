@@ -6,6 +6,7 @@ pub mod local_service;
 pub mod known_hosts_service;
 pub mod ssh_config_service;
 pub mod profile_service;
+pub mod remote_copy;
 pub mod runtime_key_service;
 pub mod secrets_service;
 pub mod session_trust_store;
