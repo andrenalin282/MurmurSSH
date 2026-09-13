@@ -13,6 +13,7 @@ pub mod settings_service;
 pub mod sftp_service;
 pub mod ssh_service;
 pub mod ssh_session_service;
+pub mod terminal_service;
 pub mod transfer_paths;
 pub mod transfer_queue;
 pub mod update_service;

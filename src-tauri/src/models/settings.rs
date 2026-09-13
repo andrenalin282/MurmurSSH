@@ -45,5 +45,13 @@ pub struct Settings {
     /// Absent/None = true (opt-out).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub check_updates_on_startup: Option<bool>,
+    /// Terminal used for SSH sessions: "auto" (default when None), a known terminal id
+    /// from `terminal_service::KNOWN_TERMINALS`, or "custom".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal: Option<String>,
+    /// Program + prefix args when `terminal == "custom"`, e.g. "wezterm start --".
+    /// The `bash -c … ssh …` invocation is appended after these tokens.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub terminal_custom_command: Option<String>,
 }
 
