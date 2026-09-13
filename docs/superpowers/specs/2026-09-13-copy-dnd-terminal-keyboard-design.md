@@ -1,7 +1,7 @@
 # Copy-to, Folder DnD, Terminal Selection, Safe Upload, Keyboard — Design
 
 Date: 2026-09-13
-Status: draft — awaiting review
+Status: approved 2026-09-13
 
 Five independent sub-projects, delivered in the order below, each its own commit
 (frontend `.ts` + regenerated `.js` siblings, i18n in all 6 locales).
@@ -183,7 +183,10 @@ plain ssh args. Only the exec flag differs per terminal.
 | Esc | close menu / clear selection |
 | type letters | type-ahead (existing) |
 
-- Help dialog shortcut table updated (all 6 locales).
+- Help dialog shortcut table MUST list every shortcut of the app (both panels, dialogs
+  Enter/Esc, type-ahead) — no key may exist that is not documented there (all 6 locales).
+  The table is generated from one shared shortcut list (`src/shortcuts.ts`) that the
+  handlers reference, so help and behaviour cannot drift.
 - Local panel gains rename (F2), new folder (F7) and delete (with confirm) only where
   backend commands already exist; missing local commands (`create_local_dir`,
   `delete_local_path`) are added with the same null-byte + canonicalize checks as
