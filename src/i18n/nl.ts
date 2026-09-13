@@ -116,6 +116,7 @@ const nl = {
     cancelConnect: "Annuleren",
     // Terminal
     terminalFailed: "Starten van terminal mislukt: {error}",
+    noTerminalFound: "Geen terminalemulator gevonden. Kies er een bij Instellingen → Terminal.",
     // Prompt titles / placeholders
     renameTitle: "Hernoemen",
     renamePlaceholder: "nieuwe naam",
@@ -296,6 +297,11 @@ const nl = {
     updateStatusAvailable: "Versie {version} is beschikbaar",
     updateStatusError: "Kon niet controleren op updates",
     errorSaveFailed: "Opslaan van instellingen mislukt: {error}",
+    terminal: "Terminal voor SSH-sessies",
+    terminalAuto: "Automatisch",
+    terminalCustom: "Aangepast commando…",
+    terminalCustomPlaceholder: "bijv. wezterm start --",
+    terminalHint: "Automatisch probeert $TERMINAL, x-terminal-emulator en veelgebruikte terminals. Bij een aangepast commando wordt het SSH-commando toegevoegd.",
   },
 
   dialogs: {

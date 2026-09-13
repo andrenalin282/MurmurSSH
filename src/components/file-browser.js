@@ -1033,7 +1033,10 @@ export class FileBrowser {
             await api.launchSsh(this.profileId, useRuntimeCopy);
         }
         catch (err) {
-            this.status(t("fileBrowser.terminalFailed", { error: String(err) }), true);
+            const msg = String(err) === "NO_TERMINAL"
+                ? t("fileBrowser.noTerminalFound")
+                : t("fileBrowser.terminalFailed", { error: String(err) });
+            this.status(msg, true);
         }
     }
     // ── Disconnect ────────────────────────────────────────────────────────────

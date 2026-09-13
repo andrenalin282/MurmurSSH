@@ -114,6 +114,7 @@ const pl = {
         cancelConnect: "Anuluj",
         // Terminal
         terminalFailed: "Uruchomienie terminala nie powiodło się: {error}",
+        noTerminalFound: "Nie znaleziono emulatora terminala. Wybierz jeden w Ustawienia → Terminal.",
         // Prompt titles / placeholders
         renameTitle: "Zmień nazwę",
         renamePlaceholder: "nowa nazwa",
@@ -289,6 +290,11 @@ const pl = {
         updateStatusAvailable: "Dostępna jest wersja {version}",
         updateStatusError: "Nie udało się sprawdzić aktualizacji",
         errorSaveFailed: "Nie udało się zapisać ustawień: {error}",
+        terminal: "Terminal dla sesji SSH",
+        terminalAuto: "Automatycznie",
+        terminalCustom: "Niestandardowe polecenie…",
+        terminalCustomPlaceholder: "np. wezterm start --",
+        terminalHint: "Tryb automatyczny próbuje $TERMINAL, x-terminal-emulator i popularnych terminali. Do niestandardowego polecenia doklejane jest wywołanie SSH.",
     },
     dialogs: {
         promptCancel: "Anuluj",

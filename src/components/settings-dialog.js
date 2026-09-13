@@ -26,6 +26,7 @@ export class SettingsDialog {
             api.getSettings(),
             api.getProfilesPath(),
         ]);
+        const detectedTerminals = await api.listTerminals().catch(() => []);
         const isCustom = !!(settings.profiles_path && settings.profiles_path.trim());
         const customPath = settings.profiles_path ?? "";
         const currentTheme = settings.theme ?? "system";
@@ -35,6 +36,7 @@ export class SettingsDialog {
         const currentDefaultEditor = settings.default_editor ?? "";
         const currentExtMap = settings.editor_by_extension ?? {};
         const checkOnStartup = settings.check_updates_on_startup !== false;
+        const currentTerminal = settings.terminal ?? "auto";
         const extRowsHtml = Object.entries(currentExtMap)
             .map(([ext, cmd]) => `
           <div class="settings-editor-ext-row">
@@ -158,6 +160,22 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label for="terminal-select">${t("settings.terminal")}</label>
+          <select id="terminal-select" style="width:100%">
+            <option value="auto" ${currentTerminal === "auto" ? "selected" : ""}>${t("settings.terminalAuto")}</option>
+            ${[...new Set([...detectedTerminals, ...(currentTerminal !== "auto" && currentTerminal !== "custom" ? [currentTerminal] : [])])]
+            .map((id) => `<option value="${escHtml(id)}" ${currentTerminal === id ? "selected" : ""}>${escHtml(id)}</option>`)
+            .join("")}
+            <option value="custom" ${currentTerminal === "custom" ? "selected" : ""}>${t("settings.terminalCustom")}</option>
+          </select>
+          <input id="terminal-custom-input" type="text" spellcheck="false"
+            value="${escHtml(settings.terminal_custom_command ?? "")}"
+            placeholder="${t("settings.terminalCustomPlaceholder")}"
+            style="margin-top:6px;${currentTerminal === "custom" ? "" : "display:none"}">
+          <div class="form-field__hint">${t("settings.terminalHint")}</div>
+        </div>
+
+        <div class="form-field">
           <label>
             <input type="checkbox" id="check-updates-startup" ${checkOnStartup ? "checked" : ""}>
             ${t("settings.checkUpdatesOnStartup")}
@@ -210,6 +228,11 @@ export class SettingsDialog {
             extRowsEl.appendChild(row);
             row.querySelector(".editor-ext-remove")?.addEventListener("click", () => row.remove());
         };
+        const terminalSelect = overlay.querySelector("#terminal-select");
+        const terminalCustomInput = overlay.querySelector("#terminal-custom-input");
+        terminalSelect.addEventListener("change", () => {
+            terminalCustomInput.style.display = terminalSelect.value === "custom" ? "" : "none";
+        });
         overlay.querySelector("#editor-ext-add")?.addEventListener("click", () => addExtRow());
         extRowsEl.querySelectorAll(".editor-ext-remove").forEach((btn) => {
             btn.addEventListener("click", () => {
@@ -276,6 +299,8 @@ export class SettingsDialog {
                 if (key && val)
                     editorByExt[key] = val;
             });
+            const newTerminal = terminalSelect.value === "auto" ? null : terminalSelect.value;
+            const newTerminalCustomCommand = terminalCustomInput.value.trim() || null;
             const updated = {
                 ...settings,
                 profiles_path: newPath ?? null,
@@ -286,6 +311,8 @@ export class SettingsDialog {
                 default_editor: newDefaultEditor,
                 editor_by_extension: Object.keys(editorByExt).length > 0 ? editorByExt : null,
                 check_updates_on_startup: newCheckUpdatesOnStartup,
+                terminal: newTerminal,
+                terminal_custom_command: newTerminalCustomCommand,
             };
             try {
                 await api.saveSettings(updated);

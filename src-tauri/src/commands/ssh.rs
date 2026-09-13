@@ -114,3 +114,9 @@ pub fn cleanup_runtime_keys() -> Result<(), String> {
     runtime_key_service::cleanup_all_runtime_keys();
     Ok(())
 }
+
+/// Known terminal emulators installed on this machine (ids for the Settings dropdown).
+#[tauri::command]
+pub fn list_terminals() -> Vec<String> {
+    crate::services::terminal_service::detect()
+}

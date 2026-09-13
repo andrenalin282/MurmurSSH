@@ -318,3 +318,7 @@ export async function createDesktopShortcut(profileId, targetPath) {
 export async function getDesktopDir() {
     return invoke("get_desktop_dir");
 }
+/** Ids of terminal emulators detected on this machine. */
+export async function listTerminals() {
+    return invoke("list_terminals");
+}

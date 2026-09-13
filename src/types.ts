@@ -74,6 +74,10 @@ export interface Settings {
   editor_by_extension?: Record<string, string> | null;
   /** When true (default), check GitHub for updates on startup. Absent/null = true. */
   check_updates_on_startup?: boolean | null;
+  /** "auto" | known terminal id | "custom". Absent = auto. */
+  terminal?: string | null;
+  /** Program + prefix args for terminal === "custom". */
+  terminal_custom_command?: string | null;
 }
 
 export interface UpdateCheckResult {

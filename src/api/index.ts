@@ -445,3 +445,8 @@ export async function createDesktopShortcut(profileId: string, targetPath: strin
 export async function getDesktopDir(): Promise<string> {
   return invoke<string>("get_desktop_dir");
 }
+
+/** Ids of terminal emulators detected on this machine. */
+export async function listTerminals(): Promise<string[]> {
+  return invoke("list_terminals");
+}

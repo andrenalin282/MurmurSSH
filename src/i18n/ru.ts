@@ -116,6 +116,7 @@ const ru = {
     cancelConnect: "Отмена",
     // Terminal
     terminalFailed: "Не удалось запустить терминал: {error}",
+    noTerminalFound: "Эмулятор терминала не найден. Выберите его в Настройки → Терминал.",
     // Prompt titles / placeholders
     renameTitle: "Переименовать",
     renamePlaceholder: "новое имя",
@@ -296,6 +297,11 @@ const ru = {
     updateStatusAvailable: "Доступна версия {version}",
     updateStatusError: "Не удалось проверить обновления",
     errorSaveFailed: "Не удалось сохранить настройки: {error}",
+    terminal: "Терминал для SSH-сеансов",
+    terminalAuto: "Автоматически",
+    terminalCustom: "Своя команда…",
+    terminalCustomPlaceholder: "например, wezterm start --",
+    terminalHint: "Автоматически пробуется $TERMINAL, x-terminal-emulator и распространённые терминалы. К своей команде будет добавлена команда SSH.",
   },
 
   dialogs: {

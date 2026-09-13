@@ -35,7 +35,10 @@ const TERMINAL_SCRIPT: &str = concat!(
 /// layer (which also presents the user prompt for informed consent).
 pub fn launch_ssh(profile: &Profile, use_runtime_copy: bool) -> Result<(), String> {
     let mut ssh_args = build_ssh_args(profile, use_runtime_copy);
-    let mut cmd = Command::new("x-terminal-emulator");
+    let settings = crate::services::settings_service::get_settings().unwrap_or_default();
+    let (program, prefix) = crate::services::terminal_service::resolve(&settings)?;
+    let mut cmd = Command::new(&program);
+    cmd.args(&prefix);
 
     // Inject ControlMaster session extras for password-auth profiles only.
     // Key-auth profiles (with or without passphrase) use the direct -i path so
@@ -57,20 +60,14 @@ pub fn launch_ssh(profile: &Profile, use_runtime_copy: bool) -> Result<(), Strin
     // bash -c TERMINAL_SCRIPT -- ssh [args...]:
     //   "--" is $0 (script name placeholder); ssh and its args are $1, $2, …
     //   "$@" in the script expands to the full ssh invocation, never interpolated.
-    cmd.arg("-e")
-        .arg("bash")
+    cmd.arg("bash")
         .arg("-c")
         .arg(TERMINAL_SCRIPT)
         .arg("--")
         .args(&ssh_args)
         .spawn()
         .map(|_| ())
-        .map_err(|e| {
-            format!(
-                "Failed to launch terminal: {}. Is x-terminal-emulator installed?",
-                e
-            )
-        })
+        .map_err(|e| format!("Failed to launch terminal '{}': {}", program, e))
 }
 
 fn build_ssh_args(profile: &Profile, use_runtime_copy: bool) -> Vec<String> {

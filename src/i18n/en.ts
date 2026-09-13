@@ -116,6 +116,7 @@ const en = {
     cancelConnect: "Cancel",
     // Terminal
     terminalFailed: "Terminal launch failed: {error}",
+    noTerminalFound: "No terminal emulator found. Choose one in Settings → Terminal.",
     // Prompt titles / placeholders
     renameTitle: "Rename",
     renamePlaceholder: "new name",
@@ -296,6 +297,11 @@ const en = {
     updateStatusAvailable: "Version {version} is available",
     updateStatusError: "Could not check for updates",
     errorSaveFailed: "Failed to save settings: {error}",
+    terminal: "Terminal for SSH sessions",
+    terminalAuto: "Automatic",
+    terminalCustom: "Custom command…",
+    terminalCustomPlaceholder: "e.g. wezterm start --",
+    terminalHint: "Automatic tries $TERMINAL, x-terminal-emulator and common terminals. A custom command gets the SSH command appended.",
   },
 
   dialogs: {

@@ -116,6 +116,7 @@ const fr = {
     cancelConnect: "Annuler",
     // Terminal
     terminalFailed: "Échec du lancement du terminal : {error}",
+    noTerminalFound: "Aucun émulateur de terminal trouvé. Choisissez-en un dans Paramètres → Terminal.",
     // Prompt titles / placeholders
     renameTitle: "Renommer",
     renamePlaceholder: "nouveau nom",
@@ -296,6 +297,11 @@ const fr = {
     updateStatusAvailable: "La version {version} est disponible",
     updateStatusError: "Impossible de vérifier les mises à jour",
     errorSaveFailed: "Échec de l'enregistrement des paramètres : {error}",
+    terminal: "Terminal pour les sessions SSH",
+    terminalAuto: "Automatique",
+    terminalCustom: "Commande personnalisée…",
+    terminalCustomPlaceholder: "p. ex. wezterm start --",
+    terminalHint: "Automatique essaie $TERMINAL, x-terminal-emulator puis les terminaux courants. Une commande personnalisée reçoit la commande SSH en suffixe.",
   },
 
   dialogs: {

@@ -114,6 +114,7 @@ const de = {
         cancelConnect: "Abbrechen",
         // Terminal
         terminalFailed: "Terminal konnte nicht gestartet werden: {error}",
+        noTerminalFound: "Kein Terminal gefunden. Bitte unter Einstellungen → Terminal auswählen.",
         // Prompt titles / placeholders
         renameTitle: "Umbenennen",
         renamePlaceholder: "Neuer Name",
@@ -289,6 +290,11 @@ const de = {
         updateStatusAvailable: "Version {version} ist verfügbar",
         updateStatusError: "Update-Prüfung fehlgeschlagen",
         errorSaveFailed: "Einstellungen konnten nicht gespeichert werden: {error}",
+        terminal: "Terminal für SSH-Sitzungen",
+        terminalAuto: "Automatisch",
+        terminalCustom: "Eigener Befehl…",
+        terminalCustomPlaceholder: "z. B. wezterm start --",
+        terminalHint: "Automatisch probiert $TERMINAL, x-terminal-emulator und gängige Terminals. An einen eigenen Befehl wird der SSH-Aufruf angehängt.",
     },
     dialogs: {
         promptCancel: "Abbrechen",
