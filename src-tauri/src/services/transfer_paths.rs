@@ -2,15 +2,33 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Temporary upload name next to the final target: `/a/b/file.txt` → `/a/b/.file.txt.murmur-part`.
+/// Process-global counter appended to every part name (F2) so two upload jobs racing to the
+/// same remote target — e.g. a retry overlapping an in-flight job, or two queued jobs to the
+/// same path — never share a part file. Sharing one would let one job's cleanup/rename delete
+/// or clobber the other job's in-flight data.
+static PART_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Temporary upload name next to the final target: `/a/b/file.txt` → `/a/b/.file.txt.1234-0.murmur-part`.
+/// The name embeds the process id and a per-process counter so it is unique per call (F2).
 /// The original file stays untouched until the upload completed and is renamed over it.
 pub fn part_path(remote_path: &str) -> String {
+    let n = PART_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let pid = std::process::id();
     let trimmed = remote_path.trim_end_matches('/');
     match trimmed.rfind('/') {
-        Some(idx) => format!("{}/.{}.murmur-part", &trimmed[..idx], &trimmed[idx + 1..]),
-        None => format!(".{}.murmur-part", trimmed),
+        Some(idx) => format!("{}/.{}.{}-{}.murmur-part", &trimmed[..idx], &trimmed[idx + 1..], pid, n),
+        None => format!(".{}.{}-{}.murmur-part", trimmed, pid, n),
     }
+}
+
+/// True when `name` is a MurmurSSH in-flight upload part file (M7). Directory recursion for
+/// download/upload must skip these so a leftover part from a crashed or cancelled transfer is
+/// never downloaded or re-uploaded as if it were real content. Directory *listings* shown in
+/// the file browser stay unfiltered — this only gates recursive traversal.
+pub fn is_part_file(name: &str) -> bool {
+    name.starts_with('.') && name.ends_with(".murmur-part")
 }
 
 /// Tracks canonical directories on the current recursion stack so a symlink that points
@@ -79,9 +97,32 @@ mod tests {
 
     #[test]
     fn part_path_places_hidden_part_next_to_target() {
-        assert_eq!(part_path("/a/b/file.txt"), "/a/b/.file.txt.murmur-part");
-        assert_eq!(part_path("/file"), "/.file.murmur-part");
-        assert_eq!(part_path("file"), ".file.murmur-part");
+        let p1 = part_path("/a/b/file.txt");
+        assert!(p1.starts_with("/a/b/.file.txt."), "{p1}");
+        assert!(p1.ends_with(".murmur-part"), "{p1}");
+
+        let p2 = part_path("/file");
+        assert!(p2.starts_with("/.file."), "{p2}");
+        assert!(p2.ends_with(".murmur-part"), "{p2}");
+
+        let p3 = part_path("file");
+        assert!(p3.starts_with(".file."), "{p3}");
+        assert!(p3.ends_with(".murmur-part"), "{p3}");
+    }
+
+    #[test]
+    fn part_path_calls_are_unique() {
+        let a = part_path("/a/b/file.txt");
+        let b = part_path("/a/b/file.txt");
+        assert_ne!(a, b, "two consecutive calls must not collide (F2)");
+    }
+
+    #[test]
+    fn is_part_file_matches_only_murmur_part_suffix() {
+        assert!(is_part_file(".file.txt.1234-0.murmur-part"));
+        assert!(!is_part_file("file.txt"));
+        assert!(!is_part_file(".hidden"));
+        assert!(!is_part_file("file.murmur-part"));
     }
 
     #[test]

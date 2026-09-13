@@ -429,6 +429,15 @@ fn finalize_part(sftp: &ssh2::Sftp, part: &str, target: &str) -> Result<(), Stri
     if sftp.rename(Path::new(part), Path::new(target), Some(flags)).is_ok() {
         return Ok(());
     }
+    // F2: only unlink the target once our own part file is confirmed still there and ready
+    // to take its place — otherwise a concurrent job to the same target could delete it
+    // without anything of ours left to rename over it.
+    if sftp.stat(Path::new(part)).is_err() {
+        return Err(format!(
+            "Failed to finalize '{}': upload part '{}' is missing",
+            target, part
+        ));
+    }
     let mut removed_target = false;
     if sftp.stat(Path::new(target)).is_ok() {
         sftp.unlink(Path::new(target))
@@ -727,6 +736,10 @@ fn download_directory_recursive(
             Some(n) => n.to_string_lossy().to_string(),
             None => continue,
         };
+        // M7: never download a leftover in-flight upload part file as if it were real content.
+        if crate::services::transfer_paths::is_part_file(&entry_name) {
+            continue;
+        }
 
         let entry_path_str = entry_path.to_string_lossy().to_string();
         let local_entry = format!("{}/{}", local_path.trim_end_matches('/'), entry_name);
@@ -878,6 +891,10 @@ fn upload_directory_recursive(
             Some(n) if !n.is_empty() => n.to_string_lossy().to_string(),
             _ => continue,
         };
+        // M7: never re-upload a leftover in-flight part file as if it were real content.
+        if crate::services::transfer_paths::is_part_file(&entry_name) {
+            continue;
+        }
         let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), entry_name);
 
         if local_entry.is_dir() {

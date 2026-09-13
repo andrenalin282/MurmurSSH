@@ -198,10 +198,15 @@ fn put_via_part(ftp: &mut FtpStream, local: &std::path::Path, remote_path: &str)
         let _ = ftp.rm(&part);
         return Err(format!("FTP upload '{}' failed: {}", remote_path, e));
     }
-    // RNTO onto an existing file is server-dependent; remove the target first (ignore not-found).
-    // The target is gone from this point on, so a failing rename below must NOT also delete
-    // the part file — that would leave neither old nor new content on the server.
-    let _ = ftp.rm(remote_path);
+    // F2: only remove the existing target once our own uploaded part is confirmed present on
+    // this connection — otherwise a failed/raced upload could delete the target and leave
+    // nothing to rename over it.
+    if ftp.size(&part).is_ok() {
+        // RNTO onto an existing file is server-dependent; remove the target first (ignore not-found).
+        // The target is gone from this point on, so a failing rename below must NOT also delete
+        // the part file — that would leave neither old nor new content on the server.
+        let _ = ftp.rm(remote_path);
+    }
     ftp.rename(part.as_str(), remote_path).map_err(|e| {
         format!(
             "FTP finalize '{}' failed: {} (uploaded data kept at '{}')",
@@ -399,6 +404,10 @@ fn upload_dir_recursive(
         if name.is_empty() {
             continue;
         }
+        // M7: never re-upload a leftover in-flight part file as if it were real content.
+        if crate::services::transfer_paths::is_part_file(&name) {
+            continue;
+        }
         let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
 
         if local_entry.is_dir() {
@@ -453,6 +462,10 @@ fn download_dir_recursive(
 
     for line in &lines {
         if let Some(entry) = parse_list_line(line) {
+            // M7: never download a leftover in-flight upload part file as if it were real content.
+            if crate::services::transfer_paths::is_part_file(&entry.name) {
+                continue;
+            }
             let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), entry.name);
             let local_entry = format!("{}/{}", local_dir.trim_end_matches('/'), entry.name);
 
