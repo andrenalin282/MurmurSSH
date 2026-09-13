@@ -466,6 +466,8 @@ const de = {
         selectAll: "Alle Einträge auswählen",
         clearSelection: "Menü schließen / Auswahl aufheben",
         typeAhead: "Namen tippen, um hinzuspringen",
+        pathEnter: "Enter im Pfadfeld: zum Pfad wechseln",
+        pathEscape: "Esc im Pfadfeld: zurücksetzen",
         newFile: "Neue Datei",
         moveTo: "Auswahl verschieben nach…",
         copyTo: "Auswahl kopieren nach…",

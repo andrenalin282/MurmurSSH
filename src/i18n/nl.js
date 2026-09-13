@@ -453,6 +453,8 @@ const nl = {
         selectAll: "Alle items selecteren",
         clearSelection: "Menu sluiten / selectie wissen",
         typeAhead: "Typ een naam om ernaartoe te springen",
+        pathEnter: "Enter in padveld: naar pad gaan",
+        pathEscape: "Esc in padveld: resetten",
         newFile: "Nieuw bestand",
         moveTo: "Selectie verplaatsen naar…",
         copyTo: "Selectie kopiëren naar…",

@@ -453,6 +453,8 @@ const pl = {
         selectAll: "Zaznacz wszystkie wpisy",
         clearSelection: "Zamknij menu / wyczyść zaznaczenie",
         typeAhead: "Wpisz nazwę, aby do niej przejść",
+        pathEnter: "Enter w polu ścieżki: przejdź do ścieżki",
+        pathEscape: "Esc w polu ścieżki: przywróć",
         newFile: "Nowy plik",
         moveTo: "Przenieś zaznaczenie do…",
         copyTo: "Kopiuj zaznaczenie do…",

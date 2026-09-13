@@ -8,7 +8,19 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+- **Copy to…** for remote files and folders — server-side copy (`cp -a` over SSH) with automatic fallback to download+upload when the server doesn't support it or the connection is FTP. Cancelling a server-side copy hangs up the remote command; the fallback path uses a private, per-process temp folder that's cleaned up on exit and at startup.
+- **Terminal selection** — Settings gained a Terminal option that auto-detects an available terminal emulator (`$TERMINAL`, `x-terminal-emulator`, GNOME Terminal, Ptyxis, GNOME Console, Konsole, Xfce Terminal, kitty, Alacritty, foot, WezTerm, xterm) or lets you pick one explicitly, including a custom command.
+- **Local panel: multi-select, new folder, delete, and folder dragging** — select multiple entries with Ctrl/Shift-click, create folders and delete files/folders (with confirmation) directly in the local browser, and drag a whole folder (not just files) onto the remote browser to upload it.
+- **Full keyboard navigation** in both file panels — arrow keys, Shift-extend, Home/End, Page Up/Down, Enter, Backspace/Alt+↑, rename, refresh, new folder/file, delete, select all, type-ahead, clipboard (copy/cut/paste), move to…, copy to…, download/upload, and terminal shortcuts. Press F1 or ? to see the full, generated list in the Help dialog.
+- Dialogs now uniformly confirm with Enter and close with Escape.
+
+### Changed
+- Uploads (SFTP and FTP) now write to a hidden `.name.murmur-part` file and rename it into place on success, so a failed or cancelled upload never deletes or truncates a file that already exists on the server. Folder uploads continue past a per-file error and report how many of the folder's entries failed instead of aborting.
+
+### Fixed
+- SSH terminal launch no longer fails on Arch Linux and other distributions that don't ship `x-terminal-emulator`.
+- Missing local-file-browser translation strings (context menu and upload confirmation) that showed raw i18n keys instead of translated text.
 
 ---
 

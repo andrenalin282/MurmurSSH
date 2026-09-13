@@ -34,6 +34,8 @@ export const SHORTCUTS: Shortcut[] = [
   { id: "selectAll", keys: ["Ctrl+A"], scope: "panels" },
   { id: "clearSelection", keys: ["Escape"], scope: "panels" },
   { id: "typeAhead", keys: ["a–z, 0–9"], scope: "panels", displayOnly: true },
+  { id: "pathEnter", keys: ["Enter"], scope: "panels", displayOnly: true },
+  { id: "pathEscape", keys: ["Escape"], scope: "panels", displayOnly: true },
 
   { id: "newFile", keys: ["Ctrl+N"], scope: "remote" },
   { id: "moveTo", keys: ["F6"], scope: "remote" },

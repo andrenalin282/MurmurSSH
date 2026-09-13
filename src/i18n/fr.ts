@@ -466,6 +466,8 @@ const fr = {
     selectAll: "Sélectionner toutes les entrées",
     clearSelection: "Fermer le menu / effacer la sélection",
     typeAhead: "Taper un nom pour y accéder",
+    pathEnter: "Entrée dans le champ de chemin : aller au chemin",
+    pathEscape: "Échap dans le champ de chemin : réinitialiser",
     newFile: "Nouveau fichier",
     moveTo: "Déplacer la sélection vers…",
     copyTo: "Copier la sélection vers…",

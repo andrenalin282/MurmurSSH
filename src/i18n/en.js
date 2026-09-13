@@ -453,6 +453,8 @@ const en = {
         selectAll: "Select all entries",
         clearSelection: "Close menu / clear selection",
         typeAhead: "Type a name to jump to it",
+        pathEnter: "Enter in path field: go to path",
+        pathEscape: "Esc in path field: reset",
         newFile: "New file",
         moveTo: "Move selection to…",
         copyTo: "Copy selection to…",
