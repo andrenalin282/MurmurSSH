@@ -256,13 +256,32 @@ pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, S
     Ok(entries)
 }
 
-/// Upload a local file to a remote path.
-/// `on_progress(bytes_done, bytes_total)` is called after each chunk.
+/// True when `err` is an SFTP permission-denied response (F1). ssh2 0.9 normally surfaces
+/// this as `ErrorCode::SFTP(LIBSSH2_FX_PERMISSION_DENIED)` (value 3); some servers/paths
+/// instead bubble up a generic error whose message still says so, so that is checked too.
+fn is_permission_denied(err: &ssh2::Error) -> bool {
+    if let ssh2::ErrorCode::SFTP(3) = err.code() {
+        return true;
+    }
+    err.message().to_ascii_lowercase().contains("permission denied")
+}
+
+/// Upload `local` to `<dir>/.<name>.murmur-part`, then rename over the effective target,
+/// then finalize onto it. On error/cancel only the part file is removed — an existing
+/// target stays intact.
 ///
-/// On any read/write failure the partially written remote file is removed on a
-/// best-effort basis (F5) so a retry starts from a clean state.
-/// Upload `local` to `<dir>/.<name>.murmur-part`, then rename over `remote_path`.
-/// On error/cancel only the part file is removed — an existing target stays intact.
+/// F1: overwriting an existing file must not silently change what it looks like on disk:
+/// - If `remote_path` is a symlink, the part file is written and finalized next to what the
+///   symlink resolves to, so the symlink itself is preserved instead of being replaced by a
+///   regular file.
+/// - If the effective target already exists as a regular file, its permission bits (and
+///   owner, best-effort) are re-applied to the part file before the rename, so overwriting
+///   a 0600 secret or a +x script does not quietly reset it to the part file's default mode.
+/// - If the part file cannot even be created (e.g. permission denied on the containing
+///   directory) but the target itself exists, this falls back to the pre-branch in-place
+///   write (`sftp.create(target)`, truncating) so a file the user CAN write stays writable
+///   even in a directory they cannot otherwise write in — at the cost of atomicity and the
+///   on-error cleanup that the part-file path provides.
 fn write_via_part(
     sftp: &ssh2::Sftp,
     local: &Path,
@@ -276,10 +295,37 @@ fn write_via_part(
     let total = local_file.metadata().map(|m| m.len()).unwrap_or(0);
     on_progress(0, total, name);
 
-    let part = crate::services::transfer_paths::part_path(remote_path);
-    let mut remote_file = sftp
-        .create(Path::new(&part))
-        .map_err(|e| format!("Failed to create remote file '{}': {}", part, e))?;
+    // F1 step 1: never replace a symlink with a regular file — upload onto what it resolves to.
+    let is_symlink = sftp
+        .lstat(Path::new(remote_path))
+        .map(|s| s.file_type().is_symlink())
+        .unwrap_or(false);
+    let effective_target = if is_symlink {
+        sftp.realpath(Path::new(remote_path))
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|_| remote_path.to_string())
+    } else {
+        remote_path.to_string()
+    };
+
+    // F1 step 2: remember the previous file's perm/owner so it can be re-applied before finalize.
+    let existing_stat = sftp
+        .stat(Path::new(&effective_target))
+        .ok()
+        .filter(|s| s.is_file());
+
+    let part = crate::services::transfer_paths::part_path(&effective_target);
+    let mut remote_file = match sftp.create(Path::new(&part)) {
+        Ok(f) => f,
+        Err(e) => {
+            // F1 step 3: containing directory not writable but the target file itself is —
+            // fall back to the pre-branch in-place write rather than failing outright.
+            if is_permission_denied(&e) && sftp.stat(Path::new(&effective_target)).is_ok() {
+                return write_in_place(sftp, &mut local_file, &effective_target, total, name, cancel, on_progress);
+            }
+            return Err(format!("Failed to create remote file '{}': {}", part, e));
+        }
+    };
 
     let mut buf = vec![0u8; TRANSFER_CHUNK];
     let mut done = 0u64;
@@ -305,7 +351,73 @@ fn write_via_part(
         let _ = sftp.unlink(Path::new(&part));
         return Err(e);
     }
-    finalize_part(sftp, &part, remote_path)
+
+    // F1 step 2 (cont.): re-apply the previous file's perm/owner to the part file before
+    // it takes the target's place.
+    if let Some(old) = existing_stat.and_then(|s| s.perm.map(|perm| (perm, s.uid, s.gid))) {
+        let (perm, uid, gid) = old;
+        let full = ssh2::FileStat {
+            size: None,
+            uid,
+            gid,
+            perm: Some(perm & 0o7777),
+            atime: None,
+            mtime: None,
+        };
+        if sftp.setstat(Path::new(&part), full).is_err() {
+            // Setting uid/gid usually requires privileges the connecting user does not have
+            // — retry permission bits only. Best-effort: if even that fails, proceed anyway,
+            // the completed upload must not be lost over a metadata detail.
+            let perm_only = ssh2::FileStat {
+                size: None,
+                uid: None,
+                gid: None,
+                perm: Some(perm & 0o7777),
+                atime: None,
+                mtime: None,
+            };
+            let _ = sftp.setstat(Path::new(&part), perm_only);
+        }
+    }
+
+    finalize_part(sftp, &part, &effective_target)
+}
+
+/// F1 step 3 fallback: write directly onto `target` (truncating), matching pre-branch
+/// behaviour exactly — no part file, no atomicity, and any partial content written before
+/// an error/cancel is left in place rather than cleaned up. Used only when a part file
+/// could not be created next to the target for permission reasons.
+fn write_in_place(
+    sftp: &ssh2::Sftp,
+    local_file: &mut std::fs::File,
+    target: &str,
+    total: u64,
+    name: &str,
+    cancel: &dyn Fn() -> bool,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
+    let mut remote_file = sftp
+        .create(Path::new(target))
+        .map_err(|e| format!("Failed to create remote file '{}': {}", target, e))?;
+
+    let mut buf = vec![0u8; TRANSFER_CHUNK];
+    let mut done = 0u64;
+    loop {
+        if cancel() {
+            return Err(CANCELLED_ERROR.to_string());
+        }
+        let n = local_file
+            .read(&mut buf)
+            .map_err(|e| format!("Read failed: {}", e))?;
+        if n == 0 {
+            return Ok(());
+        }
+        remote_file
+            .write_all(&buf[..n])
+            .map_err(|e| format!("Upload '{}' failed: {}", target, e))?;
+        done += n as u64;
+        on_progress(done, total, name);
+    }
 }
 
 /// Rename the finished part file over the target. SFTP v3 servers (OpenSSH) refuse to
@@ -338,6 +450,11 @@ fn finalize_part(sftp: &ssh2::Sftp, part: &str, target: &str) -> Result<(), Stri
     })
 }
 
+/// Upload a local file to a remote path.
+/// `on_progress(bytes_done, bytes_total)` is called after each chunk.
+///
+/// On any read/write failure the partially written remote file is removed on a
+/// best-effort basis (F5) so a retry starts from a clean state.
 pub fn upload_file(
     profile: &Profile,
     local_path: &str,

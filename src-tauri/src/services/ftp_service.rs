@@ -182,8 +182,14 @@ pub fn upload_bytes(profile: &Profile, remote_path: &str, content: &[u8]) -> Res
     Ok(())
 }
 
-/// Upload to `.<name>.murmur-part`, then replace the target. On failure only the part file
-/// is removed so an existing remote file survives.
+/// Upload to `.<name>.<pid>-<n>.murmur-part`, then replace the target. On failure only the
+/// part file is removed so an existing remote file survives.
+///
+/// F1: plain FTP has no portable way to read or set Unix permission bits (no per-server
+/// `chmod`/`stat` semantics across servers, and `set_permissions` below is already a hard
+/// unsupported error for FTP profiles) — so unlike the SFTP path there is no permission or
+/// symlink preservation to do here; overwriting a file always leaves it with whatever mode
+/// the server default-creates.
 fn put_via_part(ftp: &mut FtpStream, local: &std::path::Path, remote_path: &str) -> Result<(), String> {
     let mut file = std::fs::File::open(local)
         .map_err(|e| format!("Cannot read '{}': {}", local.display(), e))?;
