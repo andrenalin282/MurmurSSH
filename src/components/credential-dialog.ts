@@ -214,6 +214,8 @@ export function showHostKeyDialog(
 
     document.body.appendChild(overlay);
 
+    setTimeout(() => overlay.querySelector<HTMLButtonElement>("#hk-cancel")?.focus(), 10);
+
     const cleanup = (result: HostKeyDecision) => {
       overlay.remove();
       resolve(result);

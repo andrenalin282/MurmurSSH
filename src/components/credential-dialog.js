@@ -179,6 +179,7 @@ export function showHostKeyDialog(host, fingerprint) {
       </div>
     `;
         document.body.appendChild(overlay);
+        setTimeout(() => overlay.querySelector("#hk-cancel")?.focus(), 10);
         const cleanup = (result) => {
             overlay.remove();
             resolve(result);

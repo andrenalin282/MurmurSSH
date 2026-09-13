@@ -24,6 +24,7 @@ export function showUpdateAvailableDialog(result) {
       </div>
     </div>`;
     document.body.appendChild(overlay);
+    setTimeout(() => overlay.querySelector("#update-open")?.focus(), 10);
     const close = () => overlay.remove();
     overlay.querySelector("#update-later")?.addEventListener("click", close);
     overlay.querySelector("#update-open")?.addEventListener("click", () => {
