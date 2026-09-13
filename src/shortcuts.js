@@ -47,8 +47,10 @@ function keyMatches(e, spec) {
     const specKey = p.key.length === 1 ? p.key.toLowerCase() : p.key;
     // M9: non-Latin keyboard layouts (e.g. Russian) report a localized e.key for a Ctrl+<letter>
     // combo (Ctrl+C -> "с") even though the physical key is the same. e.code stays
-    // layout-independent ("KeyC" etc.), so fall back to it for single-letter shortcuts.
-    const codeMatches = isLetter && e.code === `Key${p.key.toUpperCase()}`;
+    // layout-independent ("KeyC" etc.), so fall back to it for single-letter shortcuts — but
+    // only when e.key is NOT already a different Latin letter, or Dvorak/Colemak/AZERTY users
+    // would get phantom shortcuts firing off the physical key position instead of what they typed.
+    const codeMatches = isLetter && !/^[a-z]$/i.test(e.key) && e.code === `Key${p.key.toUpperCase()}`;
     if (evKey !== specKey && !codeMatches)
         return false;
     if ((e.ctrlKey || e.metaKey) !== p.ctrl)

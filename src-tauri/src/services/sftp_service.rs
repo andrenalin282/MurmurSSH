@@ -315,7 +315,21 @@ fn write_via_part(
         .filter(|s| s.is_file());
 
     let part = crate::services::transfer_paths::part_path(&effective_target);
-    let mut remote_file = match sftp.create(Path::new(&part)) {
+    // Hardening: if the target already exists with a known mode, create the part file with
+    // that mode from the start instead of the default 0644 — otherwise a 0600 secret's part
+    // file is briefly world-readable while the upload is in flight, or indefinitely if the
+    // process crashes before the setstat below runs. The setstat before finalize still runs
+    // afterward regardless, since a server umask can strip bits from the mode passed here.
+    let create_result = match existing_stat.as_ref().and_then(|s| s.perm) {
+        Some(perm) => sftp.open_mode(
+            Path::new(&part),
+            ssh2::OpenFlags::WRITE | ssh2::OpenFlags::TRUNCATE,
+            (perm & 0o777) as i32,
+            ssh2::OpenType::File,
+        ),
+        None => sftp.create(Path::new(&part)),
+    };
+    let mut remote_file = match create_result {
         Ok(f) => f,
         Err(e) => {
             // F1 step 3: containing directory not writable but the target file itself is —
@@ -440,8 +454,13 @@ fn finalize_part(sftp: &ssh2::Sftp, part: &str, target: &str) -> Result<(), Stri
     }
     let mut removed_target = false;
     if sftp.stat(Path::new(target)).is_ok() {
-        sftp.unlink(Path::new(target))
-            .map_err(|e| format!("Cannot replace '{}': {}", target, e))?;
+        if let Err(e) = sftp.unlink(Path::new(target)) {
+            // The target was not removed here, so the part file still holds the only copy
+            // of the upload — but finalize has failed outright, so clean it up rather than
+            // leaving it behind forever (M-ruling: nothing is lost, the target is intact).
+            let _ = sftp.unlink(Path::new(part));
+            return Err(format!("Cannot replace '{}': {}", target, e));
+        }
         removed_target = true;
     }
     sftp.rename(Path::new(part), Path::new(target), None).map_err(|e| {
