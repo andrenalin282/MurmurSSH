@@ -237,16 +237,28 @@ export class FileBrowser {
           // Only show visual indicator for external (OS) drags, not internal row drags
           if (this.profileId && !this.busy && !this.isDraggingInternal) {
             this.setDragOver(true);
+            if (type === "over") {
+              const payload = event.payload as { type: "over"; position: { x: number; y: number } };
+              const dpr = window.devicePixelRatio || 1;
+              const el = document.elementFromPoint(payload.position.x / dpr, payload.position.y / dpr);
+              const row = el ? (el as HTMLElement).closest<HTMLElement>("tr.file-entry") : null;
+              this.setDropTarget(row?.dataset.isdir === "true" ? row.dataset.name ?? null : null);
+            }
           }
         } else if (type === "leave") {
           this.setDragOver(false);
+          this.setDropTarget(null);
         } else if (type === "drop") {
           this.setDragOver(false);
+          this.setDropTarget(null);
           if (this.profileId && !this.busy && !this.isDraggingInternal) {
-            // 'drop' payload always includes paths
-            const paths = (event.payload as { type: "drop"; paths: string[] }).paths;
-            if (paths.length > 0) {
-              void this.uploadPathList(paths);
+            // 'drop' payload always includes paths and position
+            const payload = event.payload as { type: "drop"; paths: string[]; position: { x: number; y: number } };
+            if (payload.paths.length > 0) {
+              const dpr = window.devicePixelRatio || 1;
+              const el = document.elementFromPoint(payload.position.x / dpr, payload.position.y / dpr);
+              const insideRemote = el ? this.container.contains(el) : true;
+              if (insideRemote) void this.uploadPathList(payload.paths, this.dropDirFromElement(el));
             }
           }
         }
@@ -701,20 +713,24 @@ export class FileBrowser {
         e.stopPropagation(); // don't let Tauri's OS-drag handler see it
         e.dataTransfer!.dropEffect = "copy";
         scrollArea.classList.add("file-browser--local-dragover");
+        const row = (e.target as HTMLElement).closest<HTMLElement>("tr.file-entry");
+        this.setDropTarget(row?.dataset.isdir === "true" ? row.dataset.name ?? null : null);
       });
       scrollArea.addEventListener("dragleave", (e) => {
         if (!scrollArea.contains(e.relatedTarget as Node | null)) {
           scrollArea.classList.remove("file-browser--local-dragover");
+          this.setDropTarget(null);
         }
       });
       scrollArea.addEventListener("drop", (e) => {
         e.preventDefault();
         e.stopPropagation();
         scrollArea.classList.remove("file-browser--local-dragover");
+        this.setDropTarget(null);
         const src = getDragSource();
         if (!src || src.type !== "local" || this.busy || !this.profileId) return;
         clearDragSource();
-        void this.uploadPathList(src.paths);
+        void this.uploadPathList(src.paths, this.dropDirFromElement(e.target as Element));
       });
     }
 
@@ -948,6 +964,14 @@ export class FileBrowser {
       // Conflict check failed -> keep behavior resilient and attempt upload.
       return true;
     }
+  }
+
+  /** Remote directory for a drop at `target`: a folder row → that folder, ".." → parent, else current dir. */
+  private dropDirFromElement(el: Element | null): string {
+    const row = el?.closest<HTMLElement>("tr.file-entry");
+    const name = row?.dataset.name;
+    if (!row || !name || row.dataset.isdir !== "true") return this.currentPath;
+    return name === ".." ? parentPath(this.currentPath) : joinPath(this.currentPath, name);
   }
 
   /**

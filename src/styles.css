@@ -1111,6 +1111,12 @@ button:disabled {
   outline-offset: -1px;
 }
 
+.lb-entry--drop-target {
+  background: color-mix(in srgb, var(--ok) 15%, transparent) !important;
+  outline: 1px solid var(--ok);
+  outline-offset: -1px;
+}
+
 /* ── Download drop zone ───────────────────────────────────── */
 
 .file-browser__dl-dropzone {

@@ -367,7 +367,7 @@ export class LocalFileBrowser {
             this.dragSourceNames.clear();
             clearDragSource();
         });
-        // ── Drop target (remote files → local browser = download) ─────────────────
+        // ── Drop target (remote files → local browser = download) ───────────────────
         const localBrowserEl = this.container.querySelector(".local-browser");
         localBrowserEl?.addEventListener("dragover", (e) => {
             const src = getDragSource();
@@ -377,23 +377,27 @@ export class LocalFileBrowser {
             e.stopPropagation(); // don't let Tauri's OS-drag handler see it
             e.dataTransfer.dropEffect = "copy";
             this.setDragOver(true);
+            const dir = this.dropDirFromElement(e.target);
+            this.setLocalDropTarget(dir === this.currentPath ? null : dir);
         });
         localBrowserEl?.addEventListener("dragleave", (e) => {
             // Only clear when leaving the entire component
             if (!localBrowserEl.contains(e.relatedTarget)) {
                 this.setDragOver(false);
+                this.setLocalDropTarget(null);
             }
         });
         localBrowserEl?.addEventListener("drop", async (e) => {
             e.preventDefault();
             e.stopPropagation();
             this.setDragOver(false);
+            this.setLocalDropTarget(null);
             const src = getDragSource();
             if (!src || src.type !== "remote" || this.busy)
                 return;
             clearDragSource();
             if (this.onDownloadCallback) {
-                await this.onDownloadCallback(src.names, this.currentPath);
+                await this.onDownloadCallback(src.names, this.dropDirFromElement(e.target));
             }
         });
     }
@@ -410,6 +414,17 @@ export class LocalFileBrowser {
     }
     getSelectedPaths() {
         return this.entries.filter((e) => this.selectedNames.has(e.name)).map((e) => joinPath(this.currentPath, e.name));
+    }
+    dropDirFromElement(el) {
+        const row = el?.closest("tr.lb-entry");
+        if (!row || row.dataset.isdir !== "true" || !row.dataset.path)
+            return this.currentPath;
+        return row.dataset.path; // ".." row carries the parent path already
+    }
+    setLocalDropTarget(path) {
+        this.container.querySelectorAll("tr.lb-entry").forEach((r) => {
+            r.classList.toggle("lb-entry--drop-target", path !== null && r.dataset.path === path && r.dataset.isdir === "true");
+        });
     }
     setDragOver(value) {
         if (this.isDragOver === value)

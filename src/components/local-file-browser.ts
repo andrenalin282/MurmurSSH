@@ -390,7 +390,7 @@ export class LocalFileBrowser {
       clearDragSource();
     });
 
-    // ── Drop target (remote files → local browser = download) ─────────────────
+    // ── Drop target (remote files → local browser = download) ───────────────────
     const localBrowserEl = this.container.querySelector<HTMLElement>(".local-browser");
 
     localBrowserEl?.addEventListener("dragover", (e) => {
@@ -400,12 +400,15 @@ export class LocalFileBrowser {
       e.stopPropagation(); // don't let Tauri's OS-drag handler see it
       e.dataTransfer!.dropEffect = "copy";
       this.setDragOver(true);
+      const dir = this.dropDirFromElement(e.target as Element);
+      this.setLocalDropTarget(dir === this.currentPath ? null : dir);
     });
 
     localBrowserEl?.addEventListener("dragleave", (e) => {
       // Only clear when leaving the entire component
       if (!localBrowserEl.contains(e.relatedTarget as Node | null)) {
         this.setDragOver(false);
+        this.setLocalDropTarget(null);
       }
     });
 
@@ -413,11 +416,12 @@ export class LocalFileBrowser {
       e.preventDefault();
       e.stopPropagation();
       this.setDragOver(false);
+      this.setLocalDropTarget(null);
       const src = getDragSource();
       if (!src || src.type !== "remote" || this.busy) return;
       clearDragSource();
       if (this.onDownloadCallback) {
-        await this.onDownloadCallback(src.names, this.currentPath);
+        await this.onDownloadCallback(src.names, this.dropDirFromElement(e.target as Element));
       }
     });
   }
@@ -436,6 +440,18 @@ export class LocalFileBrowser {
 
   getSelectedPaths(): string[] {
     return this.entries.filter((e) => this.selectedNames.has(e.name)).map((e) => joinPath(this.currentPath, e.name));
+  }
+
+  private dropDirFromElement(el: Element | null): string {
+    const row = el?.closest<HTMLElement>("tr.lb-entry");
+    if (!row || row.dataset.isdir !== "true" || !row.dataset.path) return this.currentPath;
+    return row.dataset.path; // ".." row carries the parent path already
+  }
+
+  private setLocalDropTarget(path: string | null): void {
+    this.container.querySelectorAll<HTMLElement>("tr.lb-entry").forEach((r) => {
+      r.classList.toggle("lb-entry--drop-target", path !== null && r.dataset.path === path && r.dataset.isdir === "true");
+    });
   }
 
   private setDragOver(value: boolean): void {
