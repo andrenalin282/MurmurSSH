@@ -4,6 +4,7 @@ import * as api from "../api/index";
 import { showConfirm, showPrompt, showOverwriteDialog, showPermissionsDialog } from "./dialog";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
+import { matchShortcut } from "../shortcuts";
 function escHtml(s) {
     return s
         .replace(/&/g, "&amp;")
@@ -133,7 +134,8 @@ export class FileBrowser {
                 e.key.length === 1 &&
                 /\S/.test(e.key) &&
                 this.profileId &&
-                !this.busy) {
+                !this.busy &&
+                !matchShortcut(e, "global")) {
                 e.preventDefault();
                 this.handleTypeAhead(e.key);
                 return;

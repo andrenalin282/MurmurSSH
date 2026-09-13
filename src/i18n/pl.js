@@ -377,16 +377,6 @@ const pl = {
       <p><strong>Twoje dane pozostają lokalne.</strong> Wszystkie profile, dane uwierzytelniające i pliki są przechowywane tylko na Twoim komputerze. Nic nie jest wysyłane na żaden serwer, chyba że jawnie wyślesz plik.</p>
       <p><strong>Zgodność kluczy SSH:</strong> Jeśli Twój klucz prywatny znajduje się na zamontowanym lub sieciowym systemie plików, systemowy klient SSH może go odrzucić z powodu wymagań dotyczących uprawnień plików. MurmurSSH może utworzyć lokalną kopię roboczą klucza (w <code>~/.config/murmurssh/runtime-keys/</code>) z poprawnymi uprawnieniami na potrzeby terminala. Oryginalny klucz nigdy nie jest modyfikowany. Kopia jest tymczasowa i zostaje usunięta po rozłączeniu.</p>
       <p><strong>Uwaga:</strong> Okna terminala otwarte przyciskiem Terminal należy po zakończeniu zamknąć ręcznie.</p>
-      <p><strong>Skróty klawiszowe (przeglądarka plików):</strong></p>
-      <table style="border-collapse:collapse;font-size:13px;width:100%">
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Odśwież listę katalogu</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Zmień nazwę zaznaczonego wpisu</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Otwórz terminal SSH</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Usuń zaznaczone wpisy</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Otwórz folder / edytuj plik</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Zaznacz wszystkie wpisy</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Wyczyść zaznaczenie</td></tr>
-      </table>
       <p>Stworzone przez <strong>Kaia André Schultkę</strong> z użyciem <strong>Claude Code</strong>.</p>
     `,
         helpWebsite: "Strona internetowa",
@@ -413,6 +403,58 @@ const pl = {
         english: "Angielski",
         german: "Niemiecki",
         tooltip: "Język: Polski",
+    },
+    shortcuts: {
+        scope_global: "Ogólne",
+        scope_panels: "Oba panele plików",
+        scope_remote: "Panel zdalny",
+        scope_local: "Panel lokalny",
+        scope_dialogs: "Okna dialogowe",
+        help: "Pokaż pomoc i skróty",
+        switchPanel: "Przełącz między panelem lokalnym a zdalnym",
+        cursorUp: "Zaznacz poprzedni wpis",
+        cursorDown: "Zaznacz następny wpis",
+        extendUp: "Rozszerz zaznaczenie w górę",
+        extendDown: "Rozszerz zaznaczenie w dół",
+        first: "Przejdź do pierwszego wpisu",
+        last: "Przejdź do ostatniego wpisu",
+        pageUp: "Strona w górę",
+        pageDown: "Strona w dół",
+        open: "Otwórz folder / edytuj plik",
+        parent: "Przejdź do folderu nadrzędnego",
+        focusPath: "Edytuj ścieżkę",
+        refresh: "Odśwież listę",
+        rename: "Zmień nazwę zaznaczonego wpisu",
+        newFolder: "Nowy folder",
+        delete: "Usuń zaznaczone wpisy",
+        selectAll: "Zaznacz wszystkie wpisy",
+        clearSelection: "Zamknij menu / wyczyść zaznaczenie",
+        typeAhead: "Wpisz nazwę, aby do niej przejść",
+        newFile: "Nowy plik",
+        moveTo: "Przenieś zaznaczenie do…",
+        copyTo: "Kopiuj zaznaczenie do…",
+        clipCopy: "Oznacz zaznaczenie do skopiowania",
+        clipCut: "Oznacz zaznaczenie do przeniesienia",
+        clipPaste: "Wklej oznaczone wpisy do bieżącego folderu",
+        download: "Pobierz zaznaczenie do folderu panelu lokalnego",
+        terminal: "Otwórz terminal SSH",
+        upload: "Wyślij zaznaczenie do folderu panelu zdalnego",
+        dialogConfirm: "Zatwierdź okno dialogowe",
+        dialogCancel: "Anuluj / zamknij okno dialogowe",
+        key_Ctrl: "Ctrl",
+        key_Shift: "Shift",
+        key_Alt: "Alt",
+        key_Delete: "Delete",
+        key_Backspace: "Backspace",
+        key_Escape: "Esc",
+        key_Enter: "Enter",
+        key_Tab: "Tab",
+        key_Home: "Home",
+        key_End: "End",
+        key_PageUp: "Page Up",
+        key_PageDown: "Page Down",
+        key_ArrowUp: "↑",
+        key_ArrowDown: "↓",
     },
 };
 export default pl;

@@ -388,16 +388,6 @@ const nl = {
       <p><strong>Uw gegevens blijven lokaal.</strong> Alle profielen, inloggegevens en bestanden worden alleen op uw machine opgeslagen. Er wordt niets naar een server verzonden, tenzij u expliciet een bestand uploadt.</p>
       <p><strong>SSH-sleutelcompatibiliteit:</strong> Als uw privésleutel op een aangekoppeld of netwerkbestandssysteem is opgeslagen, kan de systeem-SSH-client deze weigeren vanwege bestandsrechtenvereisten. MurmurSSH kan een lokale runtime-kopie van de sleutel maken (in <code>~/.config/murmurssh/runtime-keys/</code>) met de juiste rechten voor gebruik in de terminal. De originele sleutel wordt nooit gewijzigd. De kopie is tijdelijk en wordt verwijderd wanneer u de verbinding verbreekt.</p>
       <p><strong>Opmerking:</strong> Terminalvensters die via de knop Terminal zijn geopend, moeten handmatig worden gesloten wanneer u klaar bent.</p>
-      <p><strong>Sneltoetsen (bestandsbrowser):</strong></p>
-      <table style="border-collapse:collapse;font-size:13px;width:100%">
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Maplijst vernieuwen</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Geselecteerd item hernoemen</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>SSH-terminal openen</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Geselecteerde items verwijderen</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Map openen / bestand bewerken</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Alle items selecteren</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Selectie wissen</td></tr>
-      </table>
       <p>Gemaakt door <strong>Kai André Schultka</strong> met <strong>Claude Code</strong>.</p>
     `,
     helpWebsite: "Website",
@@ -425,6 +415,59 @@ const nl = {
     english: "Engels",
     german: "Duits",
     tooltip: "Taal: Nederlands",
+  },
+
+  shortcuts: {
+    scope_global: "Algemeen",
+    scope_panels: "Beide bestandsvensters",
+    scope_remote: "Extern venster",
+    scope_local: "Lokaal venster",
+    scope_dialogs: "Dialogen",
+    help: "Help en sneltoetsen tonen",
+    switchPanel: "Wisselen tussen lokaal en extern venster",
+    cursorUp: "Vorig item selecteren",
+    cursorDown: "Volgend item selecteren",
+    extendUp: "Selectie naar boven uitbreiden",
+    extendDown: "Selectie naar beneden uitbreiden",
+    first: "Naar eerste item springen",
+    last: "Naar laatste item springen",
+    pageUp: "Eén pagina omhoog",
+    pageDown: "Eén pagina omlaag",
+    open: "Map openen / bestand bewerken",
+    parent: "Naar bovenliggende map",
+    focusPath: "Pad bewerken",
+    refresh: "Lijst vernieuwen",
+    rename: "Geselecteerd item hernoemen",
+    newFolder: "Nieuwe map",
+    delete: "Geselecteerde items verwijderen",
+    selectAll: "Alle items selecteren",
+    clearSelection: "Menu sluiten / selectie wissen",
+    typeAhead: "Typ een naam om ernaartoe te springen",
+    newFile: "Nieuw bestand",
+    moveTo: "Selectie verplaatsen naar…",
+    copyTo: "Selectie kopiëren naar…",
+    clipCopy: "Selectie markeren om te kopiëren",
+    clipCut: "Selectie markeren om te verplaatsen",
+    clipPaste: "Gemarkeerde items in huidige map plakken",
+    download: "Selectie downloaden naar de map van het lokale venster",
+    terminal: "SSH-terminal openen",
+    upload: "Selectie uploaden naar de map van het externe venster",
+    dialogConfirm: "Dialoog bevestigen",
+    dialogCancel: "Dialoog annuleren / sluiten",
+    key_Ctrl: "Ctrl",
+    key_Shift: "Shift",
+    key_Alt: "Alt",
+    key_Delete: "Delete",
+    key_Backspace: "Backspace",
+    key_Escape: "Esc",
+    key_Enter: "Enter",
+    key_Tab: "Tab",
+    key_Home: "Home",
+    key_End: "End",
+    key_PageUp: "Page Up",
+    key_PageDown: "Page Down",
+    key_ArrowUp: "↑",
+    key_ArrowDown: "↓",
   },
 } as const;
 

@@ -388,16 +388,6 @@ const ru = {
       <p><strong>Ваши данные остаются локальными.</strong> Все профили, учётные данные и файлы хранятся только на вашем компьютере. На сервер ничего не отправляется, пока вы сами явно не загрузите файл.</p>
       <p><strong>Совместимость SSH-ключей:</strong> Если ваш приватный ключ хранится на смонтированной или сетевой файловой системе, системный SSH-клиент может отклонить его из-за требований к правам доступа. MurmurSSH может создать локальную рабочую копию ключа (в <code>~/.config/murmurssh/runtime-keys/</code>) с правильными правами для использования в терминале. Исходный ключ никогда не изменяется. Копия временная и удаляется при отключении.</p>
       <p><strong>Примечание:</strong> Окна терминала, открытые через кнопку «Терминал», нужно закрывать вручную по завершении работы.</p>
-      <p><strong>Сочетания клавиш (обозреватель файлов):</strong></p>
-      <table style="border-collapse:collapse;font-size:13px;width:100%">
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Обновить список каталога</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Переименовать выбранный элемент</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Открыть терминал SSH</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Удалить выбранные элементы</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Открыть папку / редактировать файл</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Выбрать все элементы</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Снять выделение</td></tr>
-      </table>
       <p>Создано <strong>Kai André Schultka</strong> с помощью <strong>Claude Code</strong>.</p>
     `,
     helpWebsite: "Веб-сайт",
@@ -425,6 +415,59 @@ const ru = {
     english: "Английский",
     german: "Немецкий",
     tooltip: "Язык: Русский",
+  },
+
+  shortcuts: {
+    scope_global: "Общее",
+    scope_panels: "Обе панели файлов",
+    scope_remote: "Удалённая панель",
+    scope_local: "Локальная панель",
+    scope_dialogs: "Диалоги",
+    help: "Показать справку и сочетания клавиш",
+    switchPanel: "Переключение между локальной и удалённой панелью",
+    cursorUp: "Выбрать предыдущий элемент",
+    cursorDown: "Выбрать следующий элемент",
+    extendUp: "Расширить выделение вверх",
+    extendDown: "Расширить выделение вниз",
+    first: "Перейти к первому элементу",
+    last: "Перейти к последнему элементу",
+    pageUp: "На страницу вверх",
+    pageDown: "На страницу вниз",
+    open: "Открыть папку / редактировать файл",
+    parent: "Перейти в родительскую папку",
+    focusPath: "Редактировать путь",
+    refresh: "Обновить список",
+    rename: "Переименовать выбранный элемент",
+    newFolder: "Новая папка",
+    delete: "Удалить выбранные элементы",
+    selectAll: "Выбрать все элементы",
+    clearSelection: "Закрыть меню / снять выделение",
+    typeAhead: "Введите имя, чтобы перейти к нему",
+    newFile: "Новый файл",
+    moveTo: "Переместить выделение в…",
+    copyTo: "Копировать выделение в…",
+    clipCopy: "Отметить выделение для копирования",
+    clipCut: "Отметить выделение для перемещения",
+    clipPaste: "Вставить отмеченные элементы в текущую папку",
+    download: "Скачать выделение в папку локальной панели",
+    terminal: "Открыть терминал SSH",
+    upload: "Загрузить выделение в папку удалённой панели",
+    dialogConfirm: "Подтвердить диалог",
+    dialogCancel: "Отменить / закрыть диалог",
+    key_Ctrl: "Ctrl",
+    key_Shift: "Shift",
+    key_Alt: "Alt",
+    key_Delete: "Delete",
+    key_Backspace: "Backspace",
+    key_Escape: "Esc",
+    key_Enter: "Enter",
+    key_Tab: "Tab",
+    key_Home: "Home",
+    key_End: "End",
+    key_PageUp: "Page Up",
+    key_PageDown: "Page Down",
+    key_ArrowUp: "↑",
+    key_ArrowDown: "↓",
   },
 } as const;
 

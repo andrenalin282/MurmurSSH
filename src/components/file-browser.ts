@@ -6,6 +6,7 @@ import type { OverwriteAction } from "./dialog";
 import type { FileEntry, Protocol, TransferJobView } from "../types";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
+import { matchShortcut } from "../shortcuts";
 
 function escHtml(s: string): string {
   return s
@@ -154,7 +155,8 @@ export class FileBrowser {
         e.key.length === 1 &&
         /\S/.test(e.key) &&
         this.profileId &&
-        !this.busy
+        !this.busy &&
+        !matchShortcut(e, "global")
       ) {
         e.preventDefault();
         this.handleTypeAhead(e.key);

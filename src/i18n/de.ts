@@ -388,16 +388,6 @@ const de = {
         <p><strong>Ihre Daten bleiben lokal.</strong> Alle Profile, Anmeldedaten und Dateien werden ausschließlich auf Ihrem Gerät gespeichert. Es werden keine Daten an einen Server gesendet, es sei denn, Sie laden eine Datei explizit hoch.</p>
         <p><strong>SSH-Schlüssel-Kompatibilität:</strong> Wenn Ihr privater Schlüssel auf einem eingehängten oder Netzwerk-Dateisystem gespeichert ist, kann der System-SSH-Client ihn aufgrund von Dateiberechtigungsanforderungen ablehnen. MurmurSSH kann eine lokale Laufzeitkopie des Schlüssels (in <code>~/.config/murmurssh/runtime-keys/</code>) mit den korrekten Berechtigungen für die Terminal-Nutzung erstellen. Der Originalschlüssel wird nicht verändert. Die Kopie ist temporär und wird beim Trennen der Verbindung gelöscht.</p>
         <p><strong>Hinweis:</strong> Über die Terminal-Schaltfläche geöffnete Terminal-Fenster müssen manuell geschlossen werden.</p>
-        <p><strong>Tastenkürzel (Datei-Browser):</strong></p>
-        <table style="border-collapse:collapse;font-size:13px;width:100%">
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Verzeichnis aktualisieren</td></tr>
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Ausgewählten Eintrag umbenennen</td></tr>
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>SSH-Terminal öffnen</td></tr>
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Ausgewählte Einträge löschen</td></tr>
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Ordner öffnen / Datei bearbeiten</td></tr>
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Alle Einträge auswählen</td></tr>
-          <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Auswahl aufheben</td></tr>
-        </table>
         <p>Erstellt von <strong>Kai André Schultka</strong> mit <strong>Claude Code</strong>.</p>
       `,
         helpWebsite: "Website",
@@ -425,6 +415,59 @@ const de = {
         english: "Englisch",
         german: "Deutsch",
         tooltip: "Sprache: Deutsch",
+    },
+
+    shortcuts: {
+        scope_global: "Allgemein",
+        scope_panels: "Beide Dateibereiche",
+        scope_remote: "Remote-Bereich",
+        scope_local: "Lokaler Bereich",
+        scope_dialogs: "Dialoge",
+        help: "Hilfe und Tastenkürzel anzeigen",
+        switchPanel: "Zwischen lokalem und Remote-Bereich wechseln",
+        cursorUp: "Vorherigen Eintrag wählen",
+        cursorDown: "Nächsten Eintrag wählen",
+        extendUp: "Auswahl nach oben erweitern",
+        extendDown: "Auswahl nach unten erweitern",
+        first: "Zum ersten Eintrag",
+        last: "Zum letzten Eintrag",
+        pageUp: "Eine Seite nach oben",
+        pageDown: "Eine Seite nach unten",
+        open: "Ordner öffnen / Datei bearbeiten",
+        parent: "Zum übergeordneten Ordner",
+        focusPath: "Pfad bearbeiten",
+        refresh: "Liste aktualisieren",
+        rename: "Ausgewählten Eintrag umbenennen",
+        newFolder: "Neuer Ordner",
+        delete: "Ausgewählte Einträge löschen",
+        selectAll: "Alle Einträge auswählen",
+        clearSelection: "Menü schließen / Auswahl aufheben",
+        typeAhead: "Namen tippen, um hinzuspringen",
+        newFile: "Neue Datei",
+        moveTo: "Auswahl verschieben nach…",
+        copyTo: "Auswahl kopieren nach…",
+        clipCopy: "Auswahl zum Kopieren merken",
+        clipCut: "Auswahl zum Verschieben merken",
+        clipPaste: "Gemerkte Einträge in aktuellen Ordner einfügen",
+        download: "Auswahl in den Ordner des lokalen Bereichs herunterladen",
+        terminal: "SSH-Terminal öffnen",
+        upload: "Auswahl in den Ordner des Remote-Bereichs hochladen",
+        dialogConfirm: "Dialog bestätigen",
+        dialogCancel: "Dialog abbrechen / schließen",
+        key_Ctrl: "Strg",
+        key_Shift: "Umschalt",
+        key_Alt: "Alt",
+        key_Delete: "Entf",
+        key_Backspace: "Rücktaste",
+        key_Escape: "Esc",
+        key_Enter: "Enter",
+        key_Tab: "Tab",
+        key_Home: "Pos1",
+        key_End: "Ende",
+        key_PageUp: "Bild ↑",
+        key_PageDown: "Bild ↓",
+        key_ArrowUp: "↑",
+        key_ArrowDown: "↓",
     },
 } as const;
 

@@ -387,17 +387,7 @@ const fr = {
       <p>Il vous permet de gérer des profils de connexion, de parcourir des fichiers distants via SFTP et d'ouvrir des sessions de terminal SSH — le tout sans services cloud ni télémétrie.</p>
       <p><strong>Vos données restent locales.</strong> Tous les profils, identifiants et fichiers sont stockés uniquement sur votre machine. Rien n'est envoyé à un serveur à moins que vous ne téléversiez explicitement un fichier.</p>
       <p><strong>Compatibilité des clés SSH :</strong> Si votre clé privée est stockée sur un système de fichiers monté ou réseau, le client SSH du système peut la refuser en raison des exigences de permissions. MurmurSSH peut créer une copie locale d'exécution de la clé (dans <code>~/.config/murmurssh/runtime-keys/</code>) avec les permissions correctes pour une utilisation dans le terminal. La clé d'origine n'est jamais modifiée. La copie est temporaire et est supprimée à la déconnexion.</p>
-      <p><strong>Remarque :</strong> Les fenêtres de terminal ouvertes via le bouton Terminal doivent être fermées manuellement lorsque vous avez terminé.</p>
-      <p><strong>Raccourcis clavier (navigateur de fichiers) :</strong></p>
-      <table style="border-collapse:collapse;font-size:13px;width:100%">
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F5</kbd></td><td>Actualiser la liste du dossier</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F2</kbd></td><td>Renommer l'entrée sélectionnée</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>F11</kbd></td><td>Ouvrir un terminal SSH</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Delete</kbd></td><td>Supprimer les entrées sélectionnées</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Enter</kbd></td><td>Ouvrir le dossier / modifier le fichier</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Ctrl+A</kbd></td><td>Sélectionner toutes les entrées</td></tr>
-        <tr><td style="padding:2px 8px 2px 0;white-space:nowrap"><kbd>Escape</kbd></td><td>Effacer la sélection</td></tr>
-      </table>
+      <p><strong>Remarque :</strong> Les fenêtres de terminal ouvertes via le bouton Terminal doivent être fermées manuellement lorsque vous avez terminé.</p>
       <p>Créé par <strong>Kai André Schultka</strong> avec <strong>Claude Code</strong>.</p>
     `,
     helpWebsite: "Site Web",
@@ -420,11 +410,64 @@ const fr = {
     autoUploadFailed: "Échec de l'envoi automatique : {error}",
   },
 
-  language: {
+    language: {
     current: "FR",
     english: "Anglais",
     german: "Allemand",
-    tooltip: "Langue : Français",
+    tooltip: "Langue : Français",
+  },
+
+  shortcuts: {
+    scope_global: "Général",
+    scope_panels: "Les deux panneaux de fichiers",
+    scope_remote: "Panneau distant",
+    scope_local: "Panneau local",
+    scope_dialogs: "Boîtes de dialogue",
+    help: "Afficher l'aide et les raccourcis",
+    switchPanel: "Basculer entre le panneau local et distant",
+    cursorUp: "Sélectionner l'entrée précédente",
+    cursorDown: "Sélectionner l'entrée suivante",
+    extendUp: "Étendre la sélection vers le haut",
+    extendDown: "Étendre la sélection vers le bas",
+    first: "Aller à la première entrée",
+    last: "Aller à la dernière entrée",
+    pageUp: "Une page vers le haut",
+    pageDown: "Une page vers le bas",
+    open: "Ouvrir le dossier / modifier le fichier",
+    parent: "Aller au dossier parent",
+    focusPath: "Modifier le chemin",
+    refresh: "Actualiser la liste",
+    rename: "Renommer l'entrée sélectionnée",
+    newFolder: "Nouveau dossier",
+    delete: "Supprimer les entrées sélectionnées",
+    selectAll: "Sélectionner toutes les entrées",
+    clearSelection: "Fermer le menu / effacer la sélection",
+    typeAhead: "Taper un nom pour y accéder",
+    newFile: "Nouveau fichier",
+    moveTo: "Déplacer la sélection vers…",
+    copyTo: "Copier la sélection vers…",
+    clipCopy: "Marquer la sélection pour la copie",
+    clipCut: "Marquer la sélection pour le déplacement",
+    clipPaste: "Coller les entrées marquées dans le dossier actuel",
+    download: "Télécharger la sélection dans le dossier du panneau local",
+    terminal: "Ouvrir un terminal SSH",
+    upload: "Envoyer la sélection dans le dossier du panneau distant",
+    dialogConfirm: "Confirmer la boîte de dialogue",
+    dialogCancel: "Annuler / fermer la boîte de dialogue",
+    key_Ctrl: "Ctrl",
+    key_Shift: "Maj",
+    key_Alt: "Alt",
+    key_Delete: "Suppr",
+    key_Backspace: "Retour arrière",
+    key_Escape: "Échap",
+    key_Enter: "Entrée",
+    key_Tab: "Tab",
+    key_Home: "Début",
+    key_End: "Fin",
+    key_PageUp: "Page préc.",
+    key_PageDown: "Page suiv.",
+    key_ArrowUp: "↑",
+    key_ArrowDown: "↓",
   },
 } as const;
 

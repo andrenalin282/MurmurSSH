@@ -16,6 +16,8 @@ import { showOverwriteDialog } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
 import { installModalKeyHandler } from "./components/modal-keys";
+import { matchShortcut, shortcutHelpHtml } from "./shortcuts";
+import { getActivePanel, setActivePanel } from "./panel-focus";
 // ── Help / About dialog ───────────────────────────────────────────────────────
 async function showHelpDialog() {
     // Fetch the version from the backend (reads tauri.conf.json at build time)
@@ -37,6 +39,7 @@ async function showHelpDialog() {
       <div class="modal__body">
         ${versionLine}
         ${t("app.helpBodyHtml")}
+        ${shortcutHelpHtml()}
         <p style="margin-top:12px;">
           <a href="#" id="help-website-link" style="color:var(--accent);">${t("app.helpWebsite")}</a>
           &nbsp;·&nbsp;
@@ -102,6 +105,24 @@ systemThemeQuery.addEventListener("change", () => {
     }
 });
 installModalKeyHandler();
+document.addEventListener("keydown", (e) => {
+    if (document.querySelector(".modal-overlay"))
+        return;
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select")
+        return;
+    const id = matchShortcut(e, "global");
+    if (id === "help") {
+        e.preventDefault();
+        void showHelpDialog();
+    }
+    else if (id === "switchPanel" && connectedProfileId && localBrowserEl && !localBrowserEl.hasAttribute("hidden")) {
+        e.preventDefault();
+        setActivePanel(getActivePanel() === "remote" ? "local" : "remote");
+    }
+});
+document.getElementById("file-browser")?.addEventListener("mousedown", () => setActivePanel("remote"));
+document.getElementById("local-file-browser")?.addEventListener("mousedown", () => setActivePanel("local"));
 const profileSelector = new ProfileSelector("profile-selector");
 const statusBar = new StatusBar("status-bar");
 const fileBrowser = new FileBrowser("file-browser");
@@ -136,6 +157,8 @@ function setLocalBrowserVisible(visible) {
         resizerEl?.setAttribute("hidden", "");
     }
     fileBrowser.setLocalBrowserVisible(visible);
+    if (!visible)
+        setActivePanel("remote");
 }
 fileBrowser.onToggleLocalBrowser((visible) => {
     setLocalBrowserVisible(visible);
