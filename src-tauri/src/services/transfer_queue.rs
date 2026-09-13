@@ -368,6 +368,11 @@ fn run_job(view: &TransferJobView, cancel: &Arc<AtomicBool>) -> Result<(), Strin
 mod tests {
     use super::*;
 
+    // Tests share the process-global `queue()` singleton, so running them in
+    // parallel (cargo's default) races `reset()` against another test's
+    // in-flight enqueue/cancel. Serialize with a lock held for the whole body.
+    static TEST_LOCK: Mutex<()> = Mutex::new(());
+
     fn reset() {
         let mut st = queue().state.lock().unwrap();
         st.jobs.clear();
@@ -376,6 +381,7 @@ mod tests {
 
     #[test]
     fn enqueue_adds_queued_job_and_list_returns_it() {
+        let _guard = TEST_LOCK.lock().unwrap();
         reset();
         let id = enqueue(
             "p1".into(),
@@ -393,6 +399,7 @@ mod tests {
 
     #[test]
     fn cancel_queued_marks_cancelled() {
+        let _guard = TEST_LOCK.lock().unwrap();
         reset();
         let id = enqueue(
             "p1".into(),
@@ -409,6 +416,7 @@ mod tests {
 
     #[test]
     fn clear_finished_drops_terminal_jobs_only() {
+        let _guard = TEST_LOCK.lock().unwrap();
         reset();
         let a = enqueue("p".into(), TransferKind::Upload, "s".into(), "d".into(), "a".into());
         let b = enqueue("p".into(), TransferKind::Upload, "s".into(), "d".into(), "b".into());
