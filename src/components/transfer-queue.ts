@@ -139,7 +139,7 @@ export class TransferQueuePanel {
         const indeterminate = j.state === "active" && j.bytesTotal === 0;
         const stateLabel = t(`transferQueue.state_${j.state}`);
         const cancellable = j.state === "queued" || j.state === "active";
-        const arrow = j.kind === "upload" || j.kind === "uploadDir" ? "↑" : "↓";
+        const arrow = j.kind === "remoteCopy" ? "⧉" : j.kind === "upload" || j.kind === "uploadDir" ? "↑" : "↓";
         return `
           <div class="tq-row tq-row--${j.state}" data-job="${j.id}">
             <span class="tq-arrow">${arrow}</span>

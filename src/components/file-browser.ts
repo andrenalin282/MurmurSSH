@@ -35,6 +35,7 @@ const ICONS = {
   openFolder:   `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
   permissions:  `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
   duplicate:    `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  copyTo:       `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
 } as const;
 
 type CtxMenuItem =
@@ -528,6 +529,7 @@ export class FileBrowser {
           <button id="download-btn"      ${downloadDisabled ? "disabled" : ""} title="${t("fileBrowser.download")}">${ICONS.download}</button>
           <button id="rename-btn"        ${!hasExactlyOne || this.busy ? "disabled" : ""} title="${t("fileBrowser.rename")}">${ICONS.rename}</button>
           <button id="move-btn"          ${!hasAny || this.busy ? "disabled" : ""} title="${t("fileBrowser.moveTo")}">${ICONS.moveTo}</button>
+          <button id="copy-btn"          ${!hasAny || this.busy ? "disabled" : ""} title="${t("fileBrowser.copyTo")}">${ICONS.copyTo}</button>
           <button id="edit-btn"          ${!hasFile || this.busy ? "disabled" : ""} title="${t("fileBrowser.edit")}">${ICONS.edit}</button>
           <button id="delete-btn"        ${!hasAny  || this.busy ? "disabled" : ""} title="${t("fileBrowser.delete")}">${ICONS.delete}</button>
           <button id="new-file-btn"      ${!hasProfile || this.busy ? "disabled" : ""} title="${t("fileBrowser.newFile")}">${ICONS.newFile}</button>
@@ -782,6 +784,10 @@ export class FileBrowser {
     document
       .getElementById("move-btn")
       ?.addEventListener("click", () => this.handleMoveTo());
+
+    document
+      .getElementById("copy-btn")
+      ?.addEventListener("click", () => this.handleCopyTo());
 
     document
       .getElementById("edit-btn")
@@ -1528,6 +1534,50 @@ export class FileBrowser {
     await this.moveNamesToDir(names, targetDir.replace(/\/?$/, ""));
   }
 
+  // ── Copy to… (prompted path) ────────────────────────────────────────────────
+
+  private async handleCopyTo(): Promise<void> {
+    if (!this.profileId || this.selectedNames.size === 0) return;
+    const names = [...this.selectedNames];
+    const label = names.length === 1 ? `"${names[0]}"` : t("fileBrowser.itemsLabel", { count: names.length });
+    const targetDir = await showPrompt(
+      t("fileBrowser.copyToTitle", { label }),
+      t("fileBrowser.moveToPlaceholder"),
+      this.currentPath,
+    );
+    if (!targetDir) return;
+    await this.copyNamesToDir(this.currentPath, names, targetDir.replace(/(.)\/+$/, "$1"));
+  }
+
+  private async copyNamesToDir(sourceDir: string, names: string[], targetDir: string): Promise<void> {
+    if (!this.profileId) return;
+    this.resetOverwriteDecisions();
+    let queued = 0;
+    let skipped = 0;
+    for (const name of names) {
+      const from = joinPath(sourceDir, name);
+      const to = joinPath(targetDir, name);
+      if (from === to) { skipped++; continue; }
+      if (to.startsWith(from + "/")) {
+        this.status(t("fileBrowser.copyIntoItself", { name }), true);
+        skipped++;
+        continue;
+      }
+      try {
+        if (!(await this.resolveOverwrite(to, name))) { skipped++; continue; }
+      } catch (err) {
+        if (String(err) === "Error: UPLOAD_CANCELLED") break;
+      }
+      this.log(t("fileBrowser.logCopying", { name, target: targetDir }));
+      await this.enqueue("remoteCopy", from, to, name);
+      queued++;
+    }
+    const parts: string[] = [];
+    if (queued > 0) parts.push(t("fileBrowser.queuedCount", { count: queued }));
+    if (skipped > 0) parts.push(t("fileBrowser.skippedCount", { count: skipped }));
+    if (parts.length) this.status(parts.join(", "), false);
+  }
+
   // ── Move (drag-and-drop) ──────────────────────────────────────────────────
 
   private async handleMove(targetDirName: string): Promise<void> {
@@ -1743,6 +1793,7 @@ export class FileBrowser {
       { separator: true },
       { icon: ICONS.rename,   label: t("fileBrowser.rename"),   action: () => this.handleRename() },
       { icon: ICONS.moveTo,   label: t("fileBrowser.moveTo"),   action: () => this.handleMoveTo() },
+      { icon: ICONS.copyTo,   label: t("fileBrowser.copyTo"),   action: () => this.handleCopyTo() },
       { icon: ICONS.permissions, label: t("fileBrowser.permissions"), action: () => this.handlePermissions() },
       { separator: true },
       { icon: ICONS.delete,   label: t("fileBrowser.delete"),   action: () => this.handleDelete(), danger: true },
@@ -1756,6 +1807,7 @@ export class FileBrowser {
       { separator: true },
       { icon: ICONS.rename,     label: t("fileBrowser.rename"),     action: () => this.handleRename() },
       { icon: ICONS.moveTo,     label: t("fileBrowser.moveTo"),     action: () => this.handleMoveTo() },
+      { icon: ICONS.copyTo,     label: t("fileBrowser.copyTo"),     action: () => this.handleCopyTo() },
       { icon: ICONS.permissions, label: t("fileBrowser.permissions"), action: () => this.handlePermissions() },
       { separator: true },
       { icon: ICONS.delete,     label: t("fileBrowser.delete"),     action: () => this.handleDelete(), danger: true },

@@ -45,6 +45,7 @@ const ru = {
     // Selection info
     oneItemSelected: "Выбран 1 элемент",
     itemsSelected: "Выбрано элементов: {count}",
+    itemsLabel: "Элементов: {count}",
     // Action buttons
     openFolder: "Открыть",
     upload: "Загрузить",
@@ -52,6 +53,7 @@ const ru = {
     download: "Скачать",
     rename: "Переименовать",
     moveTo: "Переместить в…",
+    copyTo: "Копировать в…",
     permissions: "Права…",
     edit: "Редактировать",
     delete: "Удалить",
@@ -95,6 +97,7 @@ const ru = {
     movedItemsErrors: "Перемещено: {count} {itemLabel}, с ошибкой: {errors}{detail}",
     itemSingular: "элемент",
     itemPlural: "элементов",
+    copyIntoItself: 'Нельзя скопировать "{name}" в самого себя',
     // Edit
     editOpened: "Открыто для редактирования",
     editFailed: "Не удалось отредактировать: {error}",
@@ -122,6 +125,7 @@ const ru = {
     renamePlaceholder: "новое имя",
     moveToTitle: "Переместить {label} в каталог",
     moveToPlaceholder: "например /home/user/docs",
+    copyToTitle: "Копировать {label} в каталог",
     newFileTitle: "Новый файл",
     newFilePlaceholder: "имя-файла.txt",
     newFolderTitle: "Новая папка",
@@ -147,6 +151,7 @@ const ru = {
     logListed: "элементов: {count}",
     logUploading: "Загрузка {name}…",
     logDownloading: "Скачивание {name}…",
+    logCopying: "Копирование {name} → {target}",
     // Toggle button
     toggleLocalBrowser: "Локально",
     // Queued count

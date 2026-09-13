@@ -45,6 +45,7 @@ const en = {
     // Selection info
     oneItemSelected: "1 item selected",
     itemsSelected: "{count} items selected",
+    itemsLabel: "{count} items",
     // Action buttons
     openFolder: "Open",
     upload: "Upload",
@@ -52,6 +53,7 @@ const en = {
     download: "Download",
     rename: "Rename",
     moveTo: "Move to…",
+    copyTo: "Copy to…",
     permissions: "Permissions…",
     edit: "Edit",
     delete: "Delete",
@@ -95,6 +97,7 @@ const en = {
     movedItemsErrors: "Moved {count} {itemLabel}, {errors} failed{detail}",
     itemSingular: "item",
     itemPlural: "items",
+    copyIntoItself: 'Cannot copy "{name}" into itself',
     // Edit
     editOpened: "Opened for editing",
     editFailed: "Edit failed: {error}",
@@ -122,6 +125,7 @@ const en = {
     renamePlaceholder: "new name",
     moveToTitle: "Move {label} to directory",
     moveToPlaceholder: "e.g. /home/user/docs",
+    copyToTitle: "Copy {label} to directory",
     newFileTitle: "New File",
     newFilePlaceholder: "filename.txt",
     newFolderTitle: "New Folder",
@@ -147,6 +151,7 @@ const en = {
     logListed: "{count} items",
     logUploading: "Uploading {name}…",
     logDownloading: "Downloading {name}…",
+    logCopying: "Copying {name} → {target}",
     // Toggle button
     toggleLocalBrowser: "Local",
     // Queued count

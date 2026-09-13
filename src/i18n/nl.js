@@ -43,6 +43,7 @@ const nl = {
         // Selection info
         oneItemSelected: "1 item geselecteerd",
         itemsSelected: "{count} items geselecteerd",
+        itemsLabel: "{count} items",
         // Action buttons
         openFolder: "Openen",
         upload: "Uploaden",
@@ -50,6 +51,7 @@ const nl = {
         download: "Downloaden",
         rename: "Hernoemen",
         moveTo: "Verplaatsen naar…",
+        copyTo: "Kopiëren naar…",
         permissions: "Rechten…",
         edit: "Bewerken",
         delete: "Verwijderen",
@@ -93,6 +95,7 @@ const nl = {
         movedItemsErrors: "{count} {itemLabel} verplaatst, {errors} mislukt{detail}",
         itemSingular: "item",
         itemPlural: "items",
+        copyIntoItself: 'Kan "{name}" niet naar zichzelf kopiëren',
         // Edit
         editOpened: "Geopend voor bewerken",
         editFailed: "Bewerken mislukt: {error}",
@@ -120,6 +123,7 @@ const nl = {
         renamePlaceholder: "nieuwe naam",
         moveToTitle: "{label} verplaatsen naar map",
         moveToPlaceholder: "bijv. /home/user/docs",
+        copyToTitle: "{label} kopiëren naar map",
         newFileTitle: "Nieuw bestand",
         newFilePlaceholder: "bestandsnaam.txt",
         newFolderTitle: "Nieuwe map",
@@ -145,6 +149,7 @@ const nl = {
         logListed: "{count} items",
         logUploading: "{name} uploaden…",
         logDownloading: "{name} downloaden…",
+        logCopying: "{name} kopiëren → {target}",
         // Toggle button
         toggleLocalBrowser: "Lokaal",
         // Queued count

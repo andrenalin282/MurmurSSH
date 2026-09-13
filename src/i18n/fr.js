@@ -43,6 +43,7 @@ const fr = {
         // Selection info
         oneItemSelected: "1 élément sélectionné",
         itemsSelected: "{count} éléments sélectionnés",
+        itemsLabel: "{count} éléments",
         // Action buttons
         openFolder: "Ouvrir",
         upload: "Envoyer",
@@ -50,6 +51,7 @@ const fr = {
         download: "Télécharger",
         rename: "Renommer",
         moveTo: "Déplacer vers…",
+        copyTo: "Copier vers…",
         permissions: "Permissions…",
         edit: "Modifier",
         delete: "Supprimer",
@@ -93,6 +95,7 @@ const fr = {
         movedItemsErrors: "{count} {itemLabel} déplacé(s), {errors} échoué(s){detail}",
         itemSingular: "élément",
         itemPlural: "éléments",
+        copyIntoItself: 'Impossible de copier "{name}" dans lui-même',
         // Edit
         editOpened: "Ouvert pour modification",
         editFailed: "Échec de la modification : {error}",
@@ -120,6 +123,7 @@ const fr = {
         renamePlaceholder: "nouveau nom",
         moveToTitle: "Déplacer {label} vers le dossier",
         moveToPlaceholder: "par ex. /home/user/docs",
+        copyToTitle: "Copier {label} vers le dossier",
         newFileTitle: "Nouveau fichier",
         newFilePlaceholder: "nom-de-fichier.txt",
         newFolderTitle: "Nouveau dossier",
@@ -145,6 +149,7 @@ const fr = {
         logListed: "{count} éléments",
         logUploading: "Envoi de {name}…",
         logDownloading: "Téléchargement de {name}…",
+        logCopying: "Copie de {name} → {target}",
         // Toggle button
         toggleLocalBrowser: "Local",
         // Queued count
