@@ -204,6 +204,15 @@ const nl = {
     deleteFailed: "Verwijderen mislukt: {error}",
     ctxNewFolder: "Nieuwe map",
     ctxDelete: "Verwijderen",
+    ctxOpen: "Openen",
+    ctxEdit: "Bewerken",
+    ctxUpload: "Uploaden naar server",
+    ctxRename: "Hernoemen",
+    openFailed: "Kan bestand niet openen: {error}",
+    renameTitle: "Hernoemen",
+    renameFailed: "Hernoemen mislukt: {error}",
+    uploadConfirmMsg: "\"{name}\" uploaden naar {remotePath}?",
+    uploadConfirmTitle: "Uploaden naar server",
   },
 
   profiles: {

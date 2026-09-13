@@ -204,6 +204,15 @@ const de = {
         deleteFailed: "Löschen fehlgeschlagen: {error}",
         ctxNewFolder: "Neuer Ordner",
         ctxDelete: "Löschen",
+        ctxOpen: "Öffnen",
+        ctxEdit: "Bearbeiten",
+        ctxUpload: "Auf Server hochladen",
+        ctxRename: "Umbenennen",
+        openFailed: "Datei kann nicht geöffnet werden: {error}",
+        renameTitle: "Umbenennen",
+        renameFailed: "Umbenennen fehlgeschlagen: {error}",
+        uploadConfirmMsg: "\"{name}\" nach {remotePath} hochladen?",
+        uploadConfirmTitle: "Auf Server hochladen",
     },
 
     profiles: {

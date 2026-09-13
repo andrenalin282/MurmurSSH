@@ -204,6 +204,15 @@ const fr = {
     deleteFailed: "Échec de la suppression : {error}",
     ctxNewFolder: "Nouveau dossier",
     ctxDelete: "Supprimer",
+    ctxOpen: "Ouvrir",
+    ctxEdit: "Modifier",
+    ctxUpload: "Envoyer vers le serveur",
+    ctxRename: "Renommer",
+    openFailed: "Impossible d'ouvrir le fichier : {error}",
+    renameTitle: "Renommer",
+    renameFailed: "Échec du renommage : {error}",
+    uploadConfirmMsg: "Envoyer « {name} » vers {remotePath} ?",
+    uploadConfirmTitle: "Envoyer vers le serveur",
   },
 
   profiles: {
@@ -424,7 +433,7 @@ const fr = {
     autoUploadFailed: "Échec de l'envoi automatique : {error}",
   },
 
-    language: {
+  language: {
     current: "FR",
     english: "Anglais",
     german: "Allemand",

@@ -204,6 +204,15 @@ const ru = {
     deleteFailed: "Не удалось удалить: {error}",
     ctxNewFolder: "Новая папка",
     ctxDelete: "Удалить",
+    ctxOpen: "Открыть",
+    ctxEdit: "Редактировать",
+    ctxUpload: "Отправить на сервер",
+    ctxRename: "Переименовать",
+    openFailed: "Не удалось открыть файл: {error}",
+    renameTitle: "Переименовать",
+    renameFailed: "Не удалось переименовать: {error}",
+    uploadConfirmMsg: "Отправить «{name}» в {remotePath}?",
+    uploadConfirmTitle: "Отправить на сервер",
   },
 
   profiles: {
