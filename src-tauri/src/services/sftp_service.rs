@@ -842,20 +842,57 @@ pub fn is_remote_dir(profile: &Profile, path: &str) -> Result<bool, String> {
     Ok(stat.is_dir())
 }
 
+/// Sentinel returned by `exec_command` when `opts.timeout` elapses before the
+/// remote command finishes. Distinct from a generic failure so callers (e.g. the
+/// exec-capability probe) can tell "the server didn't answer in time" apart from
+/// "the connection/channel could not even be opened".
+pub const EXEC_TIMEOUT_ERROR: &str = "EXEC_TIMEOUT";
+
+/// Options for `exec_command`.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct ExecOptions {
+    /// Request a PTY before `exec`. Without a PTY, closing the channel on cancel
+    /// does not signal the remote process — it keeps running detached from the
+    /// (now-gone) channel. With a PTY, closing the channel hangs up the line
+    /// (SIGHUP) and the remote process group is killed, so cancel of a PTY exec
+    /// actually stops the remote command. Side effect: with a PTY the remote
+    /// stderr is merged into the stdout stream, so `stderr` returned by
+    /// `exec_command` will typically be empty.
+    pub pty: bool,
+    /// Hard deadline for the whole exec (not per-chunk). `None` means no timeout
+    /// (only `cancel` can stop it). On expiry the channel is closed and
+    /// `EXEC_TIMEOUT_ERROR` is returned.
+    pub timeout: Option<std::time::Duration>,
+}
+
 /// Run `cmd` on the server over an exec channel. Polls non-blocking so `cancel` is honoured
 /// and long commands are not cut by the per-op timeout. Returns (exit status, stdout, stderr).
+///
+/// Cancelling a non-PTY exec only closes our side of the channel — the remote command
+/// keeps running server-side. Pass `opts.pty = true` when the command must actually be
+/// killed on cancel (see `ExecOptions::pty`).
 pub fn exec_command(
     profile: &Profile,
     cmd: &str,
+    opts: ExecOptions,
     cancel: &dyn Fn() -> bool,
 ) -> Result<(i32, String, String), String> {
     let session = connect(profile)?;
     let mut channel = session
         .channel_session()
         .map_err(|e| format!("Cannot open exec channel: {}", e))?;
+    if opts.pty {
+        channel
+            .request_pty("dumb", None, None)
+            .map_err(|e| format!("Cannot request pty: {}", e))?;
+    }
     channel.exec(cmd).map_err(|e| format!("Exec failed: {}", e))?;
+    // We never send stdin; signal EOF immediately so commands that read stdin
+    // (there shouldn't be any) don't block forever waiting for input.
+    let _ = channel.send_eof();
 
     session.set_blocking(false);
+    let start = std::time::Instant::now();
     let mut out = Vec::new();
     let mut err = Vec::new();
     let mut buf = [0u8; 8192];
@@ -864,6 +901,13 @@ pub fn exec_command(
             session.set_blocking(true);
             let _ = channel.close();
             return Err(CANCELLED_ERROR.to_string());
+        }
+        if let Some(timeout) = opts.timeout {
+            if start.elapsed() >= timeout {
+                session.set_blocking(true);
+                let _ = channel.close();
+                return Err(EXEC_TIMEOUT_ERROR.to_string());
+            }
         }
         let mut progressed = false;
         match channel.read(&mut buf) {
