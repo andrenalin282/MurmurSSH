@@ -261,6 +261,72 @@ pub fn list_directory(profile: &Profile, path: &str) -> Result<Vec<FileEntry>, S
 ///
 /// On any read/write failure the partially written remote file is removed on a
 /// best-effort basis (F5) so a retry starts from a clean state.
+/// Upload `local` to `<dir>/.<name>.murmur-part`, then rename over `remote_path`.
+/// On error/cancel only the part file is removed — an existing target stays intact.
+fn write_via_part(
+    sftp: &ssh2::Sftp,
+    local: &Path,
+    remote_path: &str,
+    name: &str,
+    cancel: &dyn Fn() -> bool,
+    on_progress: &dyn Fn(u64, u64, &str),
+) -> Result<(), String> {
+    let mut local_file = std::fs::File::open(local)
+        .map_err(|e| format!("Failed to open '{}': {}", local.display(), e))?;
+    let total = local_file.metadata().map(|m| m.len()).unwrap_or(0);
+    on_progress(0, total, name);
+
+    let part = crate::services::transfer_paths::part_path(remote_path);
+    let mut remote_file = sftp
+        .create(Path::new(&part))
+        .map_err(|e| format!("Failed to create remote file '{}': {}", part, e))?;
+
+    let mut buf = vec![0u8; TRANSFER_CHUNK];
+    let mut done = 0u64;
+    let write_result: Result<(), String> = loop {
+        if cancel() {
+            break Err(CANCELLED_ERROR.to_string());
+        }
+        let n = match local_file.read(&mut buf) {
+            Ok(v) => v,
+            Err(e) => break Err(format!("Read '{}' failed: {}", local.display(), e)),
+        };
+        if n == 0 {
+            break Ok(());
+        }
+        if let Err(e) = remote_file.write_all(&buf[..n]) {
+            break Err(format!("Upload '{}' failed: {}", remote_path, e));
+        }
+        done += n as u64;
+        on_progress(done, total, name);
+    };
+    drop(remote_file);
+    if let Err(e) = write_result {
+        let _ = sftp.unlink(Path::new(&part));
+        return Err(e);
+    }
+    finalize_part(sftp, &part, remote_path)
+}
+
+/// Rename the finished part file over the target. SFTP v3 servers (OpenSSH) refuse to
+/// rename onto an existing file, so fall back to unlink + rename; the old content is only
+/// removed after the new content is completely on the server.
+fn finalize_part(sftp: &ssh2::Sftp, part: &str, target: &str) -> Result<(), String> {
+    use ssh2::RenameFlags;
+    let flags = RenameFlags::OVERWRITE | RenameFlags::ATOMIC | RenameFlags::NATIVE;
+    if sftp.rename(Path::new(part), Path::new(target), Some(flags)).is_ok() {
+        return Ok(());
+    }
+    if sftp.stat(Path::new(target)).is_ok() {
+        sftp.unlink(Path::new(target))
+            .map_err(|e| format!("Cannot replace '{}': {}", target, e))?;
+    }
+    sftp.rename(Path::new(part), Path::new(target), None).map_err(|e| {
+        let _ = sftp.unlink(Path::new(part));
+        format!("Failed to finalize '{}': {}", target, e)
+    })
+}
+
 pub fn upload_file(
     profile: &Profile,
     local_path: &str,
@@ -278,42 +344,14 @@ fn upload_file_inner(
     cancel: &dyn Fn() -> bool,
     on_progress: &dyn Fn(u64, u64),
 ) -> Result<(), String> {
-    let mut local = std::fs::File::open(local_path)
+    // Fail fast on a missing local file before opening a network session.
+    std::fs::metadata(local_path)
         .map_err(|e| format!("Failed to open local file '{}': {}", local_path, e))?;
-    let total = local.metadata().map(|m| m.len()).unwrap_or(0);
-
     let session = connect(profile)?;
     let sftp = session
         .sftp()
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
-
-    let mut remote = sftp
-        .create(Path::new(remote_path))
-        .map_err(|e| format!("Failed to create remote file '{}': {}", remote_path, e))?;
-
-    let mut buf = vec![0u8; TRANSFER_CHUNK];
-    let mut done = 0u64;
-    let write_result: Result<(), String> = loop {
-        if cancel() {
-            break Err(CANCELLED_ERROR.to_string());
-        }
-        let n = match local.read(&mut buf) {
-            Ok(v) => v,
-            Err(e) => break Err(format!("Read '{}' failed: {}", local_path, e)),
-        };
-        if n == 0 { break Ok(()); }
-        if let Err(e) = remote.write_all(&buf[..n]) {
-            break Err(format!("Upload to '{}' failed: {}", remote_path, e));
-        }
-        done += n as u64;
-        on_progress(done, total);
-    };
-    if let Err(e) = write_result {
-        drop(remote);
-        let _ = sftp.unlink(Path::new(remote_path));
-        return Err(e);
-    }
-    Ok(())
+    write_via_part(&sftp, Path::new(local_path), remote_path, "", cancel, &|d, t, _| on_progress(d, t))
 }
 
 /// Upload raw bytes to a remote path. Used by the file browser upload button.
@@ -647,7 +685,14 @@ fn upload_directory_inner(
         .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
 
     mkdir_ok_if_exists(&sftp, Path::new(remote_path))?;
-    upload_directory_recursive(cancel, &sftp, Path::new(local_path), remote_path, on_progress)
+    let mut guard = crate::services::transfer_paths::LoopGuard::new();
+    let mut failures: Vec<String> = Vec::new();
+    let mut total = 0usize;
+    upload_directory_recursive(
+        cancel, &sftp, Path::new(local_path), remote_path, on_progress,
+        &mut guard, &mut failures, &mut total,
+    )?;
+    crate::services::transfer_paths::summarize_failures(&failures, total)
 }
 
 /// Try to create a remote directory; silently succeed if it already exists.
@@ -663,80 +708,67 @@ fn mkdir_ok_if_exists(sftp: &ssh2::Sftp, path: &Path) -> Result<(), String> {
     }
 }
 
-/// Internal recursive helper for directory upload — operates on an open SFTP channel.
-///
-/// Progress: `bytes_done` is per current file, `bytes_total` is the current
-/// file's size, `filename` is the current entry. Matches single-file shape.
+/// Walks `local_dir`. Per-entry failures are pushed to `failures` and the walk continues;
+/// only cancellation returns `Err` early.
+#[allow(clippy::too_many_arguments)]
 fn upload_directory_recursive(
     cancel: &dyn Fn() -> bool,
     sftp: &ssh2::Sftp,
     local_dir: &Path,
     remote_dir: &str,
     on_progress: &dyn Fn(u64, u64, &str),
+    guard: &mut crate::services::transfer_paths::LoopGuard,
+    failures: &mut Vec<String>,
+    total: &mut usize,
 ) -> Result<(), String> {
     if cancel() {
         return Err(CANCELLED_ERROR.to_string());
     }
-    let read_dir = std::fs::read_dir(local_dir)
-        .map_err(|e| format!("Failed to read local directory '{}': {}", local_dir.display(), e))?;
+    if !guard.enter(local_dir) {
+        return Ok(()); // symlink cycle — skip silently
+    }
+    let read_dir = match std::fs::read_dir(local_dir) {
+        Ok(r) => r,
+        Err(e) => {
+            failures.push(format!("{}: {}", local_dir.display(), e));
+            guard.leave(local_dir);
+            return Ok(());
+        }
+    };
 
     for entry in read_dir {
-        let entry = entry
-            .map_err(|e| format!("Failed to read directory entry: {}", e))?;
-        let local_entry = entry.path();
-
-        let entry_name = match local_entry.file_name() {
-            Some(n) => n.to_string_lossy().to_string(),
-            None => continue,
-        };
-        if entry_name.is_empty() {
-            continue;
+        if cancel() {
+            guard.leave(local_dir);
+            return Err(CANCELLED_ERROR.to_string());
         }
-
+        let local_entry = match entry {
+            Ok(e) => e.path(),
+            Err(e) => { failures.push(format!("{}: {}", local_dir.display(), e)); continue; }
+        };
+        let entry_name = match local_entry.file_name() {
+            Some(n) if !n.is_empty() => n.to_string_lossy().to_string(),
+            _ => continue,
+        };
         let remote_entry = format!("{}/{}", remote_dir.trim_end_matches('/'), entry_name);
 
-        // Use is_dir() / is_file() which follow symlinks.
-        // Broken symlinks and special files (sockets, devices) are skipped.
         if local_entry.is_dir() {
-            mkdir_ok_if_exists(sftp, Path::new(&remote_entry))?;
-            upload_directory_recursive(cancel, sftp, &local_entry, &remote_entry, on_progress)?;
+            *total += 1;
+            if let Err(e) = mkdir_ok_if_exists(sftp, Path::new(&remote_entry)) {
+                failures.push(format!("{}: {}", entry_name, e));
+                continue;
+            }
+            upload_directory_recursive(cancel, sftp, &local_entry, &remote_entry, on_progress, guard, failures, total)?;
         } else if local_entry.is_file() {
-            let file_total = local_entry.metadata().map(|m| m.len()).unwrap_or(0);
-            on_progress(0, file_total, &entry_name);
-
-            let mut local_file = std::fs::File::open(&local_entry)
-                .map_err(|e| format!("Failed to open '{}': {}", local_entry.display(), e))?;
-            let mut remote_file = sftp
-                .create(Path::new(&remote_entry))
-                .map_err(|e| format!("Failed to create remote file '{}': {}", remote_entry, e))?;
-
-            let mut buf = vec![0u8; TRANSFER_CHUNK];
-            let mut file_done = 0u64;
-            let write_result: Result<(), String> = loop {
-                if cancel() {
-                    break Err(CANCELLED_ERROR.to_string());
-                }
-                let n = match local_file.read(&mut buf) {
-                    Ok(v) => v,
-                    Err(e) => break Err(format!("Read '{}' failed: {}", local_entry.display(), e)),
-                };
-                if n == 0 { break Ok(()); }
-                if let Err(e) = remote_file.write_all(&buf[..n]) {
-                    break Err(format!("Upload '{}' failed: {}", remote_entry, e));
-                }
-                file_done += n as u64;
-                on_progress(file_done, file_total, &entry_name);
-            };
-            if let Err(e) = write_result {
-                // Best-effort cleanup of the partial remote file (F5).
-                drop(remote_file);
-                let _ = sftp.unlink(Path::new(&remote_entry));
-                return Err(e);
+            *total += 1;
+            match write_via_part(sftp, &local_entry, &remote_entry, &entry_name, cancel, on_progress) {
+                Ok(()) => {}
+                Err(e) if e == CANCELLED_ERROR => { guard.leave(local_dir); return Err(e); }
+                Err(e) => failures.push(format!("{}: {}", entry_name, e)),
             }
         }
         // Broken symlinks and special files are skipped without error.
     }
-
+    guard.leave(local_dir);
     Ok(())
 }
 
