@@ -381,7 +381,7 @@ mod tests {
 
     #[test]
     fn enqueue_adds_queued_job_and_list_returns_it() {
-        let _guard = TEST_LOCK.lock().unwrap();
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset();
         let id = enqueue(
             "p1".into(),
@@ -399,7 +399,7 @@ mod tests {
 
     #[test]
     fn cancel_queued_marks_cancelled() {
-        let _guard = TEST_LOCK.lock().unwrap();
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset();
         let id = enqueue(
             "p1".into(),
@@ -416,7 +416,7 @@ mod tests {
 
     #[test]
     fn clear_finished_drops_terminal_jobs_only() {
-        let _guard = TEST_LOCK.lock().unwrap();
+        let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         reset();
         let a = enqueue("p".into(), TransferKind::Upload, "s".into(), "d".into(), "a".into());
         let b = enqueue("p".into(), TransferKind::Upload, "s".into(), "d".into(), "b".into());
