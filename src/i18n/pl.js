@@ -126,6 +126,7 @@ const pl = {
         copyToTitle: "Kopiuj {label} do katalogu",
         clipCopied: "Zaznaczono {count} do skopiowania — Ctrl+V wkleja",
         clipCut: "Zaznaczono {count} do przeniesienia — Ctrl+V wkleja",
+        clipSameDir: "Zaznaczone elementy już znajdują się w tym folderze",
         newFileTitle: "Nowy plik",
         newFilePlaceholder: "nazwa-pliku.txt",
         newFolderTitle: "Nowy folder",

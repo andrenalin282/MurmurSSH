@@ -142,6 +142,36 @@ transferQueue.setOnJobFinished((job) => {
         localBrowser.refresh().catch(() => { });
     }
 });
+// Debounced local-panel refresh driven by transfer completion, not by enqueue
+// (enqueue_transfer returns immediately; the worker downloads later). Covers
+// keyboard Ctrl+D: only refresh when the finished job's destination directory
+// is the one currently shown in the local panel.
+function parentDir(path) {
+    const trimmed = path.replace(/\/+$/, "");
+    const idx = trimmed.lastIndexOf("/");
+    return idx <= 0 ? "/" : trimmed.slice(0, idx);
+}
+let localRefreshTimer = null;
+function scheduleLocalRefresh() {
+    if (localRefreshTimer !== null)
+        window.clearTimeout(localRefreshTimer);
+    localRefreshTimer = window.setTimeout(() => {
+        localRefreshTimer = null;
+        void localBrowser.refresh();
+    }, 300);
+}
+listen("transfer-update", (event) => {
+    const job = event.payload;
+    if (job.kind !== "download" && job.kind !== "downloadDir")
+        return;
+    if (job.state !== "done" && job.state !== "failed")
+        return;
+    const dstParent = parentDir(job.dst).replace(/\/+$/, "") || "/";
+    const localPath = (localBrowser.getCurrentPath() ?? "").replace(/\/+$/, "") || "/";
+    if (dstParent !== localPath)
+        return;
+    scheduleLocalRefresh();
+});
 // ── Local browser toggle + resizer ───────────────────────────────────────────
 const localBrowserEl = document.getElementById("local-file-browser");
 const resizerEl = document.getElementById("browsers-pane-resizer");
@@ -168,7 +198,6 @@ fileBrowser.setLocalDirProvider(() => {
     const p = localBrowser.getCurrentPath();
     return visible && p ? p : null;
 });
-fileBrowser.onLocalDownloadDone(() => void localBrowser.refresh());
 // ── Resizable panel drag ──────────────────────────────────────────────────────
 if (resizerEl) {
     resizerEl.addEventListener("mousedown", (e) => {

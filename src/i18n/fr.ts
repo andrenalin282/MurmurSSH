@@ -128,6 +128,7 @@ const fr = {
     copyToTitle: "Copier {label} vers le dossier",
     clipCopied: "{count} marqué(s) pour la copie — Ctrl+V colle",
     clipCut: "{count} marqué(s) pour le déplacement — Ctrl+V colle",
+    clipSameDir: "Les éléments marqués se trouvent déjà dans ce dossier",
     newFileTitle: "Nouveau fichier",
     newFilePlaceholder: "nom-de-fichier.txt",
     newFolderTitle: "Nouveau dossier",

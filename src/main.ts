@@ -19,7 +19,7 @@ import {
   showPassphrasePrompt,
   type HostKeyDecision,
 } from "./components/credential-dialog";
-import type { Settings, UploadReadyPayload } from "./types";
+import type { Settings, UploadReadyPayload, TransferJobView } from "./types";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
 import { installModalKeyHandler } from "./components/modal-keys";
 import { matchShortcut, shortcutHelpHtml } from "./shortcuts";
@@ -168,6 +168,33 @@ transferQueue.setOnJobFinished((job) => {
   }
 });
 
+// Debounced local-panel refresh driven by transfer completion, not by enqueue
+// (enqueue_transfer returns immediately; the worker downloads later). Covers
+// keyboard Ctrl+D: only refresh when the finished job's destination directory
+// is the one currently shown in the local panel.
+function parentDir(path: string): string {
+  const trimmed = path.replace(/\/+$/, "");
+  const idx = trimmed.lastIndexOf("/");
+  return idx <= 0 ? "/" : trimmed.slice(0, idx);
+}
+let localRefreshTimer: number | null = null;
+function scheduleLocalRefresh(): void {
+  if (localRefreshTimer !== null) window.clearTimeout(localRefreshTimer);
+  localRefreshTimer = window.setTimeout(() => {
+    localRefreshTimer = null;
+    void localBrowser.refresh();
+  }, 300);
+}
+listen<TransferJobView>("transfer-update", (event) => {
+  const job = event.payload;
+  if (job.kind !== "download" && job.kind !== "downloadDir") return;
+  if (job.state !== "done" && job.state !== "failed") return;
+  const dstParent = parentDir(job.dst).replace(/\/+$/, "") || "/";
+  const localPath = (localBrowser.getCurrentPath() ?? "").replace(/\/+$/, "") || "/";
+  if (dstParent !== localPath) return;
+  scheduleLocalRefresh();
+});
+
 // ── Local browser toggle + resizer ───────────────────────────────────────────
 
 const localBrowserEl = document.getElementById("local-file-browser") as HTMLElement | null;
@@ -195,7 +222,6 @@ fileBrowser.setLocalDirProvider(() => {
   const p = localBrowser.getCurrentPath();
   return visible && p ? p : null;
 });
-fileBrowser.onLocalDownloadDone(() => void localBrowser.refresh());
 
 // ── Resizable panel drag ──────────────────────────────────────────────────────
 

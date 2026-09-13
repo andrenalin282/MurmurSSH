@@ -113,7 +113,6 @@ export class FileBrowser {
         this.localBrowserVisible = false;
         this.clipboard = null;
         this.localDirProvider = null;
-        this.onLocalDownloadDoneCallback = null;
         const el = document.getElementById(containerId);
         if (!el)
             throw new Error(`Element #${containerId} not found`);
@@ -124,10 +123,6 @@ export class FileBrowser {
     }
     setLocalDirProvider(fn) {
         this.localDirProvider = fn;
-    }
-    /** Provide a callback invoked after a keyboard-triggered download-into-local-panel completes. */
-    onLocalDownloadDone(cb) {
-        this.onLocalDownloadDoneCallback = cb;
     }
     applyKeyboardSelection(st) {
         this.selectedNames = st.selected;
@@ -166,6 +161,8 @@ export class FileBrowser {
             const page = Math.max(1, Math.floor((this.container.querySelector(".file-browser__scroll")?.clientHeight ?? 300) / 24) - 1);
             const one = this.selectedNames.size === 1;
             const any = this.selectedNames.size > 0;
+            // Returning `false` means "not handled": skip preventDefault so native
+            // browser behavior (text copy, select-all in a text field) still runs.
             const run = {
                 cursorUp: () => this.applyKeyboardSelection(moveCursor(names, st(), -1, false)),
                 cursorDown: () => this.applyKeyboardSelection(moveCursor(names, st(), 1, false)),
@@ -197,7 +194,12 @@ export class FileBrowser {
                 newFile: () => void this.handleNewFile(),
                 delete: () => { if (any)
                     void this.handleDelete(); },
-                selectAll: () => { names.forEach((n) => this.selectedNames.add(n)); this.render(); },
+                selectAll: () => {
+                    if ((window.getSelection()?.toString().length ?? 0) > 0)
+                        return false;
+                    names.forEach((n) => this.selectedNames.add(n));
+                    this.render();
+                },
                 clearSelection: () => {
                     const ctx = document.getElementById("ctx-menu");
                     if (ctx) {
@@ -213,14 +215,27 @@ export class FileBrowser {
                     void this.handleMoveTo(); },
                 copyTo: () => { if (any)
                     void this.handleCopyTo(); },
-                clipCopy: () => this.setClipboard("copy"),
-                clipCut: () => this.setClipboard("cut"),
+                clipCopy: () => {
+                    if ((window.getSelection()?.toString().length ?? 0) > 0)
+                        return false;
+                    if (this.selectedNames.size === 0)
+                        return false;
+                    this.setClipboard("copy");
+                },
+                clipCut: () => {
+                    if ((window.getSelection()?.toString().length ?? 0) > 0)
+                        return false;
+                    if (this.selectedNames.size === 0)
+                        return false;
+                    this.setClipboard("cut");
+                },
                 clipPaste: () => void this.pasteClipboard(),
                 download: () => {
                     if (!any)
                         return;
                     const dir = this.localDirProvider?.() ?? null;
-                    void this.downloadNamesToLocal([...this.selectedNames], dir ?? undefined).then(() => this.onLocalDownloadDoneCallback?.());
+                    void this.downloadNamesToLocal([...this.selectedNames], dir ?? undefined)
+                        .catch((err) => this.status(String(err), true));
                 },
                 terminal: () => { if (!this.protocol || this.protocol === "ssh")
                     void this.handleTerminal(); },
@@ -228,8 +243,9 @@ export class FileBrowser {
             const action = run[id];
             if (!action)
                 return;
+            if (action() === false)
+                return;
             e.preventDefault();
-            action();
         });
     }
     setClipboard(mode) {
@@ -246,8 +262,10 @@ export class FileBrowser {
             await this.copyNamesToDir(clip.dir, clip.names, this.currentPath);
         }
         else {
-            if (clip.dir === this.currentPath)
+            if (clip.dir === this.currentPath) {
+                this.status(t("fileBrowser.clipSameDir"), false);
                 return;
+            }
             this.clipboard = null; // a moved item cannot be pasted twice
             await this.moveNamesToDir(clip.names, this.currentPath, clip.dir);
         }

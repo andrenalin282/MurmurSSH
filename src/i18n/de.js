@@ -126,6 +126,7 @@ const de = {
         copyToTitle: "{label} in Verzeichnis kopieren",
         clipCopied: "{count} zum Kopieren gemerkt — Strg+V fügt ein",
         clipCut: "{count} zum Verschieben gemerkt — Strg+V fügt ein",
+        clipSameDir: "Die gemerkten Einträge liegen bereits in diesem Ordner",
         newFileTitle: "Neue Datei",
         newFilePlaceholder: "dateiname.txt",
         newFolderTitle: "Neuer Ordner",

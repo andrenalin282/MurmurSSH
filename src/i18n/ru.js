@@ -126,6 +126,7 @@ const ru = {
         copyToTitle: "Копировать {label} в каталог",
         clipCopied: "{count} отмечено для копирования — Ctrl+V вставит",
         clipCut: "{count} отмечено для перемещения — Ctrl+V вставит",
+        clipSameDir: "Отмеченные элементы уже находятся в этой папке",
         newFileTitle: "Новый файл",
         newFilePlaceholder: "имя-файла.txt",
         newFolderTitle: "Новая папка",

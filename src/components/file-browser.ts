@@ -131,7 +131,6 @@ export class FileBrowser {
   private localBrowserVisible: boolean = false;
   private clipboard: { mode: "copy" | "cut"; profileId: string; dir: string; names: string[] } | null = null;
   private localDirProvider: (() => string | null) | null = null;
-  private onLocalDownloadDoneCallback: (() => void) | null = null;
 
   constructor(containerId: string) {
     const el = document.getElementById(containerId);
@@ -144,11 +143,6 @@ export class FileBrowser {
 
   setLocalDirProvider(fn: () => string | null): void {
     this.localDirProvider = fn;
-  }
-
-  /** Provide a callback invoked after a keyboard-triggered download-into-local-panel completes. */
-  onLocalDownloadDone(cb: () => void): void {
-    this.onLocalDownloadDoneCallback = cb;
   }
 
   private applyKeyboardSelection(st: SelectionState): void {
@@ -187,7 +181,9 @@ export class FileBrowser {
       const one = this.selectedNames.size === 1;
       const any = this.selectedNames.size > 0;
 
-      const run: Record<string, () => void> = {
+      // Returning `false` means "not handled": skip preventDefault so native
+      // browser behavior (text copy, select-all in a text field) still runs.
+      const run: Record<string, () => void | false> = {
         cursorUp: () => this.applyKeyboardSelection(moveCursor(names, st(), -1, false)),
         cursorDown: () => this.applyKeyboardSelection(moveCursor(names, st(), 1, false)),
         extendUp: () => this.applyKeyboardSelection(moveCursor(names, st(), -1, true)),
@@ -213,7 +209,10 @@ export class FileBrowser {
         newFolder: () => void this.handleNewFolder(),
         newFile: () => void this.handleNewFile(),
         delete: () => { if (any) void this.handleDelete(); },
-        selectAll: () => { names.forEach((n) => this.selectedNames.add(n)); this.render(); },
+        selectAll: () => {
+          if ((window.getSelection()?.toString().length ?? 0) > 0) return false;
+          names.forEach((n) => this.selectedNames.add(n)); this.render();
+        },
         clearSelection: () => {
           const ctx = document.getElementById("ctx-menu");
           if (ctx) { ctx.remove(); return; }
@@ -221,20 +220,29 @@ export class FileBrowser {
         },
         moveTo: () => { if (any) void this.handleMoveTo(); },
         copyTo: () => { if (any) void this.handleCopyTo(); },
-        clipCopy: () => this.setClipboard("copy"),
-        clipCut: () => this.setClipboard("cut"),
+        clipCopy: () => {
+          if ((window.getSelection()?.toString().length ?? 0) > 0) return false;
+          if (this.selectedNames.size === 0) return false;
+          this.setClipboard("copy");
+        },
+        clipCut: () => {
+          if ((window.getSelection()?.toString().length ?? 0) > 0) return false;
+          if (this.selectedNames.size === 0) return false;
+          this.setClipboard("cut");
+        },
         clipPaste: () => void this.pasteClipboard(),
         download: () => {
           if (!any) return;
           const dir = this.localDirProvider?.() ?? null;
-          void this.downloadNamesToLocal([...this.selectedNames], dir ?? undefined).then(() => this.onLocalDownloadDoneCallback?.());
+          void this.downloadNamesToLocal([...this.selectedNames], dir ?? undefined)
+            .catch((err) => this.status(String(err), true));
         },
         terminal: () => { if (!this.protocol || this.protocol === "ssh") void this.handleTerminal(); },
       };
       const action = run[id];
       if (!action) return;
+      if (action() === false) return;
       e.preventDefault();
-      action();
     });
   }
 
@@ -250,7 +258,10 @@ export class FileBrowser {
     if (clip.mode === "copy") {
       await this.copyNamesToDir(clip.dir, clip.names, this.currentPath);
     } else {
-      if (clip.dir === this.currentPath) return;
+      if (clip.dir === this.currentPath) {
+        this.status(t("fileBrowser.clipSameDir"), false);
+        return;
+      }
       this.clipboard = null; // a moved item cannot be pasted twice
       await this.moveNamesToDir(clip.names, this.currentPath, clip.dir);
     }

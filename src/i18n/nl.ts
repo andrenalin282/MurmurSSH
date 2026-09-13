@@ -128,6 +128,7 @@ const nl = {
     copyToTitle: "{label} kopiëren naar map",
     clipCopied: "{count} gemarkeerd om te kopiëren — Ctrl+V plakt",
     clipCut: "{count} gemarkeerd om te verplaatsen — Ctrl+V plakt",
+    clipSameDir: "De gemarkeerde items staan al in deze map",
     newFileTitle: "Nieuw bestand",
     newFilePlaceholder: "bestandsnaam.txt",
     newFolderTitle: "Nieuwe map",

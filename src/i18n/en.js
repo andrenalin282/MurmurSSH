@@ -126,6 +126,7 @@ const en = {
         copyToTitle: "Copy {label} to directory",
         clipCopied: "{count} marked for copying — Ctrl+V pastes",
         clipCut: "{count} marked for moving — Ctrl+V pastes",
+        clipSameDir: "The marked items are already in this folder",
         newFileTitle: "New File",
         newFilePlaceholder: "filename.txt",
         newFolderTitle: "New Folder",
