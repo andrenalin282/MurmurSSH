@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use crate::models::{CredentialStorageMode, FileEntry};
 use crate::services::profile_service;
@@ -11,6 +11,34 @@ fn reject_null_bytes(path: &str) -> Result<(), String> {
         return Err("Path contains null bytes".to_string());
     }
     Ok(())
+}
+
+/// Reject paths containing `.` or `..` segments — these bypass raw string/path
+/// comparisons used elsewhere (e.g. the `$HOME` guard in `delete_local_path`)
+/// without ever touching the filesystem to prove it.
+fn reject_dot_segments(path: &str) -> Result<(), String> {
+    let has_dot_segment = Path::new(path)
+        .components()
+        .any(|c| matches!(c, Component::ParentDir | Component::CurDir));
+    if has_dot_segment {
+        return Err("Path must not contain '.' or '..' segments".to_string());
+    }
+    Ok(())
+}
+
+/// True if deleting `resolved` would remove `/`, the home directory itself, or
+/// any ancestor of the home directory (e.g. `/home`). `home` must already be
+/// canonicalized; pass `None` when it could not be resolved (skips the check).
+fn is_protected(resolved: &Path, home: Option<&Path>) -> bool {
+    if resolved == Path::new("/") {
+        return true;
+    }
+    if let Some(home) = home {
+        if resolved == home || home.starts_with(resolved) {
+            return true;
+        }
+    }
+    false
 }
 
 /// Validate and canonicalize a local directory path.
@@ -242,6 +270,7 @@ pub fn save_local_browser_path(profile_id: &str, path: &str) -> Result<(), Strin
 /// Create a new directory. Parent must exist; the path must be absolute and new.
 pub fn create_local_dir(path: &str) -> Result<(), String> {
     reject_null_bytes(path)?;
+    reject_dot_segments(path)?;
     if !path.starts_with('/') {
         return Err("Only absolute paths are accepted".to_string());
     }
@@ -253,15 +282,37 @@ pub fn create_local_dir(path: &str) -> Result<(), String> {
 }
 
 /// Delete a file, a symlink (never its target) or a directory recursively.
+///
+/// The backend is the safety gate: `.` / `..` segments are rejected outright
+/// (they would let a raw string/path comparison against `$HOME` be bypassed,
+/// e.g. `/home/kai/Documents/../../kai` string-compares differently from
+/// `/home/kai` but resolves to the same place). The target is then resolved
+/// via `canonicalize()` on its *parent* only — the leaf itself is never
+/// followed through a symlink — and refused if that resolves to `/`, to
+/// `$HOME`, or to any ancestor of `$HOME`.
 pub fn delete_local_path(path: &str) -> Result<(), String> {
     reject_null_bytes(path)?;
+    reject_dot_segments(path)?;
     if !path.starts_with('/') {
         return Err("Only absolute paths are accepted".to_string());
     }
     let p = Path::new(path);
-    if p.parent().is_none() || p == Path::new(&get_home_dir()) {
+    let parent = p
+        .parent()
+        .ok_or_else(|| "Refusing to delete this path".to_string())?;
+    let file_name = p
+        .file_name()
+        .ok_or_else(|| "Refusing to delete this path".to_string())?;
+    let canonical_parent = parent
+        .canonicalize()
+        .map_err(|e| format!("'{}': {}", path, e))?;
+    let resolved = canonical_parent.join(file_name);
+
+    let home = Path::new(&get_home_dir()).canonicalize().ok();
+    if is_protected(&resolved, home.as_deref()) {
         return Err("Refusing to delete this path".to_string());
     }
+
     let meta = std::fs::symlink_metadata(p).map_err(|e| format!("'{}': {}", path, e))?;
     if meta.is_dir() {
         std::fs::remove_dir_all(p)
@@ -306,5 +357,28 @@ mod local_ops_tests {
         assert!(delete_local_path("relative").is_err());
         assert!(delete_local_path("/").is_err());
         assert!(create_local_dir("rel").is_err());
+    }
+
+    #[test]
+    fn rejects_dot_dot_segments() {
+        let root = std::env::temp_dir().join(format!("murmur-localops-dotdot-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("a")).unwrap();
+        let sneaky = root.join("a").join("..").join("a");
+        assert!(delete_local_path(&sneaky.to_string_lossy()).is_err());
+        assert!(create_local_dir(&sneaky.to_string_lossy()).is_err());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn is_protected_covers_root_home_and_home_ancestors() {
+        let home = Path::new("/home/kai");
+        assert!(is_protected(Path::new("/"), Some(home)), "root must always be protected");
+        assert!(is_protected(Path::new("/home/kai"), Some(home)), "home itself must be protected");
+        assert!(is_protected(Path::new("/home"), Some(home)), "ancestor of home must be protected");
+        assert!(!is_protected(Path::new("/home/kai/x"), Some(home)), "a path inside home must be allowed");
+        assert!(!is_protected(Path::new("/tmp/x"), Some(home)), "an unrelated path must be allowed");
+        assert!(is_protected(Path::new("/"), None), "root must be protected even if home is unresolved");
+        assert!(!is_protected(Path::new("/tmp/x"), None), "unrelated path stays allowed when home is unresolved");
     }
 }
