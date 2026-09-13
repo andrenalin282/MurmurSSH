@@ -19,7 +19,7 @@ import {
   showPassphrasePrompt,
   type HostKeyDecision,
 } from "./components/credential-dialog";
-import type { Settings, UploadReadyPayload, TransferJobView } from "./types";
+import type { Settings, UploadReadyPayload } from "./types";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
 import { installModalKeyHandler } from "./components/modal-keys";
 import { matchShortcut, shortcutHelpHtml } from "./shortcuts";
@@ -158,41 +158,16 @@ const settingsDialog = new SettingsDialog();
 
 // Background transfer queue panel — driven entirely by `transfer-update` events.
 const transferQueue = new TransferQueuePanel("transfer-queue");
+// Single completion-driven refresh point for all transfer kinds: enqueueing a
+// job (enqueue_transfer) returns immediately, before the worker has copied
+// anything, so refreshes must be triggered from job completion, not enqueue.
 transferQueue.setOnJobFinished((job) => {
   if (job.state !== "done") return;
-  // Refresh the remote browser after an upload, the local browser after a download.
-  if (job.kind === "upload" || job.kind === "uploadDir") {
+  if (job.kind === "upload" || job.kind === "uploadDir" || job.kind === "remoteCopy") {
     fileBrowser.refresh().catch(() => {});
   } else {
     localBrowser.refresh().catch(() => {});
   }
-});
-
-// Debounced local-panel refresh driven by transfer completion, not by enqueue
-// (enqueue_transfer returns immediately; the worker downloads later). Covers
-// keyboard Ctrl+D: only refresh when the finished job's destination directory
-// is the one currently shown in the local panel.
-function parentDir(path: string): string {
-  const trimmed = path.replace(/\/+$/, "");
-  const idx = trimmed.lastIndexOf("/");
-  return idx <= 0 ? "/" : trimmed.slice(0, idx);
-}
-let localRefreshTimer: number | null = null;
-function scheduleLocalRefresh(): void {
-  if (localRefreshTimer !== null) window.clearTimeout(localRefreshTimer);
-  localRefreshTimer = window.setTimeout(() => {
-    localRefreshTimer = null;
-    void localBrowser.refresh();
-  }, 300);
-}
-listen<TransferJobView>("transfer-update", (event) => {
-  const job = event.payload;
-  if (job.kind !== "download" && job.kind !== "downloadDir") return;
-  if (job.state !== "done" && job.state !== "failed") return;
-  const dstParent = parentDir(job.dst).replace(/\/+$/, "") || "/";
-  const localPath = (localBrowser.getCurrentPath() ?? "").replace(/\/+$/, "") || "/";
-  if (dstParent !== localPath) return;
-  scheduleLocalRefresh();
 });
 
 // ── Local browser toggle + resizer ───────────────────────────────────────────
