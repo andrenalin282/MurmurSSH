@@ -672,7 +672,7 @@ export class FileBrowser {
                 if (!src || src.type !== "local" || this.busy || !this.profileId)
                     return;
                 clearDragSource();
-                void this.uploadFileList(src.paths);
+                void this.uploadPathList(src.paths);
             });
         }
         // ── Toolbar buttons ────────────────────────────────────────────────────
@@ -1105,7 +1105,7 @@ export class FileBrowser {
         if (parts.length)
             this.status(parts.join(", "), false);
     }
-    async uploadPathList(localPaths) {
+    async uploadPathList(localPaths, targetDir = this.currentPath) {
         if (!this.profileId)
             return;
         this.resetOverwriteDecisions();
@@ -1114,7 +1114,7 @@ export class FileBrowser {
         for (const localPath of localPaths) {
             const name = localPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() ??
                 localPath;
-            const remotePath = joinPath(this.currentPath, name);
+            const remotePath = joinPath(targetDir, name);
             try {
                 const proceed = await this.resolveOverwrite(remotePath, name);
                 if (!proceed) {

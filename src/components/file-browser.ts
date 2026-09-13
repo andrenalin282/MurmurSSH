@@ -714,7 +714,7 @@ export class FileBrowser {
         const src = getDragSource();
         if (!src || src.type !== "local" || this.busy || !this.profileId) return;
         clearDragSource();
-        void this.uploadFileList(src.paths);
+        void this.uploadPathList(src.paths);
       });
     }
 
@@ -1168,7 +1168,7 @@ export class FileBrowser {
     if (parts.length) this.status(parts.join(", "), false);
   }
 
-  private async uploadPathList(localPaths: string[]): Promise<void> {
+  async uploadPathList(localPaths: string[], targetDir: string = this.currentPath): Promise<void> {
     if (!this.profileId) return;
     this.resetOverwriteDecisions();
 
@@ -1179,7 +1179,7 @@ export class FileBrowser {
       const name =
         localPath.replace(/\\/g, "/").replace(/\/$/, "").split("/").pop() ??
         localPath;
-      const remotePath = joinPath(this.currentPath, name);
+      const remotePath = joinPath(targetDir, name);
 
       try {
         const proceed = await this.resolveOverwrite(remotePath, name);

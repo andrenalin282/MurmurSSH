@@ -2,6 +2,8 @@ import * as api from "../api/index";
 import type { FileEntry } from "../types";
 import { t } from "../i18n/index";
 import { setDragSource, getDragSource, clearDragSource } from "../dnd-state";
+import { clickSelect } from "./list-selection";
+import type { SelectionState } from "./list-selection";
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -53,6 +55,11 @@ export class LocalFileBrowser {
   // Drag-from-local state
   private dragSourceNames: Set<string> = new Set();
 
+  // Selection state (multi-select + keyboard cursor)
+  private selectedNames: Set<string> = new Set();
+  private anchorName: string | null = null;
+  private cursorName: string | null = null;
+
   // Callbacks wired from main.ts
   private onDownloadCallback: ((remoteNames: string[], localDestDir: string) => Promise<void>) | null = null;
   private onUploadCallback: ((localPaths: string[], name: string) => Promise<void>) | null = null;
@@ -96,6 +103,9 @@ export class LocalFileBrowser {
     this.busy = false;
     this.isDragOver = false;
     this.inlineError = null;
+    this.selectedNames = new Set();
+    this.anchorName = null;
+    this.cursorName = null;
     this.renderEmpty();
   }
 
@@ -153,6 +163,9 @@ export class LocalFileBrowser {
     try {
       this.entries = await api.listLocalDirectory(this.currentPath);
       this.inlineError = null;
+      this.selectedNames = new Set();
+      this.anchorName = null;
+      this.cursorName = null;
     } catch (err) {
       this.inlineError = String(err);
     } finally {
@@ -178,7 +191,8 @@ export class LocalFileBrowser {
       : this.entries
           .map((entry) => {
             const fullPath = joinPath(this.currentPath, entry.name);
-            return `<tr class="lb-entry${entry.is_dir ? " lb-entry--dir" : ""}" draggable="${!entry.is_dir ? 'true' : 'false'}" data-name="${escHtml(entry.name)}" data-isdir="${entry.is_dir}" data-path="${escHtml(fullPath)}">
+            const selected = this.selectedNames.has(entry.name) ? " lb-entry--selected" : "";
+            return `<tr class="lb-entry${entry.is_dir ? " lb-entry--dir" : ""}${selected}" draggable="true" data-name="${escHtml(entry.name)}" data-isdir="${entry.is_dir}" data-path="${escHtml(fullPath)}">
               <td>${entry.is_dir ? "&#128193; " : ""}${escHtml(entry.name)}</td>
               <td>${entry.size != null && !entry.is_dir ? formatBytes(entry.size) : "—"}</td>
             </tr>`;
@@ -326,6 +340,18 @@ export class LocalFileBrowser {
     const tbody = this.container.querySelector("tbody");
     if (!tbody) return;
 
+    tbody.addEventListener("click", (e) => {
+      const row = (e.target as HTMLElement).closest<HTMLElement>("tr.lb-entry");
+      if (!row) { this.selectedNames.clear(); this.anchorName = null; this.render(); return; }
+      const name = row.dataset.name;
+      if (!name || name === "..") return;
+      const me = e as MouseEvent;
+      const st = clickSelect(this.entries.map((x) => x.name),
+        { selected: this.selectedNames, anchor: this.anchorName, cursor: this.cursorName },
+        name, { ctrl: me.ctrlKey || me.metaKey, shift: me.shiftKey });
+      this.applySelection(st);
+    });
+
     tbody.addEventListener("dblclick", (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>("tr.lb-entry");
       if (!row) return;
@@ -348,14 +374,13 @@ export class LocalFileBrowser {
     // ── Drag source (local files → remote browser = upload) ────────────────────
     tbody.addEventListener("dragstart", (e) => {
       const row = (e.target as HTMLElement).closest<HTMLElement>("tr.lb-entry");
-      // Only drag regular files, not folders or ".." (can be extended later)
-      if (!row || row.dataset.isdir === "true" || row.dataset.name === "..") {
-        e.preventDefault();
-        return;
-      }
-      const path = row.dataset.path!;
-      this.dragSourceNames.add(path);
-      setDragSource({ type: "local", paths: [path] });
+      const name = row?.dataset.name;
+      if (!row || !name || name === "..") { e.preventDefault(); return; }
+      const paths = this.selectedNames.has(name)
+        ? this.getSelectedPaths()
+        : [joinPath(this.currentPath, name)];
+      this.dragSourceNames = new Set(paths);
+      setDragSource({ type: "local", paths });
       e.dataTransfer!.effectAllowed = "copy";
       e.dataTransfer!.setData("text/plain", "local-to-remote");
     });
@@ -397,6 +422,22 @@ export class LocalFileBrowser {
     });
   }
 
+  private applySelection(st: SelectionState): void {
+    this.selectedNames = st.selected;
+    this.anchorName = st.anchor;
+    this.cursorName = st.cursor;
+    this.container.querySelectorAll<HTMLElement>("tr.lb-entry").forEach((r) => {
+      r.classList.toggle("lb-entry--selected", this.selectedNames.has(r.dataset.name ?? ""));
+      r.classList.toggle("lb-entry--cursor", r.dataset.name === this.cursorName);
+    });
+    this.container.querySelector<HTMLElement>(`tr.lb-entry[data-name="${CSS.escape(this.cursorName ?? "")}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }
+
+  getSelectedPaths(): string[] {
+    return this.entries.filter((e) => this.selectedNames.has(e.name)).map((e) => joinPath(this.currentPath, e.name));
+  }
+
   private setDragOver(value: boolean): void {
     if (this.isDragOver === value) return;
     this.isDragOver = value;
@@ -413,6 +454,9 @@ export class LocalFileBrowser {
       this.entries = await api.listLocalDirectory(path);
       this.currentPath = path;
       this.inlineError = null;
+      this.selectedNames = new Set();
+      this.anchorName = null;
+      this.cursorName = null;
       this.onPathChange?.(path);
     } catch (err) {
       this.inlineError = t("localBrowser.cannotNavigate", {

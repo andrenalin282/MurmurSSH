@@ -680,6 +680,20 @@ button:disabled {
   background: var(--bg-hover);
 }
 
+.lb-entry--selected {
+  background: var(--bg-hover);
+}
+
+.lb-entry--selected:hover {
+  background: var(--bg-hover);
+}
+
+.lb-entry--cursor,
+.file-entry--cursor {
+  outline: 1px dashed var(--accent);
+  outline-offset: -1px;
+}
+
 .file-entry--up {
   color: var(--fg-subtle);
   font-style: italic;

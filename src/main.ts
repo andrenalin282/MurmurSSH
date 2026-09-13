@@ -636,7 +636,7 @@ async function connectToProfile(profileId: string) {
       t("localBrowser.uploadConfirmTitle"),
     );
     if (!confirmed) return;
-    await fileBrowser.uploadFileList(localPaths);
+    await fileBrowser.uploadPathList(localPaths);
   });
 
   // Wire cross-browser DnD: local browser drop triggers download in remote browser
