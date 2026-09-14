@@ -33,6 +33,10 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Activity log** — a live log panel shows connection events, transfer status, and errors while you work.
 - **Remote file editing** — open a remote text file in your local editor. When you save, MurmurSSH uploads the changes back automatically or asks for confirmation first. Choose a global default editor and per-extension editors in Settings; a profile's editor command still overrides those.
 - **Update check** — optionally check GitHub Releases when the app starts (on by default; toggle in Settings). Use **Check now** anytime for an immediate check. If a newer version exists, MurmurSSH shows a dialog with a link to the Releases page (no auto-install).
+- **Directory cache** — freshly visited remote directories can be cached in memory for instant navigation when switching back and forth. Configurable globally in Settings and overridable per profile; refresh, upload, delete, rename, move, and new file/folder invalidate the affected directory.
+- **Duplicate** (remote) — right-click a file → **Duplicate** creates a server-side copy with `_copy` appended to the name (`_copy2`, `_copy3`, … if taken).
+- **Type-ahead navigation** — start typing a name in the remote list and the browser jumps to and selects the first match.
+- **Connection name in the window title** — while connected, the title shows `user@host`, so the right window is easy to find in Alt/Shift-Tab.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
 - **Host key verification** — unknown host keys are shown with their fingerprint before you accept them. Trusted keys are stored locally.
@@ -55,8 +59,8 @@ Screenshots are in [`docs/screenshots/`](docs/screenshots/).
 
 ### Requirements
 
-- Ubuntu 22.04 or later, or any compatible Debian-based Linux
-- `x-terminal-emulator` (pre-installed on most Ubuntu systems)
+- Ubuntu 22.04 or later, or any compatible Debian-based Linux — Arch and other distributions work too
+- A terminal emulator for SSH sessions. MurmurSSH auto-detects one (`$TERMINAL`, `x-terminal-emulator`, GNOME Terminal, Ptyxis, GNOME Console, Konsole, Xfce Terminal, kitty, Alacritty, foot, WezTerm, xterm); if none is found, or you prefer a different one, pick it explicitly — including a custom command — in Settings → Terminal.
 - `xdg-utils` (pre-installed on most Ubuntu systems)
 
 ### Install system dependencies (build only)
@@ -178,22 +182,32 @@ The file browser works the same way over SFTP and FTP.
 |---|---|
 | Navigate | Click a directory row or type a path in the path input and press Enter |
 | Go up | Click `..` or the **Up** button |
+| Jump to a name | Start typing — the list jumps to and selects the first matching entry (type-ahead) |
 | Upload file | Click **Upload** → file picker opens, starts in your configured local path if set |
 | Upload folder | Click **Upload Folder** → folder picker opens, uploads entire directory recursively |
-| Upload via drag | Drag files from your local browser panel or OS file manager onto the remote file list |
-| Download | Select one or more files/folders → **Download** → saves to your configured local path, or opens a save dialog |
+| Upload via drag | Drag files or folders from your local browser panel or OS file manager onto the remote file list; dropping onto a folder row uploads into that folder |
+| Download | Select one or more files/folders → **Download** → always opens a save/destination dialog (your configured local path is only the pre-selected default) |
 | Download via drag | Drag remote rows onto the local browser panel, or onto the drop zone below the action bar |
 | Edit | Select a text file → **Edit** → opens in your editor → saves back on file save |
 | Rename | Select a single entry → **Rename**, or press **F2** |
-| Move | Drag rows onto a folder row or `..`, or select entries → **Move to…** |
+| Duplicate | Select a file → **Duplicate** → creates a copy with `_copy` appended to the name |
+| Copy to… | Select one or more entries → **Copy to…** (or **Ctrl+Shift+C**) → pick a destination path. Over SSH/SFTP this runs as a server-side `cp -a`; without shell access or over FTP it falls back to download+upload through your machine (slower). Cancelling stops the remote command. |
+| Move | Drag rows onto a folder row or `..` (dropping targets that folder directly), or select entries → **Move to…** (or **F6**) |
+| Copy / cut / paste | **Ctrl+C** marks entries for copying, **Ctrl+X** for moving, **Ctrl+V** pastes them into the current folder |
 | Delete file | Select a file → **Delete** → confirm |
 | Delete folder | Select a folder → **Delete** → confirm recursive deletion |
-| New file | Click **New File** → enter a name |
-| New folder | Click **New Folder** → enter a name |
+| Change permissions (SFTP) | Right-click a file or folder → **Permissions** → rwx grid synced to an octal field → **Apply** (not available over FTP) |
+| New file | Click **New File** → enter a name, or press **Ctrl+N** |
+| New folder | Click **New Folder** → enter a name, or press **F7** / **Ctrl+Shift+N** |
 | Refresh | Click **Refresh** or press **F5** |
+| Download selection to local panel | Press **Ctrl+D** |
 | Open terminal | Click the terminal icon in the toolbar or press **F11** (SSH profiles only) |
 
+Uploads are written to a hidden `.name.murmur-part` file and renamed into place only on success, so a failed or cancelled upload never deletes or truncates a file already on the server; folder uploads keep going past a per-file error and report how many entries failed.
+
 Transfers are queued and run in the background: the transfer panel shows each job's progress and lets you cancel individual jobs or all of them. Several jobs run concurrently (configurable in Settings → **Concurrent transfers**, 1–8). The activity log below the file list shows what happened and any errors.
+
+See [Keyboard shortcuts](#keyboard-shortcuts) below for the full list, including navigation (arrows, Shift-select, Home/End, Page Up/Down) that works the same in both panels.
 
 ### Local file browser
 
@@ -201,16 +215,90 @@ Click the split-pane icon in the toolbar (before the terminal icon) to show or h
 
 The local browser shows your local filesystem and lets you:
 - Navigate by clicking folders, using the **Up** / **Home** buttons, or typing a path
-- Drag local files onto the remote browser to upload them
+- Select multiple files and folders with **Ctrl-click** / **Shift-click**, or select everything with **Ctrl+A**
+- Create a new folder, and delete selected files/folders with a confirmation dialog — deletion refuses your `/` root, your home folder, and any parent folder of your home folder
+- Drag one or more files or a whole folder onto the remote browser to upload; dropping onto a folder row (local or remote) targets that folder directly
 - Receive drops from remote rows (drag remote → drop on local browser = download)
+- Upload the current selection to the remote panel's current folder with **Ctrl+U**
+- Press **Tab** to switch focus between the local and remote panel — keyboard shortcuts act on whichever panel is active
 
 The last visited path is saved per profile. For shared (portable) profiles each OS user gets their own remembered path.
 
-**Panel position** — go to Settings → Local browser position to move the panel to the right side of the remote browser instead of the left.
+### Settings
 
-**Concurrent transfers** — go to Settings → Concurrent transfers to set how many uploads/downloads run at the same time (1–8, default 2). Each runs on its own connection.
+Open **Settings** from the sidebar to configure:
 
-**Editors** — go to Settings → Default editor / Editors by file extension to control which program opens files for Edit. Leave the default blank to use `xdg-open`. A profile's Editor Command field still overrides both.
+| Setting | What it does |
+|---|---|
+| Profiles storage path | Where profile JSON files are read from and written to |
+| Theme | System / Dark / Light |
+| Language | English, German, French, Dutch, Polish, Russian |
+| Local browser position | Show the local file browser panel on the left or right of the remote browser |
+| Concurrent transfers | How many uploads/downloads run at the same time (1–8, default 2), each on its own connection |
+| Directory cache | Enable/disable caching of visited remote directories in memory for instant back-and-forth navigation (default, overridable per profile) |
+| Default editor / Editors by extension | Global default program used for **Edit**, plus per-extension overrides (e.g. `conf` → `nano`). A profile's Editor Command still overrides both. Leave the default blank to use `xdg-open`. |
+| Terminal | **Automatic** (auto-detects an installed terminal emulator), a specific **detected terminal**, or **Custom command** — a custom command is split on spaces, so it cannot contain quoted arguments |
+| Check for updates | Toggle the startup check against GitHub Releases (on by default), plus a **Check now** button for an immediate check |
+
+### Keyboard shortcuts
+
+Both file panels support full keyboard navigation and control. Shortcuts act only on the currently active panel (click it, or use **Tab** to switch) and are ignored while typing in a text field. Press **F1** or **?** at any time to open the in-app Help dialog — it always lists the complete, current set of shortcuts and is the authoritative reference if this table ever falls behind.
+
+**General**
+
+| Shortcut | Action |
+|---|---|
+| F1 or ? | Open help & shortcut list |
+| Tab | Switch between the local and remote panel |
+
+**Both panels**
+
+| Shortcut | Action |
+|---|---|
+| ↑ / ↓ | Select previous / next entry |
+| Shift+↑ / Shift+↓ | Extend selection |
+| Home / End | Select first / last entry |
+| Page Up / Page Down | Page up / down |
+| Enter | Open folder / edit file |
+| Backspace or Alt+↑ | Go to parent folder |
+| Ctrl+L | Edit the path directly |
+| F5 | Refresh |
+| F2 | Rename |
+| F7 or Ctrl+Shift+N | New folder |
+| Delete | Delete selected entries |
+| Ctrl+A | Select all |
+| Esc | Close menu / clear selection |
+| Type letters or digits | Jump to a matching name (type-ahead) |
+
+In the path input field specifically: **Enter** navigates to the typed path, **Esc** resets it.
+
+**Remote panel**
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+N | New file |
+| F6 | Move selection to… |
+| Ctrl+Shift+C | Copy selection to… |
+| Ctrl+C | Mark selection for copying |
+| Ctrl+X | Mark selection for moving |
+| Ctrl+V | Paste marked entries into the current folder |
+| Ctrl+D | Download selection into the local panel's current folder |
+| F11 | Open an SSH terminal |
+
+**Local panel**
+
+| Shortcut | Action |
+|---|---|
+| Ctrl+U | Upload selection into the remote panel's current folder |
+
+**Dialogs**
+
+| Shortcut | Action |
+|---|---|
+| Enter | Confirm |
+| Esc | Cancel / close |
+
+Letter-key shortcuts also work on non-Latin keyboard layouts (e.g. Russian).
 
 ### Credential storage
 
@@ -250,9 +338,11 @@ All data is stored locally in `~/.config/murmurssh/`:
   profiles/        # One JSON file per saved profile
   settings.json    # App settings (last used profile, etc.)
   secrets/         # Machine-local saved passwords (0600, never synced)
-  workspace/       # Local cache of files opened for editing
+  workspace/       # Local cache of files opened for editing (not cleaned automatically)
+    .copy-tmp/     # Private per-process temp folder for Copy to… fallback (download+upload); cleaned on exit and at startup
   known_hosts      # Accepted SSH host key fingerprints
   runtime-keys/    # Temporary key copies for terminal compatibility (0600, deleted on disconnect)
+  run/             # SSH control sockets
   logs/            # Application logs
 ```
 
@@ -309,10 +399,14 @@ MurmurSSH is released under the [MIT License](LICENSE).
 
 ## Known limitations
 
-- Only one profile can be active at a time
-- Folder deletion is recursive and permanent — there is no undo or trash recovery
+- Deletion is permanent — there is no undo or trash recovery
 - Binary files and files larger than 1 MB cannot be opened for editing
 - Each SFTP/FTP operation opens a fresh connection — not optimised for rapid sequential use
 - FTP byte-level progress is not available (suppaftp does not support mid-transfer callbacks); progress updates per file instead
+- Overwriting a remote file via upload breaks existing hard links to it, and the file's owner may change if you are not its owner
+- FTP uploads cannot preserve file permissions
+- **Copy to…** falls back to a slower download-then-upload through your machine on SFTP-only servers (no shell access) and always on FTP
+- A custom terminal command is split on spaces — it cannot contain quoted arguments
+- The workspace edit cache (`~/.config/murmurssh/workspace/`) is not cleaned automatically
 - No Windows or macOS support — Linux only, by design
 - Please report bugs via the [issue tracker](https://github.com/andrenalin282/MurmurSSH/issues)
