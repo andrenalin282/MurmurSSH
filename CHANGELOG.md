@@ -8,6 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+No changes yet.
+
+---
+
+## [1.8.0] - 2026-09-14
+
 ### Added
 - **Copy to…** for remote files and folders — server-side copy (`cp -a` over SSH) with automatic fallback to download+upload when the server doesn't support it or the connection is FTP. Cancelling a server-side copy hangs up the remote command; the fallback path uses a private, per-process temp folder that's cleaned up on exit and at startup.
 - **Terminal selection** — Settings gained a Terminal option that auto-detects an available terminal emulator (`$TERMINAL`, `x-terminal-emulator`, GNOME Terminal, Ptyxis, GNOME Console, Konsole, Xfce Terminal, kitty, Alacritty, foot, WezTerm, xterm) or lets you pick one explicitly, including a custom command.
@@ -17,6 +23,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Uploads (SFTP and FTP) now write to a hidden `.name.murmur-part` file and rename it into place on success, so a failed or cancelled upload never deletes or truncates a file that already exists on the server. Folder uploads continue past a per-file error and report how many of the folder's entries failed instead of aborting.
+- When an SFTP upload replaces an existing file, its permissions (and owner where allowed) are kept and symlinks are followed, so the real file is updated; in folders you cannot write to, the file is overwritten in place as before. Leftover `.murmur-part` files are skipped by folder transfers.
+- Dropping files onto a folder row (local → remote, remote → local, or from the file manager) now transfers into that folder instead of the currently open one.
+- Keyboard shortcuts on letter keys also work with non-Latin keyboard layouts (e.g. Russian).
 
 ### Fixed
 - SSH terminal launch no longer fails on Arch Linux and other distributions that don't ship `x-terminal-emulator`.
