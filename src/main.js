@@ -60,7 +60,7 @@ async function showHelpDialog() {
     overlay.querySelector("#help-close")?.addEventListener("click", () => overlay.remove());
     overlay.querySelector("#help-website-link")?.addEventListener("click", (e) => {
         e.preventDefault();
-        openExternalUrl("https://murmurssh.kai-schultka.de");
+        openExternalUrl("https://murmurssh.crispy-web.com");
     });
     overlay.querySelector("#help-github-link")?.addEventListener("click", (e) => {
         e.preventDefault();

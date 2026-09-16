@@ -73,7 +73,7 @@ async function showHelpDialog(): Promise<void> {
 
   overlay.querySelector("#help-website-link")?.addEventListener("click", (e) => {
     e.preventDefault();
-    openExternalUrl("https://murmurssh.kai-schultka.de");
+    openExternalUrl("https://murmurssh.crispy-web.com");
   });
 
   overlay.querySelector("#help-github-link")?.addEventListener("click", (e) => {

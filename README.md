@@ -6,7 +6,7 @@ MurmurSSH is a lightweight desktop application for managing SSH connections and 
 
 Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, free to contribute to.
 
-**Website:** [murmurssh.kai-schultka.de](https://murmurssh.kai-schultka.de)
+**Website:** [murmurssh.crispy-web.com](https://murmurssh.crispy-web.com)
 
 **Download:** [GitHub Releases](../../releases) · [SourceForge](https://sourceforge.net/projects/murmurssh/)
 
