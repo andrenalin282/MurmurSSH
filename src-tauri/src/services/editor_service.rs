@@ -48,11 +48,36 @@ pub fn resolve_editor(
     None
 }
 
+/// Programs that turn a "command" into arbitrary code execution (shells, interpreters,
+/// privilege/launcher wrappers, network fetchers). lc-debt: denylist, not an allowlist;
+/// upgrade to an explicit allowlist or confirmation for profile-supplied commands.
+const FORBIDDEN_PROGRAMS: &[&str] = &[
+    "sh", "bash", "dash", "zsh", "fish", "ksh", "csh", "tcsh", "ash", "busybox", "env", "sudo",
+    "doas", "su", "pkexec", "xargs", "nohup", "setsid", "timeout", "nice", "eval", "exec",
+    "python", "python2", "python3", "perl", "ruby", "node", "nodejs", "php", "lua", "tclsh",
+    "awk", "gawk", "curl", "wget", "nc", "ncat", "netcat", "socat", "ssh", "scp", "rsync", "find",
+];
+
+/// Reject command lines whose program is on the forbidden list.
+pub fn check_command(cmd: &str) -> Result<(), String> {
+    let first = cmd.split_whitespace().next().ok_or("Command is empty")?;
+    let base = Path::new(first)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_lowercase())
+        .unwrap_or_default();
+    let stem = base.trim_end_matches(|c: char| c.is_ascii_digit() || c == '.');
+    if FORBIDDEN_PROGRAMS.contains(&base.as_str()) || FORBIDDEN_PROGRAMS.contains(&stem) {
+        return Err(format!("Command '{}' is not allowed as editor/terminal", first));
+    }
+    Ok(())
+}
+
 /// Spawn `editor` (whitespace-split argv) with `path`, or `xdg-open` when `editor` is None/empty.
 pub fn launch_editor(editor: Option<&str>, path: &Path) -> Result<(), String> {
     let path_str = path.to_string_lossy();
     match editor {
         Some(e) if !e.trim().is_empty() => {
+            check_command(e)?;
             let mut parts = e.split_whitespace();
             let cmd = parts.next().ok_or("Editor command is empty")?;
             let extra_args: Vec<&str> = parts.collect();
@@ -96,6 +121,16 @@ mod tests {
             );
         }
         s
+    }
+
+    #[test]
+    fn forbidden_programs_are_rejected() {
+        for c in ["sh -c evil", "/bin/bash x", "python3 a.py", "env FOO=1 vim", "PYTHON3.11 x", "curl http://x"] {
+            assert!(check_command(c).is_err(), "{c}");
+        }
+        for c in ["code --wait", "/usr/bin/gedit", "kate", "nvim-qt"] {
+            assert!(check_command(c).is_ok(), "{c}");
+        }
     }
 
     #[test]

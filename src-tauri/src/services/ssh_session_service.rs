@@ -124,6 +124,7 @@ pub fn stop_session(profile_id: &str) {
         let _ = session.child.wait(); // reap to avoid zombies
         let SessionKind::ControlMaster { socket_path } = &session.kind;
         let _ = fs::remove_file(socket_path);
+        let _ = fs::remove_file(socket_path.with_extension("known_hosts"));
     }
 }
 
@@ -209,6 +210,45 @@ fn wait_for_socket(path: &Path, timeout_secs: u64) -> bool {
     true
 }
 
+/// Alias under which the pinned key is stored; `HostKeyAlias` makes ssh look it up
+/// regardless of host name, port or address canonicalisation.
+const PIN_ALIAS: &str = "murmurssh-pinned";
+
+/// Write a private known_hosts file holding only the key MurmurSSH verified.
+/// Returns the matching `HostKeyAlgorithms` value.
+fn write_pinned_known_hosts(profile: &Profile, path: &Path) -> Result<String, String> {
+    use base64::Engine;
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+
+    let (key, kind) = crate::services::sftp_service::trusted_host_key(profile)?;
+    let (ktype, algs) = match kind {
+        ssh2::HostKeyType::Rsa => ("ssh-rsa", "rsa-sha2-512,rsa-sha2-256,ssh-rsa"),
+        ssh2::HostKeyType::Dss => ("ssh-dss", "ssh-dss"),
+        ssh2::HostKeyType::Ecdsa256 => ("ecdsa-sha2-nistp256", "ecdsa-sha2-nistp256"),
+        ssh2::HostKeyType::Ecdsa384 => ("ecdsa-sha2-nistp384", "ecdsa-sha2-nistp384"),
+        ssh2::HostKeyType::Ecdsa521 => ("ecdsa-sha2-nistp521", "ecdsa-sha2-nistp521"),
+        ssh2::HostKeyType::Ed25519 => ("ssh-ed25519", "ssh-ed25519"),
+        _ => return Err("Unsupported host key type".to_string()),
+    };
+    let _ = fs::remove_file(path);
+    let mut f = fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(path)
+        .map_err(|e| format!("Failed to write pinned host key: {}", e))?;
+    writeln!(
+        f,
+        "{} {} {}",
+        PIN_ALIAS,
+        ktype,
+        base64::engine::general_purpose::STANDARD.encode(key)
+    )
+    .map_err(|e| format!("Failed to write pinned host key: {}", e))?;
+    Ok(algs.to_string())
+}
+
 /// Establish an SSH ControlMaster for password-based SSO.
 fn start_control_master(profile: &Profile, password: &str) -> Result<(), String> {
     use std::process::Command;
@@ -222,6 +262,8 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
     }
 
     crate::services::ssh_service::validate_target(profile)?;
+    let kh_path = socket_path.with_extension("known_hosts");
+    let host_algs = write_pinned_known_hosts(profile, &kh_path)?;
     let (pw_file, ask_script) = write_askpass_pair(password)?;
 
     let mut ssh_args = vec![
@@ -229,10 +271,21 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
         "-N".to_string(),
         "-o".to_string(),
         format!("ControlPath={}", socket_path.to_string_lossy()),
-        // We've already verified the host key via MurmurSSH's own known_hosts,
-        // so bypass OpenSSH's separate verification for the ControlMaster.
+        // Pin the host key MurmurSSH just verified: ssh must see exactly this key.
         "-o".to_string(),
-        "StrictHostKeyChecking=no".to_string(),
+        "StrictHostKeyChecking=yes".to_string(),
+        "-o".to_string(),
+        format!("UserKnownHostsFile={}", kh_path.to_string_lossy()),
+        "-o".to_string(),
+        "GlobalKnownHostsFile=/dev/null".to_string(),
+        "-o".to_string(),
+        format!("HostKeyAlias={}", PIN_ALIAS),
+        "-o".to_string(),
+        format!("HostKeyAlgorithms={}", host_algs),
+        "-o".to_string(),
+        "UpdateHostKeys=no".to_string(),
+        "-o".to_string(),
+        "CheckHostIP=no".to_string(),
         "-o".to_string(),
         "BatchMode=no".to_string(),
         "-o".to_string(),
@@ -265,6 +318,7 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
         .spawn()
         .map_err(|e| {
             cleanup_pair(&pw_file, &ask_script);
+            let _ = fs::remove_file(&kh_path);
             format!("Failed to start SSH ControlMaster: {}", e)
         })?;
 
@@ -273,6 +327,7 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
     if !wait_for_socket(&socket_path, 15) {
         let _ = child.kill();
         let _ = child.wait();
+        let _ = fs::remove_file(&kh_path);
         cleanup_pair(&pw_file, &ask_script);
         return Err(
             "SSH ControlMaster timed out — password may be incorrect or host unreachable"

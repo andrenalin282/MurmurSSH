@@ -66,6 +66,9 @@ fn resolve_with(
     if choice == "custom" {
         // lc-debt: whitespace split, no shell quoting; upgrade to a shell-words parser if users need quoted args.
         let raw = settings.terminal_custom_command.as_deref().unwrap_or("").trim();
+        if !raw.is_empty() {
+            crate::services::editor_service::check_command(raw)?;
+        }
         let mut parts = raw.split_whitespace().map(str::to_string);
         return match parts.next() {
             Some(program) => Ok((program, parts.collect())),

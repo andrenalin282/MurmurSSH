@@ -128,7 +128,9 @@ fn parse_list_line(line: &str) -> Option<FileEntry> {
     };
     // Name is everything after the 8th token (index 8), joined with spaces
     let name = parts[8..].join(" ");
-    if name.is_empty() || name == "." || name == ".." {
+    // A hostile server must not smuggle path components into names we later join
+    // onto a local download directory.
+    if name.is_empty() || name == "." || name == ".." || name.contains('/') || name.contains('\0') {
         return None;
     }
     Some(FileEntry {
@@ -488,4 +490,13 @@ fn download_dir_recursive(
 /// Changing permissions is not supported over FTP in MurmurSSH.
 pub fn set_permissions(_profile: &Profile, _path: &str, _mode: u32) -> Result<(), String> {
     Err("Changing permissions is not supported over FTP.".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn list_line_with_path_separator_is_dropped() {
+        assert!(super::parse_list_line("-rw-r--r-- 1 u g 5 Jan  1 12:00 ../../evil").is_none());
+        assert!(super::parse_list_line("-rw-r--r-- 1 u g 5 Jan  1 12:00 ok.txt").is_some());
+    }
 }

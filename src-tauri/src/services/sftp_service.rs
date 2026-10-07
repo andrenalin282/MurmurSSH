@@ -31,14 +31,8 @@ fn host_fingerprint(session: &Session) -> String {
     }
 }
 
-/// Opens an authenticated SSH session to the remote host described by `profile`.
-///
-/// Error strings prefixed with known tokens are handled by the frontend:
-/// - "UNKNOWN_HOST:<fp>"   — host not in known_hosts, user must accept/reject
-/// - "HOST_MISMATCH:…"    — stored fingerprint differs (possible MITM)
-/// - "NEED_PASSWORD"      — password auth selected but no password in session store
-/// - "NEED_PASSPHRASE"    — encrypted key, no passphrase in session store
-fn connect(profile: &Profile) -> Result<Session, String> {
+/// TCP connect + SSH handshake (no authentication, no host key check yet).
+fn handshake_session(profile: &Profile) -> Result<Session, String> {
     let addr = format!("{}:{}", profile.host, profile.port);
 
     // Use connect_timeout so an unreachable server fails quickly instead of
@@ -69,6 +63,42 @@ fn connect(profile: &Profile) -> Result<Session, String> {
     session
         .handshake()
         .map_err(|e| format!("SSH handshake failed: {}", e))?;
+
+    Ok(session)
+}
+
+/// Verify the server host key against MurmurSSH's trust store and return the raw key.
+///
+/// Used to pin the OpenSSH ControlMaster to exactly the key the user has trusted,
+/// instead of letting a second, unverified connection decide.
+pub fn trusted_host_key(profile: &Profile) -> Result<(Vec<u8>, ssh2::HostKeyType), String> {
+    let session = handshake_session(profile)?;
+    let fingerprint = host_fingerprint(&session);
+    match known_hosts_service::check(&profile.host, profile.port, &fingerprint) {
+        known_hosts_service::HostStatus::Trusted => {}
+        known_hosts_service::HostStatus::Unknown => {
+            return Err(format!("UNKNOWN_HOST:{}", fingerprint));
+        }
+        known_hosts_service::HostStatus::Mismatch { stored } => {
+            return Err(format!(
+                "HOST_MISMATCH: stored key {} does not match server key {}.",
+                stored, fingerprint
+            ));
+        }
+    }
+    let (key, kind) = session.host_key().ok_or("Server sent no host key")?;
+    Ok((key.to_vec(), kind))
+}
+
+/// Opens an authenticated SSH session to the remote host described by `profile`.
+///
+/// Error strings prefixed with known tokens are handled by the frontend:
+/// - "UNKNOWN_HOST:<fp>"   — host not in known_hosts, user must accept/reject
+/// - "HOST_MISMATCH:…"    — stored fingerprint differs (possible MITM)
+/// - "NEED_PASSWORD"      — password auth selected but no password in session store
+/// - "NEED_PASSPHRASE"    — encrypted key, no passphrase in session store
+fn connect(profile: &Profile) -> Result<Session, String> {
+    let session = handshake_session(profile)?;
 
     // ── Host key verification ──────────────────────────────────────────────
     let fingerprint = host_fingerprint(&session);
