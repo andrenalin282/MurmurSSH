@@ -34,6 +34,7 @@ const TERMINAL_SCRIPT: &str = concat!(
 /// The runtime copy must be created before calling this function by the command
 /// layer (which also presents the user prompt for informed consent).
 pub fn launch_ssh(profile: &Profile, use_runtime_copy: bool) -> Result<(), String> {
+    validate_target(profile)?;
     let mut ssh_args = build_ssh_args(profile, use_runtime_copy);
     let settings = crate::services::settings_service::get_settings().unwrap_or_default();
     let (program, prefix) = crate::services::terminal_service::resolve(&settings)?;
@@ -103,10 +104,114 @@ fn build_ssh_args(profile: &Profile, use_runtime_copy: bool) -> Vec<String> {
         // which is confusing for key-only setups.
         args.push("-o".to_string());
         args.push("PasswordAuthentication=no".to_string());
+        // Offer only the configured key: no ssh-agent keys, no IdentityFile /
+        // CertificateFile entries from ~/.ssh/config (also avoids MaxAuthTries).
+        args.push("-o".to_string());
+        args.push("IdentitiesOnly=yes".to_string());
     }
 
+    if profile.auth_type == AuthType::Password {
+        // Password profiles must not offer ssh-agent / default keys: servers cap the
+        // auth attempts (MaxAuthTries) and answer "Too many authentication failures"
+        // before the password step is ever reached.
+        args.extend(password_only_args());
+    }
+
+    // Never let ~/.ssh/config forward the agent / X11 or run local commands.
+    args.extend(hardening_args());
+
+    // "--" ends option parsing so a profile field can never be read as an ssh option.
+    args.push("--".to_string());
     args.push(format!("{}@{}", profile.username, profile.host));
 
     args
 }
 
+/// Reject profile fields that could be misread as ssh options or break the target.
+pub fn validate_target(profile: &Profile) -> Result<(), String> {
+    for (name, v) in [("username", &profile.username), ("host", &profile.host)] {
+        if v.is_empty()
+            || v.starts_with('-')
+            || v.chars().any(|c| c.is_whitespace() || c.is_control())
+        {
+            return Err(format!("Invalid {} in profile", name));
+        }
+    }
+    if profile.host.contains('@') {
+        return Err("Invalid host in profile".to_string());
+    }
+    Ok(())
+}
+
+/// Options applied to every ssh invocation, overriding ~/.ssh/config.
+pub fn hardening_args() -> Vec<String> {
+    ["ForwardAgent=no", "ForwardX11=no", "PermitLocalCommand=no"]
+        .iter()
+        .flat_map(|o| ["-o".to_string(), o.to_string()])
+        .collect()
+}
+
+/// ssh options that restrict authentication to password / keyboard-interactive.
+/// Command-line options win over ~/.ssh/config, so no key, certificate, agent
+/// identity, GSSAPI or host-based method can be offered for a password profile.
+pub fn password_only_args() -> Vec<String> {
+    [
+        "PubkeyAuthentication=no",
+        "PreferredAuthentications=password,keyboard-interactive",
+        "IdentitiesOnly=yes",
+        "IdentityAgent=none",
+        "PasswordAuthentication=yes",
+        "GSSAPIAuthentication=no",
+        "HostbasedAuthentication=no",
+    ]
+    .iter()
+    .flat_map(|o| ["-o".to_string(), o.to_string()])
+    .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::profile::{AuthType, Profile, UploadMode};
+
+    fn mk(auth_type: AuthType, key_path: Option<&str>) -> Profile {
+        Profile {
+            id: "p1".to_string(),
+            name: "t".to_string(),
+            host: "example.com".to_string(),
+            port: 222,
+            username: "kaimsf".to_string(),
+            auth_type,
+            key_path: key_path.map(str::to_string),
+            default_remote_path: None,
+            editor_command: None,
+            upload_mode: UploadMode::Auto,
+            protocol: None,
+            local_path: None,
+            credential_storage_mode: None,
+            stored_secret_portable: None,
+            local_paths_by_user: None,
+            group: None,
+            created_at: None,
+            directory_cache: None,
+        }
+    }
+
+    #[test]
+    fn password_profile_never_offers_keys() {
+        let args = build_ssh_args(&mk(AuthType::Password, None), false);
+        assert!(args.contains(&"PubkeyAuthentication=no".to_string()));
+        assert!(args
+            .contains(&"PreferredAuthentications=password,keyboard-interactive".to_string()));
+        // target must stay the last argument
+        assert_eq!(args.last().unwrap(), "kaimsf@example.com");
+    }
+
+    #[test]
+    fn key_profile_keeps_key_auth() {
+        let args = build_ssh_args(&mk(AuthType::Key, Some("/k/id")), false);
+        assert!(!args.contains(&"PubkeyAuthentication=no".to_string()));
+        assert!(args.contains(&"-i".to_string()));
+        assert!(args.contains(&"IdentitiesOnly=yes".to_string()));
+    }
+}

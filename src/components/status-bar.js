@@ -18,7 +18,7 @@ export class StatusBar {
         this.container.innerHTML = `
       <div class="status-bar status-${status}">
         <span class="status-indicator"></span>
-        <span class="status-label">${label}</span>
+        <span class="status-label">${label.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")}</span>
       </div>
     `;
     }

@@ -221,6 +221,7 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
         let _ = fs::remove_file(&socket_path);
     }
 
+    crate::services::ssh_service::validate_target(profile)?;
     let (pw_file, ask_script) = write_askpass_pair(password)?;
 
     let mut ssh_args = vec![
@@ -237,11 +238,19 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
         "-o".to_string(),
         "ConnectTimeout=15".to_string(),
     ];
+    // Password-only: never offer agent/default keys (avoids "Too many authentication failures").
+    ssh_args.extend(crate::services::ssh_service::password_only_args());
+    ssh_args.extend(crate::services::ssh_service::hardening_args());
+    // Askpass answers every prompt with the same password: one try only, so a wrong
+    // password costs one failed login (fail2ban), not three.
+    ssh_args.push("-o".to_string());
+    ssh_args.push("NumberOfPasswordPrompts=1".to_string());
 
     if profile.port != 22 {
         ssh_args.push("-p".to_string());
         ssh_args.push(profile.port.to_string());
     }
+    ssh_args.push("--".to_string());
     ssh_args.push(format!("{}@{}", profile.username, profile.host));
 
     let child = Command::new("ssh")
@@ -260,7 +269,10 @@ fn start_control_master(profile: &Profile, password: &str) -> Result<(), String>
         })?;
 
     // Wait for the ControlMaster socket to appear (up to 15 s)
+    let mut child = child;
     if !wait_for_socket(&socket_path, 15) {
+        let _ = child.kill();
+        let _ = child.wait();
         cleanup_pair(&pw_file, &ask_script);
         return Err(
             "SSH ControlMaster timed out — password may be incorrect or host unreachable"
