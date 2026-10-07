@@ -1714,6 +1714,13 @@ export class FileBrowser {
     if (!name) return;
 
     const remotePath = joinPath(this.currentPath, name);
+    // An empty upload would silently truncate an existing file: ask first.
+    this.uploadApplyToAllDecision = null;
+    try {
+      if (!(await this.resolveOverwrite(remotePath, name))) return;
+    } catch {
+      return; // cancelled
+    }
     try {
       this.setBusy(true);
       await api.uploadFileBytes(this.profileId, remotePath, []);

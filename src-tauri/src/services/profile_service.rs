@@ -41,14 +41,19 @@ pub fn get_profiles_dir() -> PathBuf {
 pub fn ensure_dirs() -> Result<(), String> {
     let base = config_base();
     // Always create workspace and logs in the default config base
-    for dir in [base.join("workspace"), base.join("logs")] {
-        fs::create_dir_all(&dir)
+    // (workspace holds downloaded remote files, profiles may hold plaintext secrets: 0700)
+    for dir in [base.clone(), base.join("workspace"), base.join("logs")] {
+        crate::services::fs_secure::private_dir_all(&dir)
             .map_err(|e| format!("Failed to create {}: {}", dir.display(), e))?;
     }
-    // Profiles directory may be a custom path
+    // Profiles directory may be a custom path (e.g. a share): only tighten the default one
     let pdir = profiles_dir();
-    fs::create_dir_all(&pdir)
-        .map_err(|e| format!("Failed to create profiles dir {}: {}", pdir.display(), e))?;
+    if pdir.starts_with(&base) {
+        crate::services::fs_secure::private_dir_all(&pdir)
+    } else {
+        fs::create_dir_all(&pdir)
+    }
+    .map_err(|e| format!("Failed to create profiles dir {}: {}", pdir.display(), e))?;
     Ok(())
 }
 
@@ -63,10 +68,23 @@ pub fn list_profiles() -> Result<Vec<Profile>, String> {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) == Some("json") {
-            let contents = fs::read_to_string(&path)
-                .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-            let mut profile: Profile = serde_json::from_str(&contents)
-                .map_err(|e| format!("Failed to parse {}: {}", path.display(), e))?;
+            // One unreadable/hostile file must not make the whole list unusable.
+            let Ok(contents) = fs::read_to_string(&path) else {
+                eprintln!("[murmurssh] Skipping unreadable profile {}", path.display());
+                continue;
+            };
+            let Ok(mut profile) = serde_json::from_str::<Profile>(&contents) else {
+                eprintln!("[murmurssh] Skipping unparsable profile {}", path.display());
+                continue;
+            };
+            // The id inside the file is later used as a file name: it must be sane
+            // and match the file it came from.
+            if !crate::services::fs_secure::valid_id(&profile.id)
+                || path.file_stem().and_then(|s| s.to_str()) != Some(profile.id.as_str())
+            {
+                eprintln!("[murmurssh] Skipping profile with invalid id {}", path.display());
+                continue;
+            }
             if profile.created_at.is_none() {
                 profile.created_at = fs::metadata(&path)
                     .and_then(|m| m.modified())
@@ -83,6 +101,7 @@ pub fn list_profiles() -> Result<Vec<Profile>, String> {
 }
 
 pub fn get_profile(id: &str) -> Result<Profile, String> {
+    crate::services::fs_secure::check_id(id)?;
     let path = profiles_dir().join(format!("{}.json", id));
     let contents =
         fs::read_to_string(&path).map_err(|_| format!("Profile '{}' not found", id))?;
@@ -102,6 +121,7 @@ pub fn get_profile(id: &str) -> Result<Profile, String> {
 }
 
 pub fn save_profile(profile: &Profile) -> Result<(), String> {
+    crate::services::fs_secure::check_id(&profile.id)?;
     ensure_dirs()?;
     let path = profiles_dir().join(format!("{}.json", profile.id));
 
@@ -116,14 +136,16 @@ pub fn save_profile(profile: &Profile) -> Result<(), String> {
     // Create a backup of the existing file before overwriting
     if path.exists() {
         let bkp = profiles_dir().join(format!("{}.json.bkp", profile.id));
-        fs::copy(&path, &bkp).map_err(|e| format!("Failed to create profile backup: {}", e))?;
+        let old = fs::read(&path).map_err(|e| format!("Failed to create profile backup: {}", e))?;
+        crate::services::fs_secure::write_private(&bkp, &old)?;
     }
     let json = serde_json::to_string_pretty(&to_write)
         .map_err(|e| format!("Failed to serialize profile: {}", e))?;
-    fs::write(&path, json).map_err(|e| format!("Failed to write profile: {}", e))
+    crate::services::fs_secure::write_private(&path, json.as_bytes())
 }
 
 pub fn delete_profile(id: &str) -> Result<(), String> {
+    crate::services::fs_secure::check_id(id)?;
     let path = profiles_dir().join(format!("{}.json", id));
     if !path.exists() {
         return Err(format!("Profile '{}' not found", id));

@@ -28,7 +28,7 @@ fn runtime_keys_dir() -> PathBuf {
 }
 
 fn runtime_key_path(profile_id: &str) -> PathBuf {
-    runtime_keys_dir().join(profile_id)
+    runtime_keys_dir().join(crate::services::fs_secure::safe_component(profile_id))
 }
 
 /// Check whether the key file at `key_path` would be rejected by the system
@@ -76,11 +76,17 @@ pub fn copy_key_for_runtime(profile_id: &str, key_path: &str) -> Result<PathBuf,
             .map_err(|e| format!("Failed to remove stale runtime key: {}", e))?;
     }
 
-    fs::copy(key_path, &dest)
+    // Create the copy 0600 from the start (fs::copy would inherit the source's
+    // permissions for a moment) and never follow a pre-planted file.
+    let data = fs::read(key_path)
         .map_err(|e| format!("Failed to copy key to runtime location: {}", e))?;
-
-    fs::set_permissions(&dest, fs::Permissions::from_mode(0o600))
-        .map_err(|e| format!("Failed to set runtime key permissions: {}", e))?;
+    {
+        use std::io::Write;
+        let mut f = crate::services::fs_secure::create_new_private(&dest)
+            .map_err(|e| format!("Failed to copy key to runtime location: {}", e))?;
+        f.write_all(&data)
+            .map_err(|e| format!("Failed to copy key to runtime location: {}", e))?;
+    }
 
     Ok(dest)
 }

@@ -49,7 +49,7 @@ fn workspace_base() -> PathBuf {
 /// in the local edit cache. Path components are sanitized (empty, `.` and `..`
 /// dropped) to keep everything inside the workspace directory.
 fn local_cache_path(profile_id: &str, remote_path: &str) -> PathBuf {
-    let mut path = workspace_base().join(profile_id);
+    let mut path = workspace_base().join(crate::services::fs_secure::safe_component(profile_id));
     let components: Vec<&str> = remote_path
         .split('/')
         .filter(|c| !c.is_empty() && *c != "." && *c != "..")
@@ -61,6 +61,17 @@ fn local_cache_path(profile_id: &str, remote_path: &str) -> PathBuf {
         path.push(comp);
     }
     path
+}
+
+/// Paths currently being (re-)written by a download. The watcher ignores events for
+/// them, otherwise it hashes a half-written file and uploads it over the remote one.
+fn downloading() -> &'static Mutex<HashSet<PathBuf>> {
+    static SET: OnceLock<Mutex<HashSet<PathBuf>>> = OnceLock::new();
+    SET.get_or_init(|| Mutex::new(HashSet::new()))
+}
+
+fn is_downloading(path: &Path) -> bool {
+    downloading().lock().map(|s| s.contains(path)).unwrap_or(false)
 }
 
 /// Computes a fast content hash of a file. Returns None if the file can't be read.
@@ -226,42 +237,36 @@ pub fn open_for_edit(
             .map_err(|e| format!("Failed to create workspace directory: {}", e))?;
     }
 
-    // Download the file (dispatch based on protocol)
-    let local_str = local_path.to_str().unwrap_or_default();
-    if is_ftp(profile) {
-        ftp_service::download_file_to(profile, remote_path, local_str, &|| false, &|_, _, _| {})
-    } else {
-        sftp_service::download_file(profile, remote_path, local_str, &|| false, &|_, _| {})
-    }
-    .map_err(|e| format!("Failed to download file for editing: {}", e))?;
-
-    // Reject oversized files
-    let file_size = std::fs::metadata(&local_path).map(|m| m.len()).unwrap_or(0);
-    if file_size > MAX_EDIT_BYTES {
-        return Err(format!(
-            "File is too large for editing ({:.1} MB, max 1 MB). Use Download instead.",
-            file_size as f64 / (1024.0 * 1024.0)
-        ));
+    // Download into a temp sibling first: checks run on the temp copy, so a failed,
+    // oversized or binary download never clobbers the file the watcher is guarding.
+    let tmp_path = local_path.with_file_name(format!(
+        ".{}.murmur-dl",
+        local_path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()
+    ));
+    let _ = std::fs::remove_file(&tmp_path);
+    let result = download_and_check(profile, remote_path, &tmp_path);
+    if let Err(e) = result {
+        let _ = std::fs::remove_file(&tmp_path);
+        return Err(e);
     }
 
-    // Reject binary files (null bytes in the first 512 bytes)
-    {
-        let mut f = std::fs::File::open(&local_path)
-            .map_err(|e| format!("Failed to read downloaded file: {}", e))?;
-        let mut buf = [0u8; 512];
-        let n = f.read(&mut buf).unwrap_or(0);
-        if buf[..n].contains(&0u8) {
-            return Err(
-                "Binary files cannot be opened for editing. Use Download instead.".to_string(),
-            );
+    // Swap the content in place (same inode, the watcher keeps its watch). The
+    // downloading flag + baseline-before-clear order means the watcher never sees
+    // the new content as a user edit.
+    if let Ok(mut s) = downloading().lock() {
+        s.insert(local_path.clone());
+    }
+    let copied = std::fs::copy(&tmp_path, &local_path);
+    let _ = std::fs::remove_file(&tmp_path);
+    if copied.is_ok() {
+        if let Some(h) = file_content_hash(&local_path) {
+            set_baseline(&local_path, h);
         }
     }
-
-    // Record the just-downloaded content as the baseline so the watcher does not
-    // mistake this (re-)download for a user edit.
-    if let Some(h) = file_content_hash(&local_path) {
-        set_baseline(&local_path, h);
+    if let Ok(mut s) = downloading().lock() {
+        s.remove(&local_path);
     }
+    copied.map_err(|e| format!("Failed to write downloaded file: {}", e))?;
 
     // Open in editor
     open_in_editor(profile, &local_path)?;
@@ -285,6 +290,35 @@ pub fn open_for_edit(
         watch_and_upload(app, profile_clone, local_path_clone, remote_path_owned);
     });
 
+    Ok(())
+}
+
+fn download_and_check(profile: &Profile, remote_path: &str, tmp_path: &Path) -> Result<(), String> {
+    let tmp_str = tmp_path.to_str().unwrap_or_default();
+    if is_ftp(profile) {
+        ftp_service::download_file_to(profile, remote_path, tmp_str, &|| false, &|_, _, _| {})
+    } else {
+        sftp_service::download_file(profile, remote_path, tmp_str, &|| false, &|_, _| {})
+    }
+    .map_err(|e| format!("Failed to download file for editing: {}", e))?;
+
+    // Reject oversized files
+    let file_size = std::fs::metadata(tmp_path).map(|m| m.len()).unwrap_or(0);
+    if file_size > MAX_EDIT_BYTES {
+        return Err(format!(
+            "File is too large for editing ({:.1} MB, max 1 MB). Use Download instead.",
+            file_size as f64 / (1024.0 * 1024.0)
+        ));
+    }
+
+    // Reject binary files (null bytes in the first 512 bytes)
+    let mut f = std::fs::File::open(tmp_path)
+        .map_err(|e| format!("Failed to read downloaded file: {}", e))?;
+    let mut buf = [0u8; 512];
+    let n = f.read(&mut buf).unwrap_or(0);
+    if buf[..n].contains(&0u8) {
+        return Err("Binary files cannot be opened for editing. Use Download instead.".to_string());
+    }
     Ok(())
 }
 
@@ -350,6 +384,12 @@ fn watch_and_upload(
             }
             EventKind::Modify(_) | EventKind::Create(_) => {
                 std::thread::sleep(DEBOUNCE_DELAY);
+
+                // A re-download is rewriting the file: the final content is recorded
+                // as baseline by open_for_edit, nothing to upload.
+                if is_downloading(&local_path) {
+                    continue;
+                }
 
                 let current_hash = match file_content_hash(&local_path) {
                     Some(h) => h,

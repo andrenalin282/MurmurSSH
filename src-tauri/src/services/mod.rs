@@ -1,5 +1,6 @@
 pub mod credentials_store;
 pub mod editor_service;
+pub mod fs_secure;
 pub mod launch_service;
 pub mod ftp_service;
 pub mod local_service;

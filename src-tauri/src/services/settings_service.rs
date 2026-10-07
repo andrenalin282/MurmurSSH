@@ -54,5 +54,8 @@ pub fn save_settings(settings: &Settings) -> Result<(), String> {
     let path = settings_path();
     let json = serde_json::to_string_pretty(&normalized)
         .map_err(|e| format!("Failed to serialize settings: {}", e))?;
-    fs::write(&path, json).map_err(|e| format!("Failed to write settings: {}", e))
+    if let Some(dir) = path.parent() {
+        let _ = crate::services::fs_secure::private_dir_all(dir);
+    }
+    crate::services::fs_secure::write_private(&path, json.as_bytes())
 }

@@ -12,9 +12,6 @@
 
 use std::path::PathBuf;
 
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
-
 fn secrets_dir() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_else(|_| "/tmp".to_string());
     PathBuf::from(home)
@@ -25,6 +22,7 @@ fn secrets_dir() -> PathBuf {
 
 /// Read the stored secret for a profile, if any.
 pub fn get(profile_id: &str) -> Option<String> {
+    crate::services::fs_secure::check_id(profile_id).ok()?;
     let path = secrets_dir().join(profile_id);
     std::fs::read_to_string(path)
         .ok()
@@ -34,27 +32,20 @@ pub fn get(profile_id: &str) -> Option<String> {
 
 /// Write a secret for a profile to disk, with 0600 permissions.
 pub fn set(profile_id: &str, secret: &str) -> Result<(), String> {
+    crate::services::fs_secure::check_id(profile_id)?;
     let dir = secrets_dir();
-    std::fs::create_dir_all(&dir)
+    crate::services::fs_secure::private_dir_all(&dir)
         .map_err(|e| format!("Failed to create secrets directory: {}", e))?;
 
-    let path = dir.join(profile_id);
-    std::fs::write(&path, secret)
-        .map_err(|e| format!("Failed to write secret file: {}", e))?;
-
-    // Restrict to owner read/write only
-    #[cfg(unix)]
-    {
-        let perms = std::fs::Permissions::from_mode(0o600);
-        std::fs::set_permissions(&path, perms)
-            .map_err(|e| format!("Failed to set secret file permissions: {}", e))?;
-    }
-
-    Ok(())
+    // Created 0600 from the start and renamed into place: never readable by others.
+    crate::services::fs_secure::write_private(&dir.join(profile_id), secret.as_bytes())
 }
 
 /// Delete the stored secret for a profile. Silently succeeds if no file exists.
 pub fn delete(profile_id: &str) {
+    if crate::services::fs_secure::check_id(profile_id).is_err() {
+        return;
+    }
     let path = secrets_dir().join(profile_id);
     let _ = std::fs::remove_file(path);
 }

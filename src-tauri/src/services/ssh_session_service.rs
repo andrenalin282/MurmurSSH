@@ -172,24 +172,50 @@ pub fn get_session_extras(profile_id: &str) -> Option<SessionExtras> {
 /// Write a credential to a 0600 temp file and an SSH_ASKPASS wrapper script (0700).
 /// Returns (pw_file, askpass_script). The caller MUST delete both files after use.
 fn write_askpass_pair(secret: &str) -> Result<(PathBuf, PathBuf), String> {
-    let suffix = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.subsec_nanos())
-        .unwrap_or(0);
+    use std::io::Write;
 
-    let pw_file = std::env::temp_dir().join(format!(".murmurssh-pw-{}", suffix));
-    let ask_script = std::env::temp_dir().join(format!(".murmurssh-ask-{}.sh", suffix));
+    // App-private 0700 directory, unpredictable names, files created 0600/0700
+    // with create_new: no window where the password is readable or hijackable.
+    let dir = ensure_run_dir();
+    let suffix = {
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.subsec_nanos())
+            .unwrap_or(0);
+        let mut rnd = [0u8; 8];
+        if let Ok(mut f) = fs::File::open("/dev/urandom") {
+            use std::io::Read;
+            let _ = f.read_exact(&mut rnd);
+        }
+        format!("{}-{}-{:016x}", std::process::id(), nanos, u64::from_le_bytes(rnd))
+    };
 
-    fs::write(&pw_file, format!("{}\n", secret))
+    let pw_file = dir.join(format!(".pw-{}", suffix));
+    let ask_script = dir.join(format!(".ask-{}.sh", suffix));
+
+    let mut f = crate::services::fs_secure::create_new_private(&pw_file)
         .map_err(|e| format!("Failed to write temp credential: {}", e))?;
-    fs::set_permissions(&pw_file, fs::Permissions::from_mode(0o600))
-        .map_err(|e| format!("Failed to chmod temp credential: {}", e))?;
+    if let Err(e) = f.write_all(format!("{}\n", secret).as_bytes()) {
+        let _ = fs::remove_file(&pw_file);
+        return Err(format!("Failed to write temp credential: {}", e));
+    }
 
-    let script = format!("#!/bin/sh\ncat '{}'\n", pw_file.to_string_lossy());
-    fs::write(&ask_script, &script)
-        .map_err(|e| format!("Failed to write askpass script: {}", e))?;
-    fs::set_permissions(&ask_script, fs::Permissions::from_mode(0o700))
-        .map_err(|e| format!("Failed to chmod askpass script: {}", e))?;
+    // Single-quote the path for sh ('  ->  '\'' ) so no path can break out.
+    let quoted = pw_file.to_string_lossy().replace('\'', "'\\''");
+    let script = format!("#!/bin/sh\ncat '{}'\n", quoted);
+    let write_script = || -> std::io::Result<()> {
+        use std::os::unix::fs::OpenOptionsExt;
+        let mut f = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o700)
+            .open(&ask_script)?;
+        f.write_all(script.as_bytes())
+    };
+    if let Err(e) = write_script() {
+        cleanup_pair(&pw_file, &ask_script);
+        return Err(format!("Failed to write askpass script: {}", e));
+    }
 
     Ok((pw_file, ask_script))
 }

@@ -12,6 +12,26 @@ No changes yet.
 
 ---
 
+## [1.8.1] - 2026-10-07
+
+Security and robustness release.
+
+### Security
+- **Password profiles** now offer only password / keyboard-interactive authentication: no ssh-agent keys, key files, certificates, GSSAPI or host-based methods, whatever `~/.ssh/config` says. This also fixes "Too many authentication failures". Key profiles offer only their configured key (`IdentitiesOnly`). All terminal/ControlMaster connections disable agent/X11 forwarding and local commands from the ssh config.
+- ssh targets are passed after `--` and profile user/host values starting with `-` or containing whitespace are rejected (option injection).
+- The SSH SSO ControlMaster now **pins the host key** MurmurSSH verified (`StrictHostKeyChecking=yes` against a private known_hosts) instead of accepting any key; one password attempt only; the process is stopped on timeout.
+- Content Security Policy enabled; status bar text is escaped (a remote file name could inject HTML).
+- Profile ids are validated (no path traversal through profile JSON); secrets, settings, profiles, backups, runtime keys and askpass files are created private (0600/0700) and written atomically.
+- Editor and custom terminal commands reject shells and interpreters.
+- FTP: names containing `/` from a server listing are dropped; suppaftp 8 → 10 fixes a CRLF command injection (RUSTSEC-2026-0271); rustls 0.23.45 (RUSTSEC-2026-0285); npm build-tool advisories fixed.
+
+### Fixed
+- "New File" no longer silently truncates an existing remote file (asks to overwrite).
+- Re-opening a file for editing no longer risks uploading a half-downloaded file; failed or rejected downloads leave the local copy untouched.
+- One broken profile file no longer hides all profiles.
+
+---
+
 ## [1.8.0] - 2026-09-14
 
 ### Added
