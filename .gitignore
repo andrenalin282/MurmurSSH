@@ -4,3 +4,6 @@ src-tauri/target/
 .env*.local
 .claude/
 .gitnexus
+
+# Projektwissen liegt im CrispyInfoSpace (projekte/), kein vault/ im Repo
+/vault/

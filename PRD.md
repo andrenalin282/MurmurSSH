@@ -288,7 +288,7 @@ the items below are not yet implemented. The MVP (sections 1–14) is complete a
 product has since grown beyond it (see status snapshot). Detailed, locked design lives in
 `docs/superpowers/specs/2026-06-10-optimization-roadmap-design.md`; per-phase plans are
 authored just-in-time under `docs/superpowers/plans/`; live progress is tracked in
-`vault/MurmurSSH Optimization Roadmap.md`.
+CrispyInfoSpace `projekte/murmurssh/MurmurSSH Optimization Roadmap.md`.
 
 ### 15.1 Status snapshot (shipped beyond the original MVP)
 
