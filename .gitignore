@@ -7,3 +7,7 @@ src-tauri/target/
 
 # Projektwissen liegt im CrispyInfoSpace (projekte/), kein vault/ im Repo
 /vault/
+
+# Lokale KI-Werkzeuge (nie ins Repo)
+/.lemoncrow/
+/.agents/
