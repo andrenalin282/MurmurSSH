@@ -926,6 +926,12 @@ button:disabled {
   padding: 6px 10px;
 }
 
+.form-field__danger {
+  color: var(--err);
+  font-weight: 600;
+  margin-top: 6px;
+}
+
 .form-error {
   font-size: 12px;
   color: var(--err);

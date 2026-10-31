@@ -130,6 +130,7 @@ export interface AiCaps {
   delete: boolean;
   exec: boolean;
   confirm_writes: boolean;
+  ssh_direct: boolean;
 }
 
 export interface AiStatus {

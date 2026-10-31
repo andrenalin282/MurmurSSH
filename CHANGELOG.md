@@ -9,6 +9,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **AI access – “SSH on its own” (ssh_direct)**: optional, warned token switch; the AI can read
+  connection details, get a host-key-pinned `ssh` command (`murmur_ssh_command`) and run
+  `murmur_exec` without a click. Passwords are never handed out.
 - **AI access (test version)**: AI clients can use MurmurSSH via MCP (`murmurssh --mcp`).
   Works only with a token created in Settings → AI access; each token has its own
   permissions (read, download, upload, write, delete, exec), allowed profiles, remote and

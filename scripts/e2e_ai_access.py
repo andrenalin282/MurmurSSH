@@ -56,11 +56,12 @@ def tok(secret, **kw):
          "created_at": int(time.time()), "expires_at": None, "last_used_at": None}
     t.update(kw); return t
 
-A, B, C = "mssh_" + "A" * 43, "mssh_" + "B" * 43, "mssh_" + "C" * 43
+A, B, C, D = ("mssh_" + ch * 43 for ch in "ABCD")
 store = {"enabled": True, "tokens": [
     tok(A, name="rw", caps={"read": True, "download": True, "upload": True, "write": True}),
     tok(B, name="danger", caps={"read": True, "delete": True, "exec": True}),
-    tok(C, name="expired", caps={"read": True}, expires_at=int(time.time()) - 10)]}
+    tok(C, name="expired", caps={"read": True}, expires_at=int(time.time()) - 10),
+    tok(D, name="sshdirect", caps={"ssh_direct": True})]}
 def write_store():
     json.dump(store, open(f"{CFG}/ai_access.json", "w")); os.chmod(f"{CFG}/ai_access.json", 0o600)
 
@@ -102,7 +103,7 @@ b = Bridge(A)
 init = b.rpc("initialize", {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "e2e", "version": "1"}})
 check("initialize", init["result"]["serverInfo"]["name"] == "murmurssh")
 b.p.stdin.write(json.dumps({"jsonrpc": "2.0", "method": "notifications/initialized"}) + "\n")
-check("tools/list = 9", len(b.rpc("tools/list")["result"]["tools"]) == 9)
+check("tools/list = 10", len(b.rpc("tools/list")["result"]["tools"]) == 10)
 
 err, txt = b.call("murmur_list_dir", profile="e2e", path="/config/ai")
 if err and "Host key" in txt:
@@ -164,7 +165,26 @@ err, txt = b.call("murmur_delete", profile="e2e", path="/config/ai/renamed")
 check("delete without delete permission rejected", err and "permission" in txt, txt)
 err, txt = b.call("murmur_exec", profile="e2e", command="id")
 check("exec without exec permission rejected", err and "permission" in txt, txt)
+err, txt = b.call("murmur_ssh_command", profile="e2e")
+check("ssh_command without ssh_direct rejected", err and "permission" in txt, txt)
+err, txt = b.call("murmur_list_profiles")
+check("list_profiles hides key_path without ssh_direct", not err and "key_path" not in txt, txt)
 b.close()
+
+# ssh_direct: connection details + own ssh + exec without a click (must NOT wait ~120 s).
+x = Bridge(D); x.rpc("initialize", {"protocolVersion": "2025-06-18"})
+err, txt = x.call("murmur_list_profiles")
+check("ssh_direct: list_profiles shows key_path + auth_type", not err and f"{S}/key" in txt and '"auth_type": "key"' in txt, txt)
+err, txt = x.call("murmur_ssh_command", profile="e2e")
+argv = json.loads(txt).get("argv", []) if not err else []
+check("ssh_direct: ssh_command pins host key, BatchMode", argv and "BatchMode=yes" in argv and "StrictHostKeyChecking=yes" in argv, txt)
+r = subprocess.run(argv + ["echo", "direct-ok"], capture_output=True, text=True, timeout=30) if argv else None
+check("ssh_direct: returned ssh command connects", r and r.stdout.strip() == "direct-ok", r and r.stderr)
+t0 = time.time(); err, txt = x.call("murmur_exec", profile="e2e", command="echo exec-ok")
+check("ssh_direct: exec runs without click", not err and "exec-ok" in txt and time.time() - t0 < 30, txt)
+err, txt = x.call("murmur_delete", profile="e2e", path="/config/ai/hello.txt")
+check("ssh_direct does not grant delete", err and "permission" in txt, txt)
+x.close()
 
 for label, token, expect in [("no token", None, "MURMURSSH_TOKEN"), ("wrong token", "mssh_" + "Z" * 43, "Invalid token"), ("expired token", C, "expired")]:
     x = Bridge(token); x.rpc("initialize", {"protocolVersion": "2025-06-18"})
@@ -203,5 +223,5 @@ audit = f"{CFG}/ai_audit.jsonl"
 lines = [json.loads(l) for l in open(audit)] if os.path.exists(audit) else []
 check("audit log written, 0600", lines and stat.S_IMODE(os.stat(audit).st_mode) == 0o600)
 check("audit has denied confirmations", any(l.get("confirmed") is False for l in lines))
-check("audit contains no secret", not any(s in open(audit).read() for s in (A, B, C)))
+check("audit contains no secret", not any(s in open(audit).read() for s in (A, B, C, D)))
 print(f"\n{sum(ok for _, ok in results)}/{len(results)} passed")

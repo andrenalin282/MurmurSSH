@@ -106,6 +106,7 @@ pub fn stop() {
     if LISTENING.swap(false, Ordering::SeqCst) {
         let _ = std::fs::remove_file(socket_path());
     }
+    crate::services::ssh_session_service::remove_ai_pins();
     // Deny everything still waiting for a click.
     let mut p = pending().lock().unwrap_or_else(|e| e.into_inner());
     for (_, tx) in p.drain() {
@@ -381,10 +382,16 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
             let mut out = Vec::new();
             for id in &tok.profiles {
                 if let Ok(p) = profile_service::get_profile(id) {
-                    out.push(json!({
+                    let mut v = json!({
                         "id": p.id, "name": p.name, "host": p.host, "port": p.port,
                         "username": p.username, "default_remote_path": p.default_remote_path,
-                    }));
+                    });
+                    // Connection details (never secrets) only with the ssh_direct switch.
+                    if tok.caps.ssh_direct {
+                        v["auth_type"] = json!(p.auth_type);
+                        v["key_path"] = json!(p.key_path);
+                    }
+                    out.push(v);
                 }
             }
             Ok(json!({
@@ -554,15 +561,40 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
             .map_err(friendly)?;
             Ok(json!({ "deleted": path, "directory": is_dir && !is_link, "symlink": is_link }))
         }
+        "ssh_command" => {
+            ai_guard::require_cap(&tok.caps, Cap::SshDirect)?;
+            let profile = profile_for(&tok, arg(args, "profile")?)?;
+            crate::services::ssh_service::validate_target(&profile)?;
+            let mut argv = crate::services::ssh_service::build_ssh_args(&profile, false);
+            let extra = crate::services::ssh_session_service::ai_direct_args(&profile).map_err(friendly)?;
+            argv.splice(1..1, extra);
+            let command = argv.iter().map(|a| crate::services::remote_copy::shell_quote(a)).collect::<Vec<_>>().join(" ");
+            let note = match profile.auth_type {
+                AuthType::Password => "Uses MurmurSSH's open session; it stops when MurmurSSH disconnects or exits.",
+                AuthType::Key => "Key with passphrase only works if the key is loaded in ssh-agent (BatchMode, no prompts).",
+                AuthType::Agent => "Uses the keys in ssh-agent.",
+            };
+            Ok(json!({
+                "argv": argv,
+                "command": command,
+                "note": format!("{} Append a remote command after the target to run it non-interactively. Host key is pinned to the one MurmurSSH trusts.", note),
+            }))
+        }
         "exec" => {
-            ai_guard::require_cap(&tok.caps, Cap::Exec)?;
+            if !tok.caps.ssh_direct {
+                ai_guard::require_cap(&tok.caps, Cap::Exec)?;
+            }
             let profile = profile_for(&tok, arg(args, "profile")?)?;
             let command = arg(args, "command")?;
             // Single line, no control/invisible characters: what the human reads is what runs.
             if command.trim().is_empty() || command.len() > 4096 || ai_guard::has_bad_chars(command) {
                 return Err("Command must be one line (1–4096 bytes) without control or invisible characters".to_string());
             }
-            confirm(ctx, &profile, "exec", format!("Run command as {}@{} (NOT limited to the remote root)", profile.username, profile.host), command.to_string())?;
+            // ssh_direct: the AI could run the same via murmur_ssh_command, so a click
+            // would only be theatre. Still single-line, time-limited and audited.
+            if !tok.caps.ssh_direct {
+                confirm(ctx, &profile, "exec", format!("Run command as {}@{} (NOT limited to the remote root)", profile.username, profile.host), command.to_string())?;
+            }
             let opts = sftp_service::ExecOptions { pty: true, timeout: Some(EXEC_TIMEOUT) };
             let (code, out, err) = sftp_service::exec_command(&profile, command, opts, &no_cancel).map_err(friendly)?;
             let (out, cut_o) = cap_text(out);

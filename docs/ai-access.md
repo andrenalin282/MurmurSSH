@@ -40,7 +40,28 @@ AI client ──stdio──▶ murmurssh --mcp ──Unix socket──▶ runnin
 | upload | `murmur_upload` (file or folder from the local folder) | overwrite always; otherwise when “confirm writes” |
 | write | `murmur_mkdir`, `murmur_rename` | when “confirm writes” |
 | delete | `murmur_delete` (files, folders recursively, symlinks only as link) | **always** |
-| exec | `murmur_exec` (one line, 60 s, output ≤ 256 KB) | **always** |
+| exec | `murmur_exec` (one line, 60 s, output ≤ 256 KB) | **always** (unless ssh_direct) |
+| ⚠ ssh_direct | `murmur_ssh_command`; `murmur_list_profiles` adds `auth_type` + `key_path`; `murmur_exec` without click | **never** — enabling it in the token form needs an extra warned confirmation |
+
+### ssh_direct (“Read profiles & start SSH on its own”)
+
+Off by default. When on, the AI may open SSH sessions by itself:
+
+- `murmur_ssh_command` returns a ready-to-run `ssh` argv / shell string for the AI's own
+  shell. It pins the host key MurmurSSH already trusts (private known_hosts in
+  `~/.config/murmurssh/run/ai-<profile>.known_hosts`, removed when AI access stops),
+  uses `BatchMode=yes` (never prompts) and the same hardening as the terminal launch
+  (no agent/X11 forwarding, no LocalCommand).
+- Key profiles: the key path is used directly; a key with passphrase only works if it
+  is loaded in ssh-agent. Agent profiles use ssh-agent. Password profiles reuse a
+  MurmurSSH ControlMaster (started on demand from a saved password); the password
+  itself is never handed out, and the session ends when MurmurSSH disconnects/exits.
+- `murmur_exec` runs without a click (still one line, 60 s, audited).
+- It does **not** grant delete/upload/write via the MurmurSSH tools.
+
+What the AI does inside its own SSH session is invisible to MurmurSSH: no audit, no
+remote-root limit. This equals giving the AI tool the key on this machine — enable it
+only for trusted servers and tools.
 
 `murmur_list_profiles` shows the profiles and permissions of the token.
 

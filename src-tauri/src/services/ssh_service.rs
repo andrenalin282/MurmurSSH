@@ -71,7 +71,7 @@ pub fn launch_ssh(profile: &Profile, use_runtime_copy: bool) -> Result<(), Strin
         .map_err(|e| format!("Failed to launch terminal '{}': {}", program, e))
 }
 
-fn build_ssh_args(profile: &Profile, use_runtime_copy: bool) -> Vec<String> {
+pub(crate) fn build_ssh_args(profile: &Profile, use_runtime_copy: bool) -> Vec<String> {
     let mut args = vec!["ssh".to_string()];
 
     if profile.port != 22 {

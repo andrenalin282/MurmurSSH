@@ -13,6 +13,7 @@ const CAP_KEYS: Array<[keyof AiCaps, string]> = [
   ["delete", "ai.capDelete"],
   ["exec", "ai.capExec"],
   ["confirm_writes", "ai.capConfirmWrites"],
+  ["ssh_direct", "ai.capSshDirect"],
 ];
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -238,6 +239,7 @@ export async function showAiAccessDialog(): Promise<void> {
       delete: false,
       exec: false,
       confirm_writes: true,
+      ssh_direct: false,
     };
     const initial = existing?.caps ?? defaults;
     const capBoxes: Array<[keyof AiCaps, HTMLInputElement]> = [];
@@ -246,8 +248,17 @@ export async function showAiAccessDialog(): Promise<void> {
       l.style.display = "block";
       const cb = el("input");
       cb.type = "checkbox";
-      cb.checked = initial[k];
+      cb.checked = initial[k] ?? false;
       l.append(cb, document.createTextNode(" " + t(key)));
+      if (k === "ssh_direct") {
+        // Explicit opt-in: switching it on needs a second, warned confirmation.
+        l.classList.add("form-field__danger");
+        cb.addEventListener("change", async () => {
+          if (!cb.checked) return;
+          cb.checked = false;
+          if (await showConfirm(t("ai.sshDirectWarning"), t("ai.sshDirectWarningTitle"))) cb.checked = true;
+        });
+      }
       capField.appendChild(l);
       capBoxes.push([k, cb]);
     }

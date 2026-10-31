@@ -275,6 +275,54 @@ fn write_pinned_known_hosts(profile: &Profile, path: &Path) -> Result<String, St
     Ok(algs.to_string())
 }
 
+fn ai_pin_path(profile_id: &str) -> PathBuf {
+    let sock = ctrl_socket_path(profile_id);
+    sock.with_file_name(format!(
+        "ai-{}.known_hosts",
+        sock.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default()
+    ))
+}
+
+/// ssh options that make an external `ssh` (run by the AI in its own shell) accept
+/// ONLY the host key MurmurSSH already trusts for this profile, never prompt
+/// (BatchMode), and reuse a password ControlMaster when one is running.
+pub fn ai_direct_args(profile: &Profile) -> Result<Vec<String>, String> {
+    ensure_run_dir();
+    let kh = ai_pin_path(&profile.id);
+    let algs = write_pinned_known_hosts(profile, &kh)?;
+    let mut args: Vec<String> = [
+        "BatchMode=yes".to_string(),
+        "StrictHostKeyChecking=yes".to_string(),
+        format!("UserKnownHostsFile={}", kh.to_string_lossy()),
+        "GlobalKnownHostsFile=/dev/null".to_string(),
+        format!("HostKeyAlias={}", PIN_ALIAS),
+        format!("HostKeyAlgorithms={}", algs),
+        "UpdateHostKeys=no".to_string(),
+        "CheckHostIP=no".to_string(),
+    ]
+    .into_iter()
+    .flat_map(|o| ["-o".to_string(), o])
+    .collect();
+    if profile.auth_type == AuthType::Password {
+        start_session(profile)?;
+        let extras = get_session_extras(&profile.id).ok_or("No SSH session for this profile")?;
+        args.extend(extras.extra_args);
+    }
+    Ok(args)
+}
+
+/// Remove the pinned known_hosts files written for the AI (app exit / AI off).
+pub fn remove_ai_pins() {
+    if let Ok(rd) = fs::read_dir(run_dir()) {
+        for e in rd.flatten() {
+            let n = e.file_name().to_string_lossy().into_owned();
+            if n.starts_with("ai-") && n.ends_with(".known_hosts") {
+                let _ = fs::remove_file(e.path());
+            }
+        }
+    }
+}
+
 /// Establish an SSH ControlMaster for password-based SSO.
 fn start_control_master(profile: &Profile, password: &str) -> Result<(), String> {
     use std::process::Command;

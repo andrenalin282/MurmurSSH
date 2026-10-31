@@ -13,6 +13,7 @@ pub enum Cap {
     Write,
     Delete,
     Exec,
+    SshDirect,
 }
 
 impl Cap {
@@ -24,6 +25,7 @@ impl Cap {
             Cap::Write => "write",
             Cap::Delete => "delete",
             Cap::Exec => "exec",
+            Cap::SshDirect => "ssh_direct",
         }
     }
 }
@@ -36,6 +38,7 @@ pub fn require_cap(caps: &AiCaps, cap: Cap) -> Result<(), String> {
         Cap::Write => caps.write,
         Cap::Delete => caps.delete,
         Cap::Exec => caps.exec,
+        Cap::SshDirect => caps.ssh_direct,
     };
     if on {
         Ok(())
@@ -215,6 +218,7 @@ mod tests {
         c.read = true;
         assert!(require_cap(&c, Cap::Read).is_ok());
         assert!(require_cap(&c, Cap::Delete).is_err());
+        assert!(require_cap(&AiCaps::default(), Cap::SshDirect).is_err(), "ssh_direct must default to off");
         assert!(AiCaps::default().confirm_writes);
     }
 

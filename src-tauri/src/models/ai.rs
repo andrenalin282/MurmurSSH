@@ -15,6 +15,10 @@ pub struct AiCaps {
     pub delete: bool,
     pub exec: bool,
     pub confirm_writes: bool,
+    /// Dangerous, explicit opt-in: the AI may read the connection details of its
+    /// profiles, get a ready-to-run `ssh` command for its own shell, and run
+    /// `exec` WITHOUT a click. Equivalent to giving it the key on this machine.
+    pub ssh_direct: bool,
 }
 
 impl Default for AiCaps {
@@ -27,6 +31,7 @@ impl Default for AiCaps {
             delete: false,
             exec: false,
             confirm_writes: true,
+            ssh_direct: false,
         }
     }
 }
