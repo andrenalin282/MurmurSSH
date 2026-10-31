@@ -472,15 +472,19 @@ async function drainAiConfirms() {
         let item;
         while ((item = aiConfirmQueue.shift())) {
             const { req, deadline } = item;
-            let approved = false;
-            if (deadline > Date.now()) {
-                try {
-                    approved = await showAiConfirm(req, deadline);
-                }
-                catch {
-                    approved = false;
-                }
+            // Expired (or dialog closed by its own deadline): send nothing, so the backend
+            // reports "timed out" (retry allowed) instead of a final "denied by the user".
+            if (deadline <= Date.now())
+                continue;
+            let approved;
+            try {
+                approved = await showAiConfirm(req, deadline);
             }
+            catch {
+                approved = false;
+            }
+            if (approved === null)
+                continue;
             try {
                 await api.aiConfirmResponse(req.request_id, approved);
             }

@@ -46,7 +46,7 @@ profile = {"id": "e2e", "name": "E2E Test", "host": "127.0.0.1", "port": 2222, "
            "auth_type": "key", "key_path": f"{S}/key", "default_remote_path": "/config/ai",
            "editor_command": None, "upload_mode": "auto"}
 json.dump(profile, open(f"{CFG}/profiles/e2e.json", "w"))
-json.dump({**profile, "id": "other", "name": "Other"}, open(f"{CFG}/profiles/other.json", "w"))
+json.dump({**profile, "id": "other", "name": "Other", "local_path": LOCAL}, open(f"{CFG}/profiles/other.json", "w"))
 
 def tok(secret, **kw):
     caps = {"read": False, "download": False, "upload": False, "write": False, "delete": False, "exec": False, "confirm_writes": False}
@@ -56,12 +56,14 @@ def tok(secret, **kw):
          "created_at": int(time.time()), "expires_at": None, "last_used_at": None}
     t.update(kw); return t
 
-A, B, C, D = ("mssh_" + ch * 43 for ch in "ABCD")
+A, B, C, D, E, F = ("mssh_" + ch * 43 for ch in "ABCDEF")
 store = {"enabled": True, "tokens": [
     tok(A, name="rw", caps={"read": True, "download": True, "upload": True, "write": True}),
     tok(B, name="danger", caps={"read": True, "delete": True, "exec": True}),
     tok(C, name="expired", caps={"read": True}, expires_at=int(time.time()) - 10),
-    tok(D, name="sshdirect", caps={"ssh_direct": True})]}
+    tok(D, name="sshdirect", caps={"ssh_direct": True}),
+    tok(E, name="allprofiles", caps={"read": True}, profiles=[], all_profiles=True),
+    tok(F, name="proflocal", caps={"download": True}, profiles=["e2e", "other"], local_root=None)]}
 def write_store():
     json.dump(store, open(f"{CFG}/ai_access.json", "w")); os.chmod(f"{CFG}/ai_access.json", 0o600)
 
@@ -184,6 +186,30 @@ t0 = time.time(); err, txt = x.call("murmur_exec", profile="e2e", command="echo 
 check("ssh_direct: exec runs without click", not err and "exec-ok" in txt and time.time() - t0 < 30, txt)
 err, txt = x.call("murmur_delete", profile="e2e", path="/config/ai/hello.txt")
 check("ssh_direct does not grant delete", err and "permission" in txt, txt)
+err, txt = x.call("murmur_exec", profile="e2e", command="printf 'a\\nb\\n'")
+check("exec output without CRLF", not err and json.loads(txt)["stdout"] == "a\nb\n", repr(txt))
+x.close()
+
+# all_profiles: every profile, incl. ones not listed on the token.
+x = Bridge(E); x.rpc("initialize", {"protocolVersion": "2025-06-18"})
+err, txt = x.call("murmur_list_profiles")
+check("all_profiles: list_profiles shows every profile", not err and '"other"' in txt and '"e2e"' in txt, txt)
+err, txt = x.call("murmur_list_dir", profile="other", path="/config/ai")
+check("all_profiles: unlisted profile usable", not err and "hello.txt" in txt, txt)
+err, txt = x.call("murmur_list_dir", profile="e2e", path="~/ai")
+check("~ path resolves to login dir", not err and "hello.txt" in txt and '"/config/ai"' in txt, txt)
+err, txt = x.call("murmur_list_dir", profile="e2e", path="ai")
+check("relative path resolves to login dir", not err and "hello.txt" in txt, txt)
+x.close()
+
+# Local folder falls back to the profile's local folder; without one, a helpful error.
+x = Bridge(F); x.rpc("initialize", {"protocolVersion": "2025-06-18"})
+err, txt = x.call("murmur_list_profiles")
+check("list_profiles marks transfers_usable per profile", not err and txt.count('"transfers_usable": true') == 1 and "notes" in txt, txt)
+err, txt = x.call("murmur_download", profile="other", remote_path="/config/ai/hello.txt", local_path="fb.txt")
+check("download uses profile local folder", not err and open(f"{LOCAL}/fb.txt").read().strip() == "hello", txt)
+err, txt = x.call("murmur_download", profile="e2e", remote_path="/config/ai/hello.txt", local_path="fb2.txt")
+check("no local folder -> error says where to set it", err and "Settings" in txt, txt)
 x.close()
 
 for label, token, expect in [("no token", None, "MURMURSSH_TOKEN"), ("wrong token", "mssh_" + "Z" * 43, "Invalid token"), ("expired token", C, "expired")]:
@@ -208,8 +234,8 @@ print("waiting ~120 s for unanswered confirmations ...", flush=True)
 for t in th: t.start()
 for t in th: t.join(200)
 d, e = out.get("delete"), out.get("exec")
-check("delete without click denied, file kept", d and d[0] and "denied" in d[1].lower() and dexec("cat /config/ai/hello.txt").stdout.strip() == "hello", d)
-check("exec without click denied, not run", e and e[0] and "denied" in e[1].lower() and dexec("test -e /config/ai/pwned || echo none").stdout.strip() == "none", e)
+check("delete without click times out, file kept", d and d[0] and "timed out" in d[1].lower() and dexec("cat /config/ai/hello.txt").stdout.strip() == "hello", d)
+check("exec without click times out, not run", e and e[0] and "timed out" in e[1].lower() and dexec("test -e /config/ai/pwned || echo none").stdout.strip() == "none", e)
 
 # An AI with shell access editing ai_access.json at runtime must gain nothing:
 # the app only trusts what it loaded at start or changed via its GUI.
@@ -223,5 +249,5 @@ audit = f"{CFG}/ai_audit.jsonl"
 lines = [json.loads(l) for l in open(audit)] if os.path.exists(audit) else []
 check("audit log written, 0600", lines and stat.S_IMODE(os.stat(audit).st_mode) == 0o600)
 check("audit has denied confirmations", any(l.get("confirmed") is False for l in lines))
-check("audit contains no secret", not any(s in open(audit).read() for s in (A, B, C, D)))
+check("audit contains no secret", not any(s in open(audit).read() for s in (A, B, C, D, E, F)))
 print(f"\n{sum(ok for _, ok in results)}/{len(results)} passed")

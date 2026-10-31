@@ -148,7 +148,9 @@ export async function showAiAccessDialog(): Promise<void> {
       head.style.fontWeight = "600";
       head.textContent = `${tok.name}  (${tok.prefix}…)`;
       row.appendChild(head);
-      const profs = tok.profiles.map((id) => profileNames.get(id) ?? id).join(", ");
+      const profs = tok.all_profiles
+        ? t("ai.allProfiles")
+        : tok.profiles.map((id) => profileNames.get(id) ?? id).join(", ");
       row.appendChild(el("div", "form-field__hint", `${t("ai.profilesLabel")}: ${profs || "–"}`));
       const caps = CAP_KEYS.filter(([k]) => tok.caps[k])
         .map(([, key]) => t(key))
@@ -213,20 +215,31 @@ export async function showAiAccessDialog(): Promise<void> {
 
     const profField = el("div", "form-field");
     profField.appendChild(el("label", "", t("ai.profilesLabel")));
+    const allLabel = el("label", "ai-check");
+    const allCb = el("input");
+    allCb.type = "checkbox";
+    allCb.checked = existing?.all_profiles ?? false;
+    allLabel.append(allCb, document.createTextNode(t("ai.allProfiles")));
+    profField.appendChild(allLabel);
+    profField.appendChild(el("div", "form-field__hint", t("ai.allProfilesHint")));
     const profBoxes: Array<[string, HTMLInputElement]> = [];
     if (profiles.length === 0) {
       profField.appendChild(el("div", "form-field__hint", t("ai.noProfilesAvail")));
     }
     for (const p of profiles) {
-      const l = el("label");
-      l.style.display = "block";
+      const l = el("label", "ai-check");
       const cb = el("input");
       cb.type = "checkbox";
       cb.checked = existing?.profiles.includes(p.id) ?? false;
-      l.append(cb, document.createTextNode(" " + p.name));
+      l.append(cb, document.createTextNode(p.name));
       profField.appendChild(l);
       profBoxes.push([p.id, cb]);
     }
+    const syncAll = () => {
+      for (const [, cb] of profBoxes) cb.disabled = allCb.checked;
+    };
+    allCb.addEventListener("change", syncAll);
+    syncAll();
     modal.appendChild(profField);
 
     const capField = el("div", "form-field");
@@ -244,12 +257,11 @@ export async function showAiAccessDialog(): Promise<void> {
     const initial = existing?.caps ?? defaults;
     const capBoxes: Array<[keyof AiCaps, HTMLInputElement]> = [];
     for (const [k, key] of CAP_KEYS) {
-      const l = el("label");
-      l.style.display = "block";
+      const l = el("label", "ai-check");
       const cb = el("input");
       cb.type = "checkbox";
       cb.checked = initial[k] ?? false;
-      l.append(cb, document.createTextNode(" " + t(key)));
+      l.append(cb, document.createTextNode(t(key)));
       if (k === "ssh_direct") {
         // Explicit opt-in: switching it on needs a second, warned confirmation.
         l.classList.add("form-field__danger");
@@ -262,6 +274,17 @@ export async function showAiAccessDialog(): Promise<void> {
       capField.appendChild(l);
       capBoxes.push([k, cb]);
     }
+    const allowAll = button(t("ai.allowAll"));
+    allowAll.style.alignSelf = "flex-start";
+    allowAll.addEventListener("click", () => {
+      for (const [k, cb] of capBoxes) {
+        if (k === "confirm_writes" || cb.checked) continue;
+        cb.checked = true;
+        // ssh_direct runs through its warned confirmation (change handler).
+        if (k === "ssh_direct") cb.dispatchEvent(new Event("change"));
+      }
+    });
+    capField.appendChild(allowAll);
     capField.appendChild(el("div", "form-field__hint", t("ai.confirmHint")));
     modal.appendChild(capField);
 
@@ -329,13 +352,14 @@ export async function showAiAccessDialog(): Promise<void> {
         return showErr(t("ai.errName"));
       }
       const selected = profBoxes.filter(([, cb]) => cb.checked).map(([id]) => id);
-      if (selected.length === 0) return showErr(t("ai.errProfiles"));
+      if (selected.length === 0 && !allCb.checked) return showErr(t("ai.errProfiles"));
       const caps = { ...defaults } as AiCaps;
       for (const [k, cb] of capBoxes) caps[k] = cb.checked;
       const days = parseInt(expInput.value, 10);
       const input: AiTokenInput = {
         name,
         profiles: selected,
+        all_profiles: allCb.checked,
         caps,
         remote_root: remoteInput.value.trim() || null,
         local_root: localInput.value.trim() || null,

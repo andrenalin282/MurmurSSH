@@ -926,7 +926,25 @@ button:disabled {
   padding: 6px 10px;
 }
 
-.form-field__danger {
+.form-field label.ai-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--fg-text);
+  padding: 2px 0;
+}
+
+.form-field label.ai-check input {
+  margin: 0;
+  padding: 0;
+  flex: 0 0 auto;
+}
+
+.form-field__danger,
+.form-field label.ai-check.form-field__danger {
   color: var(--err);
   font-weight: 600;
   margin-top: 6px;

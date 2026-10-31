@@ -143,6 +143,7 @@ export interface AiStatus {
 export interface AiTokenInput {
   name: string;
   profiles: string[];
+  all_profiles: boolean;
   caps: AiCaps;
   remote_root: string | null;
   local_root: string | null;
@@ -155,6 +156,7 @@ export interface AiTokenView {
   name: string;
   prefix: string;
   profiles: string[];
+  all_profiles: boolean;
   caps: AiCaps;
   remote_root: string | null;
   local_root: string | null;

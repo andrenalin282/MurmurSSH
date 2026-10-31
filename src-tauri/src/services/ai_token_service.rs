@@ -116,7 +116,7 @@ fn check_input(input: &AiTokenInput) -> Result<Checked, String> {
     if name.is_empty() || name.chars().count() > 64 || name.chars().any(|c| c.is_control()) {
         return Err("Token name must be 1–64 printable characters".to_string());
     }
-    if input.profiles.is_empty() {
+    if input.profiles.is_empty() && !input.all_profiles {
         return Err("Select at least one profile".to_string());
     }
     let mut profiles = Vec::new();
@@ -167,6 +167,7 @@ pub fn create(input: AiTokenInput) -> Result<AiCreatedToken, String> {
         hash: hash_secret(&secret),
         prefix: secret[..SECRET_PREFIX.len() + 6].to_string(),
         profiles: c.profiles,
+        all_profiles: input.all_profiles,
         caps: input.caps,
         remote_root: c.remote_root,
         local_root: c.local_root,
@@ -187,6 +188,7 @@ pub fn update(id: &str, input: AiTokenInput) -> Result<AiTokenView, String> {
     let t = store.tokens.iter_mut().find(|t| t.id == id).ok_or("Token not found")?;
     t.name = c.name;
     t.profiles = c.profiles;
+    t.all_profiles = input.all_profiles;
     t.caps = input.caps;
     t.remote_root = c.remote_root;
     t.local_root = c.local_root;
@@ -282,6 +284,7 @@ mod tests {
         let base = AiTokenInput {
             name: "Claude".into(),
             profiles: vec!["web-1".into()],
+            all_profiles: false,
             caps: Default::default(),
             remote_root: Some("/var/www/../www/site/".into()),
             local_root: None,
@@ -289,6 +292,12 @@ mod tests {
         };
         let c = check_input(&base).unwrap();
         assert_eq!(c.remote_root.as_deref(), Some("/var/www/site"));
+
+        let mut all = base.clone();
+        all.profiles.clear();
+        assert!(check_input(&all).is_err(), "no profile and not all_profiles");
+        all.all_profiles = true;
+        assert!(check_input(&all).is_ok(), "all_profiles needs no list");
 
         let mut bad = base.clone();
         bad.profiles = vec![];

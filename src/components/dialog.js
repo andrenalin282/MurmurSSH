@@ -233,6 +233,7 @@ export function showConfirm(message, title) {
  * a real mouse click after a short delay, so keystrokes typed elsewhere (the AI picks
  * the moment the dialog appears) or a double click on a previous dialog cannot approve.
  */
+/** Resolves true/false on a click, null when the deadline passes (the backend then reports a timeout, not a denial). */
 export function showAiConfirm(req, deadline = Date.now() + 115000) {
     return new Promise((resolve) => {
         const overlay = document.createElement("div");
@@ -288,7 +289,7 @@ export function showAiConfirm(req, deadline = Date.now() + 115000) {
         document.body.appendChild(overlay);
         // The backend auto-denies after 120 s; close a bit earlier so a late click
         // can never look like an approval that was actually discarded.
-        const expiry = setTimeout(() => done(false), Math.max(0, deadline - Date.now()));
+        const expiry = setTimeout(() => done(null), Math.max(0, deadline - Date.now()));
         const done = (result) => {
             clearTimeout(expiry);
             overlay.remove();

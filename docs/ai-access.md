@@ -63,7 +63,20 @@ What the AI does inside its own SSH session is invisible to MurmurSSH: no audit,
 remote-root limit. This equals giving the AI tool the key on this machine — enable it
 only for trusted servers and tools.
 
-`murmur_list_profiles` shows the profiles and permissions of the token.
+`murmur_list_profiles` shows the profiles and permissions of the token, per profile the
+effective local folder (`transfers_usable`) and hints (`notes`).
+
+Token options:
+
+- **All profiles (including future ones)**: the token applies to every SSH/SFTP profile,
+  also ones created later — no need to edit the token.
+- **Allow everything**: button in the token form that ticks all permissions; “SSH on its
+  own” still asks for its extra warning. “Confirm uploads and writes” stays as it is.
+- **Local folder**: if the token has none, the profile's local folder is used. Without
+  either, upload/download fail with a hint where to set one. `/` and your home folder
+  (or above) are refused, also when the folder comes from a profile.
+- Remote paths may be absolute, `~`, `~/…` or relative (resolved against the login
+  directory on the server); the remote-root check applies after resolution.
 
 Rules that always apply:
 
@@ -74,7 +87,14 @@ Rules that always apply:
 - Folder transfers do not follow symlinks; skipped entries are reported.
 - Folders are only uploaded/downloaded to a new target path (no merging).
 - Commands are **not** limited to the remote folder — the dialog says so.
-- A confirmation request waits 120 s, then counts as denied. The Approve button is
+- A confirmation request waits 120 s. The AI gets distinct answers: **denied by the
+  user** (final, do not retry) vs. **timed out** (nobody clicked; may be retried). A
+  desktop notification (`notify-send`) announces each waiting request.
+- With ssh_direct, file-tool actions (delete; writes when “confirm writes” is on) still ask —
+  as a guard against mistakes, not as a security boundary, since the AI can do the same
+  through its own SSH session.
+- Command output is returned with `\n` line endings (the pty's `\r\n` is normalised).
+- The Approve button is
   enabled after 1.5 s and only reacts to a mouse click (not Enter/Space), so typing
   in another window cannot approve anything. MurmurSSH does not steal focus.
 - Revoking a token or switching AI access off also denies a dialog that is still open.

@@ -9,6 +9,10 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **AI access – usability**: token option “All profiles (incl. future ones)”, “Allow everything”
+  button, aligned checkboxes; profile local folder as fallback; `~`/relative remote paths;
+  distinct “denied” vs “timed out” answers; desktop notification for waiting confirmations;
+  exec output without `\r\n`.
 - **AI access – “SSH on its own” (ssh_direct)**: optional, warned token switch; the AI can read
   connection details, get a host-key-pinned `ssh` command (`murmur_ssh_command`) and run
   `murmur_exec` without a click. Passwords are never handed out.

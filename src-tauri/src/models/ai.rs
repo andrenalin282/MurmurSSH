@@ -44,6 +44,9 @@ pub struct AiToken {
     pub hash: String,
     pub prefix: String,
     pub profiles: Vec<String>,
+    /// All profiles, including ones created later.
+    #[serde(default)]
+    pub all_profiles: bool,
     pub caps: AiCaps,
     pub remote_root: Option<String>,
     pub local_root: Option<String>,
@@ -59,6 +62,7 @@ pub struct AiTokenView {
     pub name: String,
     pub prefix: String,
     pub profiles: Vec<String>,
+    pub all_profiles: bool,
     pub caps: AiCaps,
     pub remote_root: Option<String>,
     pub local_root: Option<String>,
@@ -74,6 +78,7 @@ impl From<&AiToken> for AiTokenView {
             name: t.name.clone(),
             prefix: t.prefix.clone(),
             profiles: t.profiles.clone(),
+            all_profiles: t.all_profiles,
             caps: t.caps.clone(),
             remote_root: t.remote_root.clone(),
             local_root: t.local_root.clone(),
@@ -88,6 +93,8 @@ impl From<&AiToken> for AiTokenView {
 pub struct AiTokenInput {
     pub name: String,
     pub profiles: Vec<String>,
+    #[serde(default)]
+    pub all_profiles: bool,
     pub caps: AiCaps,
     pub remote_root: Option<String>,
     pub local_root: Option<String>,

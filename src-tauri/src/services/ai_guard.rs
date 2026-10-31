@@ -136,6 +136,10 @@ pub fn resolve_local(root: &str, input: &str, home: Option<&Path>) -> Result<Pat
         return Err("Invalid local path".to_string());
     }
     let root_c = std::fs::canonicalize(root).map_err(|e| format!("Local root '{}': {}", root, e))?;
+    // Also enforced at use time: the root may come from a profile, not only the token form.
+    if root_c == Path::new("/") || home.is_some_and(|h| h.starts_with(&root_c)) {
+        return Err(format!("Local folder '{}' is '/' or your home (or above it); choose a project folder below your home", root));
+    }
     let joined = if Path::new(input).is_absolute() {
         PathBuf::from(input)
     } else {
