@@ -8,7 +8,12 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-No changes yet.
+### Added
+- **AI access (test version)**: AI clients can use MurmurSSH via MCP (`murmurssh --mcp`).
+  Works only with a token created in Settings → AI access; each token has its own
+  permissions (read, download, upload, write, delete, exec), allowed profiles, remote and
+  local folder and optional expiry. Deleting and running commands always need a click in
+  MurmurSSH. Audit log in `~/.config/murmurssh/ai_audit.jsonl`. See `docs/ai-access.md`.
 
 ---
 

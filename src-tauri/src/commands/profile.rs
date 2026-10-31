@@ -54,6 +54,9 @@ pub fn delete_profile(id: String) -> Result<(), String> {
     // Clear session store so no stale credential lingers after deletion
     credentials_store::clear(&id);
 
+    // A later profile reusing this id must not inherit AI access.
+    crate::services::ai_token_service::forget_profile(&id);
+
     profile_service::delete_profile(&id)
 }
 

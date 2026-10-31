@@ -11,18 +11,32 @@ fn cleanup_on_exit() {
     services::runtime_key_service::cleanup_all_runtime_keys();
     services::credentials_store::clear_all();
     services::remote_copy::wipe_own_tmp();
+    services::ai_server::stop();
 }
 
 pub fn run() {
+    // `murmurssh --mcp`: stdio MCP bridge for AI clients, no window.
+    if std::env::args().skip(1).any(|a| a == "--mcp") {
+        std::process::exit(services::ai_mcp_bridge::run());
+    }
     services::launch_service::capture_launch_arg();
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             services::remote_copy::wipe_stale_tmp();
             services::transfer_queue::init(app.handle());
+            services::ai_server::init(app.handle());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::ai::ai_status,
+            commands::ai::ai_set_enabled,
+            commands::ai::ai_list_tokens,
+            commands::ai::ai_create_token,
+            commands::ai::ai_update_token,
+            commands::ai::ai_revoke_token,
+            commands::ai::ai_bridge_command,
+            commands::ai::ai_confirm_response,
             commands::connection::connect_sftp,
             commands::connection::accept_host_key,
             commands::connection::accept_host_key_once,

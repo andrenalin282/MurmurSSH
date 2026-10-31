@@ -119,3 +119,55 @@ export interface UploadReadyPayload {
   local_path: string;
   remote_path: string;
 }
+
+// ── AI access (MCP) ──────────────────────────────────────────────────────────
+
+export interface AiCaps {
+  read: boolean;
+  download: boolean;
+  upload: boolean;
+  write: boolean;
+  delete: boolean;
+  exec: boolean;
+  confirm_writes: boolean;
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  listening: boolean;
+  socket_path: string;
+  audit_path: string;
+}
+
+export interface AiTokenInput {
+  name: string;
+  profiles: string[];
+  caps: AiCaps;
+  remote_root: string | null;
+  local_root: string | null;
+  expires_in_days: number | null;
+}
+
+/** Times are unix seconds. */
+export interface AiTokenView {
+  id: string;
+  name: string;
+  prefix: string;
+  profiles: string[];
+  caps: AiCaps;
+  remote_root: string | null;
+  local_root: string | null;
+  created_at: number;
+  expires_at: number | null;
+  last_used_at: number | null;
+}
+
+/** Emitted by the backend as `ai-confirm-request`. */
+export interface AiConfirmRequest {
+  request_id: string;
+  token_name: string;
+  profile_name: string;
+  action: "delete" | "exec" | "upload" | "write" | "download";
+  summary: string;
+  detail: string;
+}

@@ -330,3 +330,29 @@ export async function createLocalDir(path) {
 export async function deleteLocalPath(path) {
     return invoke("delete_local_path", { path });
 }
+// ── AI access (MCP) ──────────────────────────────────────────────────────────
+export async function aiStatus() {
+    return invoke("ai_status");
+}
+export async function aiSetEnabled(enabled) {
+    return invoke("ai_set_enabled", { enabled });
+}
+export async function aiListTokens() {
+    return invoke("ai_list_tokens");
+}
+/** The returned `secret` is shown once and can never be retrieved again. */
+export async function aiCreateToken(input) {
+    return invoke("ai_create_token", { input });
+}
+export async function aiUpdateToken(id, input) {
+    return invoke("ai_update_token", { id, input });
+}
+export async function aiRevokeToken(id) {
+    return invoke("ai_revoke_token", { id });
+}
+export async function aiBridgeCommand() {
+    return invoke("ai_bridge_command");
+}
+export async function aiConfirmResponse(requestId, approved) {
+    return invoke("ai_confirm_response", { requestId, approved });
+}

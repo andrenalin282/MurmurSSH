@@ -1025,6 +1025,91 @@ pub fn is_remote_dir(profile: &Profile, path: &str) -> Result<bool, String> {
     Ok(stat.is_dir())
 }
 
+/// realpath for several paths over ONE session; `None` where the server cannot resolve.
+/// Used by the AI-access jail so a symlink inside the allowed root cannot lead outside it.
+pub fn realpath_many(profile: &Profile, paths: &[String]) -> Result<Vec<Option<String>>, String> {
+    let session = connect(profile)?;
+    let sftp = session.sftp().map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+    Ok(paths
+        .iter()
+        .map(|p| sftp.realpath(Path::new(p)).ok().map(|r| r.to_string_lossy().into_owned()))
+        .collect())
+}
+
+/// Relative entries `(path, is_dir)` plus skipped relative paths.
+pub type TreeListing = (Vec<(String, bool)>, Vec<String>);
+
+/// lstat (does NOT follow a final symlink): `Some((is_dir, is_symlink))` or `None` when absent.
+pub fn remote_lkind(profile: &Profile, path: &str) -> Result<Option<(bool, bool)>, String> {
+    let session = connect(profile)?;
+    let sftp = session.sftp().map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+    Ok(sftp.lstat(Path::new(path)).ok().map(|s| (s.is_dir(), s.file_type().is_symlink())))
+}
+
+/// List a remote tree WITHOUT following symlinks (readdir attributes are lstat-like).
+/// Returns relative paths with `is_dir`, plus the relative paths of skipped symlinks /
+/// special files. Fails (instead of truncating) once more than `max` entries are seen.
+pub fn walk_remote_tree(
+    profile: &Profile,
+    root: &str,
+    max: usize,
+) -> Result<TreeListing, String> {
+    let session = connect(profile)?;
+    let sftp = session.sftp().map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+    let mut entries = Vec::new();
+    let mut skipped = Vec::new();
+    let mut stack = vec![String::new()];
+    while let Some(rel) = stack.pop() {
+        let dir = if rel.is_empty() { root.to_string() } else { format!("{}/{}", root.trim_end_matches('/'), rel) };
+        let list = sftp.readdir(Path::new(&dir)).map_err(|e| format!("Cannot list '{}': {}", dir, e))?;
+        for (path, stat) in list {
+            let name = match path.file_name() {
+                Some(n) => n.to_string_lossy().into_owned(),
+                None => continue,
+            };
+            if name == "." || name == ".." {
+                continue;
+            }
+            let child = if rel.is_empty() { name } else { format!("{}/{}", rel, name) };
+            let ft = stat.file_type();
+            if ft.is_dir() {
+                entries.push((child.clone(), true));
+                stack.push(child);
+            } else if ft.is_file() {
+                entries.push((child, false));
+            } else {
+                skipped.push(child);
+            }
+            if entries.len() > max {
+                return Err(format!("More than {} entries below '{}'", max, root));
+            }
+        }
+    }
+    Ok((entries, skipped))
+}
+
+/// Read a remote file completely, refusing (not truncating) files above `max` bytes.
+pub fn read_file_limited(profile: &Profile, path: &str, max: u64) -> Result<Vec<u8>, String> {
+    let session = connect(profile)?;
+    let sftp = session.sftp().map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+    let stat = sftp.stat(Path::new(path)).map_err(|e| format!("Cannot stat '{}': {}", path, e))?;
+    if stat.is_dir() {
+        return Err(format!("'{}' is a directory", path));
+    }
+    if stat.size.unwrap_or(0) > max {
+        return Err(format!("'{}' is larger than {} bytes", path, max));
+    }
+    let file = sftp.open(Path::new(path)).map_err(|e| format!("Cannot open '{}': {}", path, e))?;
+    let mut buf = Vec::new();
+    file.take(max + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| format!("Read failed for '{}': {}", path, e))?;
+    if buf.len() as u64 > max {
+        return Err(format!("'{}' is larger than {} bytes", path, max));
+    }
+    Ok(buf)
+}
+
 /// Sentinel returned by `exec_command` when `opts.timeout` elapses before the
 /// remote command finishes. Distinct from a generic failure so callers (e.g. the
 /// exec-capability probe) can tell "the server didn't answer in time" apart from

@@ -11,7 +11,7 @@ import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
 import { showUpdateAvailableDialog } from "./components/update-dialog";
 import { StatusBar } from "./components/status-bar";
-import { showConfirm } from "./components/dialog";
+import { showConfirm, showAiConfirm } from "./components/dialog";
 import { showOverwriteDialog } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
@@ -459,6 +459,44 @@ async function verifyConnection(profileId, password, passphrase) {
         return false;
     }
 }
+// AI (MCP) confirmation requests: shown strictly one at a time, each answered exactly once.
+// Each entry keeps the time it arrived: the backend waits 120 s from emit, so a
+// request queued behind another dialog must not get a fresh full timeout.
+const aiConfirmQueue = [];
+let aiConfirmBusy = false;
+async function drainAiConfirms() {
+    if (aiConfirmBusy)
+        return;
+    aiConfirmBusy = true;
+    try {
+        let item;
+        while ((item = aiConfirmQueue.shift())) {
+            const { req, deadline } = item;
+            let approved = false;
+            if (deadline > Date.now()) {
+                try {
+                    approved = await showAiConfirm(req, deadline);
+                }
+                catch {
+                    approved = false;
+                }
+            }
+            try {
+                await api.aiConfirmResponse(req.request_id, approved);
+            }
+            catch (err) {
+                console.error("ai_confirm_response failed", err);
+            }
+        }
+    }
+    finally {
+        aiConfirmBusy = false;
+    }
+}
+listen("ai-confirm-request", (event) => {
+    aiConfirmQueue.push({ req: event.payload, deadline: Date.now() + 115000 });
+    void drainAiConfirms();
+});
 // Handle confirm-mode upload: backend detected a save, ask the user.
 // Coalesce repeated saves: while a confirm/upload for a remote path is still
 // being resolved, ignore further upload-ready events for that same path so

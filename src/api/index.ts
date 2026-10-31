@@ -1,5 +1,14 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { FileEntry, Profile, Settings, TransferJobView, UpdateCheckResult } from "../types";
+import type {
+  AiStatus,
+  AiTokenInput,
+  AiTokenView,
+  FileEntry,
+  Profile,
+  Settings,
+  TransferJobView,
+  UpdateCheckResult,
+} from "../types";
 
 export async function listProfiles(): Promise<Profile[]> {
   return invoke("list_profiles");
@@ -459,4 +468,41 @@ export async function createLocalDir(path: string): Promise<void> {
 /** Delete a local file, symlink (never its target), or directory recursively. */
 export async function deleteLocalPath(path: string): Promise<void> {
   return invoke("delete_local_path", { path });
+}
+
+// ── AI access (MCP) ──────────────────────────────────────────────────────────
+
+export async function aiStatus(): Promise<AiStatus> {
+  return invoke("ai_status");
+}
+
+export async function aiSetEnabled(enabled: boolean): Promise<AiStatus> {
+  return invoke("ai_set_enabled", { enabled });
+}
+
+export async function aiListTokens(): Promise<AiTokenView[]> {
+  return invoke("ai_list_tokens");
+}
+
+/** The returned `secret` is shown once and can never be retrieved again. */
+export async function aiCreateToken(
+  input: AiTokenInput
+): Promise<{ token: AiTokenView; secret: string }> {
+  return invoke("ai_create_token", { input });
+}
+
+export async function aiUpdateToken(id: string, input: AiTokenInput): Promise<AiTokenView> {
+  return invoke("ai_update_token", { id, input });
+}
+
+export async function aiRevokeToken(id: string): Promise<void> {
+  return invoke("ai_revoke_token", { id });
+}
+
+export async function aiBridgeCommand(): Promise<string> {
+  return invoke("ai_bridge_command");
+}
+
+export async function aiConfirmResponse(requestId: string, approved: boolean): Promise<void> {
+  return invoke("ai_confirm_response", { requestId, approved });
 }
