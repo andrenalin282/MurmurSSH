@@ -113,7 +113,9 @@ Rules that always apply:
   A command that hits the 60 s limit may keep running on the server.
 - `murmur_list_profiles` is compact (id, name, `user@host`, port if not 22, remote path,
   local folder, `always_allowed` — always present, `[]` when none; no key paths) and
-  takes an optional `query` filter (id/name/host substring).
+  takes an optional `query` filter (id/name/host substring); `matched` counts the result,
+  `token_covers_all_profiles` is the token scope (independent of the filter). Delete
+  grants without an end stored by older test builds are ignored on load and at use time.
   Transfer answers report `files`, `dirs` and `bytes`.
 - The Approve button is
   enabled after 1.5 s and only reacts to a mouse click (not Enter/Space), so typing

@@ -16,7 +16,8 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   exec stderr separate; transfer results with files/dirs/bytes. Delete approvals only for
   1 h / until restart; `always_allowed` always listed (also `[]`); dock badge while
   confirmations wait, "expired" notification, and timeout answers say whether the dialog
-  was displayed. Settings → AI access: wider dialog, profile picker with filter and
+  was displayed; older endless delete approvals are ignored; `list_profiles` gains
+  `matched` and `token_covers_all_profiles`. Settings → AI access: wider dialog, profile picker with filter and
   two-column scroll list (checkboxes no longer push the profile names out of view).
 - **AI access – usability**: token option “All profiles (incl. future ones)”, “Allow everything”
   button, aligned checkboxes; profile local folder as fallback; `~`/relative remote paths;

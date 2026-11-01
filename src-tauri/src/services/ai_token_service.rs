@@ -66,7 +66,7 @@ fn load() -> Result<AiStore, String> {
     // A new process = a new app session: drop "until restart" and expired grants.
     let t = now();
     for tok in s.tokens.iter_mut() {
-        tok.grants.retain(|g| !g.session_only && g.expires_at.is_none_or(|e| t < e));
+        tok.grants.retain(|g| !g.session_only && grant_live(g, t));
     }
     *c = Some(s.clone());
     Ok(s)
@@ -276,6 +276,14 @@ pub fn revoke_grant(token_id: &str, grant_id: &str) -> Result<(), String> {
     save(&store)
 }
 
+/// Is a stored grant usable at time `t`? Not expired, and never an endless delete
+/// grant: those could be stored before delete was limited to 1 h / until restart,
+/// so they are rejected on load AND at use time, not only when created.
+fn grant_live(g: &AiGrant, t: u64) -> bool {
+    let endless_delete = g.action == "delete" && g.expires_at.is_none() && !g.session_only;
+    !endless_delete && g.expires_at.is_none_or(|e| t < e)
+}
+
 /// Active standing approvals of a token for one profile (fresh from the store).
 pub fn active_grants(token_id: &str, profile: &str) -> Vec<AiGrant> {
     let _g = lock();
@@ -286,7 +294,7 @@ pub fn active_grants(token_id: &str, profile: &str) -> Vec<AiGrant> {
         .map(|tok| {
             tok.grants
                 .into_iter()
-                .filter(|g| g.profile == profile && g.expires_at.is_none_or(|e| t < e))
+                .filter(|g| g.profile == profile && grant_live(g, t))
                 .collect()
         })
         .unwrap_or_default()
@@ -368,6 +376,23 @@ mod tests {
         assert!(ct_eq(&a, &hash_secret("mssh_x")));
         assert!(!ct_eq(&a, &hash_secret("mssh_y")));
         assert!(!ct_eq("ab", "abc"));
+    }
+
+    #[test]
+    fn loaded_endless_delete_grant_is_dropped() {
+        // As stored by the previous version (delete "forever").
+        let old: AiGrant = serde_json::from_str(
+            r#"{"id":"a1","profile":"p","action":"delete","created_at":1,"expires_at":null,"session_only":false}"#,
+        )
+        .unwrap();
+        assert!(!grant_live(&old, 100));
+        let hour = AiGrant { expires_at: Some(200), ..old.clone() };
+        assert!(grant_live(&hour, 100));
+        assert!(!grant_live(&hour, 200));
+        let session = AiGrant { session_only: true, ..old.clone() };
+        assert!(grant_live(&session, 100));
+        let upload = AiGrant { action: "upload".into(), ..old };
+        assert!(grant_live(&upload, 100));
     }
 
     #[test]

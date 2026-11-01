@@ -580,8 +580,10 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
             }
             let staging = ai_token_service::ensure_staging_dir(&tok.id)?.to_string_lossy().into_owned();
             Ok(json!({
+                "matched": out.len(),
                 "profiles": out,
-                "all_profiles": tok.all_profiles,
+                // Token scope, independent of `query`: does the token cover every profile?
+                "token_covers_all_profiles": tok.all_profiles,
                 "permissions": tok.caps,
                 "remote_root": tok.remote_root,
                 "local_folder": tok.local_root.clone().unwrap_or_else(|| staging.clone()),

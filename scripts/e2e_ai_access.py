@@ -69,7 +69,9 @@ store = {"enabled": True, "tokens": [
     tok(G, name="granted", caps={"write": True, "delete": True, "exec": True, "confirm_writes": True}, grants=[
         {"id": "g1", "profile": "e2e", "action": "all", "created_at": 1, "expires_at": None, "session_only": False},
         {"id": "g2", "profile": "e2e", "action": "delete", "created_at": 1, "expires_at": None, "session_only": True},
-        {"id": "g3", "profile": "other", "action": "exec", "created_at": 1, "expires_at": 1, "session_only": False}])]}
+        {"id": "g3", "profile": "other", "action": "exec", "created_at": 1, "expires_at": 1, "session_only": False},
+        # Endless delete grant as stored by an older build: must be ignored.
+        {"id": "g4", "profile": "e2e", "action": "delete", "created_at": 1, "expires_at": None, "session_only": False}])]}
 def write_store():
     json.dump(store, open(f"{CFG}/ai_access.json", "w")); os.chmod(f"{CFG}/ai_access.json", 0o600)
 
@@ -246,6 +248,7 @@ x = Bridge(G); x.rpc("initialize", {"protocolVersion": "2025-06-18"})
 err, txt = x.call("murmur_list_profiles")
 aa = [g["action"] for pr in (json.loads(txt)["profiles"] if not err else []) for g in pr.get("always_allowed", [])]
 check("list_profiles shows only live standing approvals", aa == ["all"], txt)
+check("list_profiles: matched count + token scope key", not err and json.loads(txt).get("matched") == len(json.loads(txt)["profiles"]) and "token_covers_all_profiles" in json.loads(txt), txt)
 check("always_allowed present on every profile (also [])", not err and all(isinstance(pr.get("always_allowed"), list) for pr in json.loads(txt)["profiles"]), txt)
 t0 = time.time(); err, txt = x.call("murmur_mkdir", profile="e2e", path="/config/ai/granted")
 check("grant 'all': mkdir without click", not err and time.time() - t0 < 30 and dexec("test -d /config/ai/granted && echo y").stdout.strip() == "y", txt)
@@ -263,7 +266,7 @@ print("waiting ~90 s for unanswered confirmations ...", flush=True)
 for t in th: t.start()
 for t in th: t.join(200)
 d, e, gd = out.get("delete"), out.get("exec"), out.get("gdelete")
-check("grant 'all' does not cover delete; restart drops 'until restart' grant", gd and gd[0] and "timed out" in gd[1].lower() and dexec("test -d /config/ai/granted && echo y").stdout.strip() == "y", gd)
+check("grant 'all' does not cover delete; 'until restart' and old endless delete grants ignored", gd and gd[0] and "timed out" in gd[1].lower() and dexec("test -d /config/ai/granted && echo y").stdout.strip() == "y", gd)
 check("timeout is 90 s", d and 80 < d[2] < 110, d)
 check("delete without click times out, file kept", d and d[0] and "timed out" in d[1].lower() and dexec("cat /config/ai/hello.txt").stdout.strip() == "hello", d)
 check("exec without click times out, not run", e and e[0] and "timed out" in e[1].lower() and dexec("test -e /config/ai/pwned || echo none").stdout.strip() == "none", e)
