@@ -529,15 +529,15 @@ async function drainAiConfirms(): Promise<void> {
       // Expired (or dialog closed by its own deadline): send nothing, so the backend
       // reports "timed out" (retry allowed) instead of a final "denied by the user".
       if (deadline <= Date.now()) continue;
-      let approved: boolean | null;
+      let res;
       try {
-        approved = await showAiConfirm(req, deadline);
+        res = await showAiConfirm(req, deadline);
       } catch {
-        approved = false;
+        res = { approved: false, grant: null };
       }
-      if (approved === null) continue;
+      if (res === null) continue;
       try {
-        await api.aiConfirmResponse(req.request_id, approved);
+        await api.aiConfirmResponse(req.request_id, res.approved, res.grant);
       } catch (err) {
         console.error("ai_confirm_response failed", err);
       }
@@ -547,7 +547,9 @@ async function drainAiConfirms(): Promise<void> {
   }
 }
 listen<AiConfirmRequest>("ai-confirm-request", (event) => {
-  aiConfirmQueue.push({ req: event.payload, deadline: Date.now() + 115_000 });
+  // Close the dialog 5 s before the backend gives up, so a late click never counts.
+  const secs = Math.max(10, (event.payload.timeout_secs || 90) - 5);
+  aiConfirmQueue.push({ req: event.payload, deadline: Date.now() + secs * 1000 });
   void drainAiConfirms();
 });
 

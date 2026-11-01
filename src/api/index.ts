@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AiStatus,
   AiTokenInput,
-  AiTokenView,
+  AiTokenView, AiGrantChoice,
   FileEntry,
   Profile,
   Settings,
@@ -503,6 +503,14 @@ export async function aiBridgeCommand(): Promise<string> {
   return invoke("ai_bridge_command");
 }
 
-export async function aiConfirmResponse(requestId: string, approved: boolean): Promise<void> {
-  return invoke("ai_confirm_response", { requestId, approved });
+export async function aiConfirmResponse(
+  requestId: string,
+  approved: boolean,
+  grant: AiGrantChoice | null = null
+): Promise<void> {
+  return invoke("ai_confirm_response", { requestId, approved, grant });
+}
+
+export async function aiRevokeGrant(tokenId: string, grantId: string): Promise<void> {
+  return invoke("ai_revoke_grant", { tokenId, grantId });
 }

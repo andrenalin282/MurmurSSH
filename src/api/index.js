@@ -353,6 +353,9 @@ export async function aiRevokeToken(id) {
 export async function aiBridgeCommand() {
     return invoke("ai_bridge_command");
 }
-export async function aiConfirmResponse(requestId, approved) {
-    return invoke("ai_confirm_response", { requestId, approved });
+export async function aiConfirmResponse(requestId, approved, grant = null) {
+    return invoke("ai_confirm_response", { requestId, approved, grant });
+}
+export async function aiRevokeGrant(tokenId, grantId) {
+    return invoke("ai_revoke_grant", { tokenId, grantId });
 }

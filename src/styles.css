@@ -926,6 +926,7 @@ button:disabled {
   padding: 6px 10px;
 }
 
+label.ai-check,
 .form-field label.ai-check {
   display: flex;
   align-items: center;
@@ -937,6 +938,7 @@ button:disabled {
   padding: 2px 0;
 }
 
+label.ai-check input,
 .form-field label.ai-check input {
   margin: 0;
   padding: 0;

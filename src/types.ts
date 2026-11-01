@@ -163,13 +163,30 @@ export interface AiTokenView {
   created_at: number;
   expires_at: number | null;
   last_used_at: number | null;
+  grants: AiGrant[];
 }
 
 /** Emitted by the backend as `ai-confirm-request`. */
+export interface AiGrant {
+  id: string;
+  profile: string;
+  action: "upload" | "download" | "write" | "exec" | "delete" | "all";
+  created_at: number;
+  expires_at: number | null;
+  session_only: boolean;
+}
+
+export interface AiGrantChoice {
+  scope: "action" | "all";
+  duration: "hour" | "session" | "forever";
+}
+
 export interface AiConfirmRequest {
   request_id: string;
   token_name: string;
+  profile_id: string;
   profile_name: string;
+  timeout_secs: number;
   action: "delete" | "exec" | "upload" | "write" | "download";
   summary: string;
   detail: string;

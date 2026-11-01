@@ -147,6 +147,37 @@ export async function showAiAccessDialog() {
             row.appendChild(el("div", "form-field__hint", (tok.expires_at ? t("ai.expiresOn", { date: fmtDate(tok.expires_at) }) : t("ai.expiresNever")) +
                 " · " +
                 (tok.last_used_at ? t("ai.lastUsed", { date: fmtDate(tok.last_used_at) }) : t("ai.lastUsedNever"))));
+            // Standing approvals ("always allow"), each revocable.
+            if (tok.grants.length > 0) {
+                row.appendChild(el("div", "form-field__hint", t("ai.grantsLabel")));
+                for (const g of tok.grants) {
+                    const gl = el("div", "form-field__row");
+                    gl.style.alignItems = "center";
+                    gl.style.gap = "8px";
+                    const until = g.session_only
+                        ? t("ai.grantSession")
+                        : g.expires_at
+                            ? t("ai.grantUntil", { date: fmtDate(g.expires_at) })
+                            : t("ai.grantForever");
+                    const txt = el("span", g.action === "delete" ? "form-field__danger" : "", `${profileNames.get(g.profile) ?? g.profile}: ${t(`ai.act_${g.action}`)} (${until})`);
+                    txt.style.flex = "1";
+                    txt.style.fontSize = "12px";
+                    const rg = button(t("ai.revokeGrant"));
+                    rg.addEventListener("click", async () => {
+                        try {
+                            await api.aiRevokeGrant(tok.id, g.id);
+                        }
+                        catch (err) {
+                            enErr.textContent = String(err);
+                            enErr.style.display = "";
+                            return;
+                        }
+                        await renderList();
+                    });
+                    gl.append(txt, rg);
+                    row.appendChild(gl);
+                }
+            }
             const btns = el("div", "form-field__row");
             btns.style.gap = "8px";
             btns.style.marginTop = "6px";

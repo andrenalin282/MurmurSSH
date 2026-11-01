@@ -36,6 +36,29 @@ impl Default for AiCaps {
     }
 }
 
+/// A standing approval, created only by ticking the box in a confirmation dialog.
+/// `action` is upload / download / write / exec / delete, or `all` (= everything
+/// except delete). `session_only` grants are dropped when the app starts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AiGrant {
+    pub id: String,
+    pub profile: String,
+    pub action: String,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+    #[serde(default)]
+    pub session_only: bool,
+}
+
+/// What the user ticked in the confirmation dialog (only honoured with an approval).
+#[derive(Debug, Clone, Deserialize)]
+pub struct AiGrantChoice {
+    /// "action" (this action type) or "all" (everything except delete).
+    pub scope: String,
+    /// "hour", "session" (until MurmurSSH restarts) or "forever".
+    pub duration: String,
+}
+
 /// Stored token. Only the SHA-256 of the secret is kept; the secret is shown once.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiToken {
@@ -53,6 +76,8 @@ pub struct AiToken {
     pub created_at: u64,
     pub expires_at: Option<u64>,
     pub last_used_at: Option<u64>,
+    #[serde(default)]
+    pub grants: Vec<AiGrant>,
 }
 
 /// Token as shown in the GUI (never contains the hash or the secret).
@@ -69,6 +94,7 @@ pub struct AiTokenView {
     pub created_at: u64,
     pub expires_at: Option<u64>,
     pub last_used_at: Option<u64>,
+    pub grants: Vec<AiGrant>,
 }
 
 impl From<&AiToken> for AiTokenView {
@@ -85,6 +111,7 @@ impl From<&AiToken> for AiTokenView {
             created_at: t.created_at,
             expires_at: t.expires_at,
             last_used_at: t.last_used_at,
+            grants: t.grants.clone(),
         }
     }
 }
@@ -129,7 +156,10 @@ pub struct AiStatus {
 pub struct AiConfirmRequest {
     pub request_id: String,
     pub token_name: String,
+    pub profile_id: String,
     pub profile_name: String,
+    /// Seconds the backend waits for an answer.
+    pub timeout_secs: u64,
     pub action: String,
     pub summary: String,
     pub detail: String,

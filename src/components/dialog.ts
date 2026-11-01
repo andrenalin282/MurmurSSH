@@ -1,5 +1,5 @@
 import { t } from "../i18n/index";
-import type { AiConfirmRequest } from "../types";
+import type { AiConfirmRequest, AiGrantChoice } from "../types";
 
 function escHtml(s: string): string {
   return s
@@ -277,8 +277,13 @@ export function showConfirm(message: string, title?: string): Promise<boolean> {
  * a real mouse click after a short delay, so keystrokes typed elsewhere (the AI picks
  * the moment the dialog appears) or a double click on a previous dialog cannot approve.
  */
-/** Resolves true/false on a click, null when the deadline passes (the backend then reports a timeout, not a denial). */
-export function showAiConfirm(req: AiConfirmRequest, deadline = Date.now() + 115_000): Promise<boolean | null> {
+export interface AiConfirmResult {
+  approved: boolean;
+  grant: AiGrantChoice | null;
+}
+
+/** Resolves on a click; null when the deadline passes (the backend then reports a timeout, not a denial). */
+export function showAiConfirm(req: AiConfirmRequest, deadline = Date.now() + 85_000): Promise<AiConfirmResult | null> {
   return new Promise((resolve) => {
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay";
@@ -317,6 +322,53 @@ export function showAiConfirm(req: AiConfirmRequest, deadline = Date.now() + 115
       body.appendChild(pre);
     }
 
+    // "Always allow" for this token + profile (only applied together with Approve).
+    const always = document.createElement("div");
+    always.style.marginTop = "10px";
+    const mkCheck = (text: string) => {
+      const l = document.createElement("label");
+      l.className = "ai-check";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      l.append(cb, document.createTextNode(text));
+      always.appendChild(l);
+      return cb;
+    };
+    const cbAction = mkCheck(t("ai.alwaysAction", { action: t(`ai.act_${req.action}`) }));
+    const cbAll = req.action === "delete" ? null : mkCheck(t("ai.alwaysAll"));
+    const durRow = document.createElement("label");
+    durRow.className = "ai-check";
+    const dur = document.createElement("select");
+    for (const d of ["hour", "session", "forever"] as const) {
+      const o = document.createElement("option");
+      o.value = d;
+      o.textContent = t(`ai.dur_${d}`);
+      dur.appendChild(o);
+    }
+    durRow.append(document.createTextNode(t("ai.alwaysFor")), dur);
+    always.appendChild(durRow);
+    const syncDur = () => {
+      dur.disabled = !(cbAction.checked || cbAll?.checked);
+    };
+    cbAction.addEventListener("change", () => {
+      if (cbAction.checked && cbAll) cbAll.checked = false;
+      syncDur();
+    });
+    cbAll?.addEventListener("change", () => {
+      if (cbAll.checked) cbAction.checked = false;
+      syncDur();
+    });
+    syncDur();
+    body.appendChild(always);
+    const left = document.createElement("div");
+    left.className = "form-field__hint";
+    const tick = () => {
+      left.textContent = t("ai.timeLeft", { s: String(Math.max(0, Math.round((deadline - Date.now()) / 1000))) });
+    };
+    tick();
+    const ticker = setInterval(tick, 1000);
+    body.appendChild(left);
+
     const actions = document.createElement("div");
     actions.className = "modal__actions";
     const deny = document.createElement("button");
@@ -336,17 +388,23 @@ export function showAiConfirm(req: AiConfirmRequest, deadline = Date.now() + 115
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
 
-    // The backend auto-denies after 120 s; close a bit earlier so a late click
+    // The backend times out after 90 s; close a bit earlier so a late click
     // can never look like an approval that was actually discarded.
     const expiry = setTimeout(() => done(null), Math.max(0, deadline - Date.now()));
-    const done = (result: boolean | null) => {
+    const done = (result: AiConfirmResult | null) => {
       clearTimeout(expiry);
+      clearInterval(ticker);
       overlay.remove();
       resolve(result);
     };
-    deny.addEventListener("click", () => done(false));
+    deny.addEventListener("click", () => done({ approved: false, grant: null }));
     // detail === 0 means keyboard activation; only a pointer click approves.
-    approve.addEventListener("click", (e) => { if (e.detail > 0 && !approve.disabled) done(true); });
+    approve.addEventListener("click", (e) => {
+      if (e.detail === 0 || approve.disabled) return;
+      const scope = cbAll?.checked ? "all" : cbAction.checked ? "action" : null;
+      const duration = dur.value as AiGrantChoice["duration"];
+      done({ approved: true, grant: scope ? { scope, duration } : null });
+    });
     setTimeout(() => deny.focus(), 10);
   });
 }

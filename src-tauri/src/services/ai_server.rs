@@ -21,7 +21,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::models::ai::{AiConfirmRequest, AiStatus, AiToken};
+use crate::models::ai::{AiConfirmRequest, AiGrantChoice, AiStatus, AiToken};
 use crate::models::{AuthType, CredentialStorageMode, Profile, Protocol};
 use crate::services::ai_guard::{self, Cap};
 use crate::services::{
@@ -31,7 +31,8 @@ use crate::services::{
 
 const MAX_REQUEST_BYTES: u64 = 256 * 1024;
 const MAX_CONNECTIONS: usize = 4;
-const CONFIRM_TIMEOUT: Duration = Duration::from_secs(120);
+/// Below Claude Code's 120 s tool timeout, so the answer still reaches the AI call.
+const CONFIRM_TIMEOUT: Duration = Duration::from_secs(90);
 const READ_FILE_MAX: u64 = 512 * 1024;
 const EXEC_TIMEOUT: Duration = Duration::from_secs(60);
 const EXEC_OUTPUT_MAX: usize = 256 * 1024;
@@ -41,8 +42,17 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 static LISTENING: AtomicBool = AtomicBool::new(false);
 static ACTIVE: AtomicUsize = AtomicUsize::new(0);
 
-fn pending() -> &'static Mutex<HashMap<String, mpsc::Sender<bool>>> {
-    static P: OnceLock<Mutex<HashMap<String, mpsc::Sender<bool>>>> = OnceLock::new();
+/// A confirmation waiting for the GUI. Token/profile/action let an approval with
+/// "always allow" create the matching standing grant.
+struct Pending {
+    tx: mpsc::Sender<bool>,
+    token_id: String,
+    profile_id: String,
+    action: String,
+}
+
+fn pending() -> &'static Mutex<HashMap<String, Pending>> {
+    static P: OnceLock<Mutex<HashMap<String, Pending>>> = OnceLock::new();
     P.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -109,8 +119,8 @@ pub fn stop() {
     crate::services::ssh_session_service::remove_ai_pins();
     // Deny everything still waiting for a click.
     let mut p = pending().lock().unwrap_or_else(|e| e.into_inner());
-    for (_, tx) in p.drain() {
-        let _ = tx.send(false);
+    for (_, w) in p.drain() {
+        let _ = w.tx.send(false);
     }
 }
 
@@ -284,11 +294,8 @@ fn expand_home(profile: &Profile, raw: &str) -> Result<String, String> {
     Ok(if rest.is_empty() { home } else { format!("{}/{}", home.trim_end_matches('/'), rest) })
 }
 
-/// Local folder for transfers: the token's own, else the profile's local folder.
-fn local_root_for(tok: &AiToken, profile: &Profile) -> Option<String> {
-    if tok.local_root.is_some() {
-        return tok.local_root.clone();
-    }
+/// The profile's local folder (as last used in the local browser), if it exists.
+fn profile_local_folder(profile: &Profile) -> Option<String> {
     let stored = if profile.credential_storage_mode == Some(CredentialStorageMode::PortableProfile) {
         let user = crate::services::local_service::get_current_user();
         profile.local_paths_by_user.as_ref().and_then(|m| m.get(&user)).cloned()
@@ -298,48 +305,110 @@ fn local_root_for(tok: &AiToken, profile: &Profile) -> Option<String> {
     stored.filter(|p| std::path::Path::new(p).is_dir())
 }
 
-const NO_LOCAL_FOLDER: &str = "No local folder for transfers. The user can set one in MurmurSSH: Settings → AI access → edit the token → 'Local folder', or set the profile's local folder (profile form).";
+/// Local folders a transfer may use, primary first (relative paths go there):
+/// the token's folder if set, else the token's own staging folder; plus the staging
+/// folder and (without a token folder) the profile's local folder for absolute paths.
+fn local_roots(tok: &AiToken, profile: &Profile) -> Result<Vec<String>, String> {
+    let staging = ai_token_service::ensure_staging_dir(&tok.id)?.to_string_lossy().into_owned();
+    let mut roots = Vec::new();
+    if let Some(r) = &tok.local_root {
+        roots.push(r.clone());
+        roots.push(staging);
+    } else {
+        roots.push(staging);
+        if let Some(p) = profile_local_folder(profile) {
+            roots.push(p);
+        }
+    }
+    Ok(roots)
+}
 
 fn local_path(tok: &AiToken, profile: &Profile, raw: &str) -> Result<PathBuf, String> {
-    let root = local_root_for(tok, profile).ok_or(NO_LOCAL_FOLDER)?;
     let home = std::env::var("HOME").ok().and_then(|h| std::fs::canonicalize(h).ok());
-    ai_guard::resolve_local(&root, raw, home.as_deref())
+    let roots = local_roots(tok, profile)?;
+    if !std::path::Path::new(raw).is_absolute() {
+        return ai_guard::resolve_local(&roots[0], raw, home.as_deref());
+    }
+    let mut first_err = None;
+    for r in &roots {
+        match ai_guard::resolve_local(r, raw, home.as_deref()) {
+            Ok(p) => return Ok(p),
+            Err(e) => {
+                first_err.get_or_insert(e);
+            }
+        }
+    }
+    Err(format!(
+        "{} Allowed local folders: {}",
+        first_err.unwrap_or_default(),
+        roots.join(", ")
+    ))
 }
 
 /// Desktop notification so a waiting request is noticed even when MurmurSSH is hidden.
-fn notify_desktop(action: &str, summary: &str) {
+fn notify_desktop(action: &str, profile: &str, summary: &str) {
     let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
     let _ = std::process::Command::new("notify-send")
         .args(["-a", "MurmurSSH", "-u", "critical", "-i", "dialog-question", "--"])
-        .arg(format!("MurmurSSH: AI asks to {} (click within 120 s)", esc(action)))
-        .arg(esc(summary))
+        .arg(format!("MurmurSSH: AI asks to {} ({})", esc(action), esc(profile)))
+        .arg(format!("{} — approve in the MurmurSSH window within {} s", esc(summary), CONFIRM_TIMEOUT.as_secs()))
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn();
 }
 
+/// Window title while confirmations wait, so the serving window is easy to find
+/// (with several MurmurSSH windows only the first one answers the AI).
+fn mark_waiting(app: &AppHandle, waiting: bool) {
+    static TITLE: OnceLock<String> = OnceLock::new();
+    if let Some(w) = app.get_webview_window("main") {
+        let base = TITLE.get_or_init(|| w.title().unwrap_or_else(|_| "MurmurSSH".to_string()));
+        let _ = w.set_title(&if waiting { format!("⚠ AI confirmation waiting — {}", base) } else { base.clone() });
+    }
+}
+
 fn confirm(ctx: &mut Ctx, profile: &Profile, action: &str, summary: String, detail: String) -> Result<(), String> {
+    // Standing approval from an earlier dialog ("always allow for this profile").
+    if ai_token_service::still_valid(&ctx.tok.id) && ai_token_service::is_granted(&ctx.tok.id, &profile.id, action) {
+        ctx.confirmed = Some(true);
+        return Ok(());
+    }
     let app = APP.get().ok_or("MurmurSSH window not ready")?;
     let id = ai_token_service::random_hex(12)?;
     let (tx, rx) = mpsc::channel();
-    pending().lock().unwrap_or_else(|e| e.into_inner()).insert(id.clone(), tx);
+    pending().lock().unwrap_or_else(|e| e.into_inner()).insert(
+        id.clone(),
+        Pending { tx, token_id: ctx.tok.id.clone(), profile_id: profile.id.clone(), action: action.to_string() },
+    );
     let payload = AiConfirmRequest {
         request_id: id.clone(),
         token_name: ctx.tok.name.clone(),
+        profile_id: profile.id.clone(),
         profile_name: profile.name.clone(),
+        timeout_secs: CONFIRM_TIMEOUT.as_secs(),
         action: action.to_string(),
         summary,
         detail,
     };
-    // No focus stealing: the AI picks the moment, so a keystroke meant for another
-    // window must never land on this dialog. Only flash the taskbar entry.
+    // Make the waiting dialog findable: restore a minimised/hidden window, flash it,
+    // mark the title. No set_focus: Approve is mouse-only after a delay, and a stray
+    // keystroke can at most deny.
     if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
         let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
     }
-    notify_desktop(&payload.action, &payload.summary);
+    mark_waiting(app, true);
+    notify_desktop(&payload.action, &payload.profile_name, &payload.summary);
     let sent = app.emit("ai-confirm-request", payload);
     let answer = if sent.is_ok() { rx.recv_timeout(CONFIRM_TIMEOUT).ok() } else { None };
-    pending().lock().unwrap_or_else(|e| e.into_inner()).remove(&id);
+    {
+        let mut p = pending().lock().unwrap_or_else(|e| e.into_inner());
+        p.remove(&id);
+        if p.is_empty() {
+            mark_waiting(app, false);
+        }
+    }
     match answer {
         Some(true) if !ai_token_service::still_valid(&ctx.tok.id) => {
             ctx.confirmed = Some(false);
@@ -363,11 +432,20 @@ fn confirm(ctx: &mut Ctx, profile: &Profile, action: &str, summary: String, deta
     }
 }
 
-/// Called by the GUI. Unknown/expired ids are ignored.
-pub fn confirm_response(request_id: &str, approved: bool) {
-    if let Some(tx) = pending().lock().unwrap_or_else(|e| e.into_inner()).remove(request_id) {
-        let _ = tx.send(approved);
+/// Called by the GUI. Unknown/expired ids are ignored. `grant` (only with an
+/// approval) turns the click into a standing approval for this token + profile.
+pub fn confirm_response(request_id: &str, approved: bool, grant: Option<AiGrantChoice>) -> Result<(), String> {
+    let Some(w) = pending().lock().unwrap_or_else(|e| e.into_inner()).remove(request_id) else {
+        return Ok(());
+    };
+    let mut res = Ok(());
+    if approved {
+        if let Some(g) = grant {
+            res = ai_token_service::add_grant(&w.token_id, &w.profile_id, &w.action, &g);
+        }
     }
+    let _ = w.tx.send(approved);
+    res
 }
 
 fn no_cancel() -> bool {
@@ -424,6 +502,9 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
     let tok = ctx.tok.clone();
     match tool {
         "list_profiles" => {
+            // Compact on purpose (many profiles = many tokens for the AI): no key paths,
+            // port only when not 22, optional substring filter.
+            let query = args.get("query").and_then(Value::as_str).unwrap_or("").to_lowercase();
             let profiles: Vec<Profile> = if tok.all_profiles {
                 profile_service::list_profiles().unwrap_or_default()
             } else {
@@ -431,31 +512,45 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
             };
             let mut out = Vec::new();
             for p in profiles.into_iter().filter(|p| p.protocol.clone().unwrap_or_default() != Protocol::Ftp) {
-                let local = local_root_for(&tok, &p);
-                let mut v = json!({
-                    "id": p.id, "name": p.name, "host": p.host, "port": p.port,
-                    "username": p.username, "default_remote_path": p.default_remote_path,
-                    "local_folder": local,
-                    "transfers_usable": local.is_some(),
-                });
-                // Connection details (never secrets) only with the ssh_direct switch.
-                if tok.caps.ssh_direct {
-                    v["auth_type"] = json!(p.auth_type);
-                    v["key_path"] = json!(p.key_path);
+                if !query.is_empty()
+                    && ![&p.id, &p.name, &p.host].iter().any(|s| s.to_lowercase().contains(&query))
+                {
+                    continue;
+                }
+                let mut v = json!({ "id": p.id, "name": p.name, "target": format!("{}@{}", p.username, p.host) });
+                if p.port != 22 {
+                    v["port"] = json!(p.port);
+                }
+                if let Some(r) = &p.default_remote_path {
+                    v["remote_path"] = json!(r);
+                }
+                if tok.local_root.is_none() {
+                    if let Some(l) = profile_local_folder(&p) {
+                        v["local_folder"] = json!(l);
+                    }
+                }
+                let grants: Vec<Value> = ai_token_service::active_grants(&tok.id, &p.id)
+                    .iter()
+                    .map(|g| json!({ "action": g.action, "expires_at": g.expires_at, "until_restart": g.session_only }))
+                    .collect();
+                if !grants.is_empty() {
+                    v["always_allowed"] = json!(grants);
                 }
                 out.push(v);
             }
-            let mut notes = vec!["Remote paths may be absolute, ~, ~/... or relative to the login directory.".to_string()];
-            if (tok.caps.upload || tok.caps.download) && out.iter().any(|v| v["transfers_usable"] == false) {
-                notes.push(format!("upload/download only work for profiles with transfers_usable=true. {}", NO_LOCAL_FOLDER));
-            }
-            notes.push("Actions that need confirmation (delete always; writes/transfers per token; exec unless ssh_direct) block until the user clicks in MurmurSSH (max 120 s): tell the user before calling them. A timeout may be retried, a denial is final.".to_string());
+            let staging = ai_token_service::ensure_staging_dir(&tok.id)?.to_string_lossy().into_owned();
             Ok(json!({
                 "profiles": out,
                 "all_profiles": tok.all_profiles,
                 "permissions": tok.caps,
                 "remote_root": tok.remote_root,
-                "notes": notes,
+                "local_folder": tok.local_root.clone().unwrap_or_else(|| staging.clone()),
+                "staging_folder": staging,
+                "notes": [
+                    "Remote paths: absolute, ~, ~/... or relative to the login directory.",
+                    "Local paths: relative ones go to local_folder; absolute ones may also point into staging_folder or a profile's local_folder.",
+                    format!("Confirmations (delete always; writes/transfers per token; exec unless ssh_direct) wait up to {} s for a click in MurmurSSH unless listed in always_allowed: tell the user first. A timeout may be retried, a denial is final.", CONFIRM_TIMEOUT.as_secs()),
+                ],
             }))
         }
         "list_dir" => {
@@ -505,7 +600,8 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
                         failures.push(format!("{}: {}", rel, e));
                     }
                 }
-                Ok(json!({ "downloaded": remote, "to": local, "entries": entries.len(), "skipped_symlinks_or_special": skipped, "skipped_protected": denied, "failures": failures }))
+                let (files, dirs, bytes) = tally(&local, &entries);
+                Ok(json!({ "downloaded": remote, "to": local, "files": files, "dirs": dirs, "bytes": bytes, "skipped_symlinks_or_special": skipped, "skipped_protected": denied, "failures": failures }))
             } else {
                 if local_exists {
                     confirm(ctx, &profile, "download", format!("Overwrite local file '{}'", local.display()), format!("{} → {}", remote, local.display()))?;
@@ -514,7 +610,8 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
                 }
                 let l = local.to_string_lossy().into_owned();
                 sftp_service::download_file(&profile, &remote, &l, &no_cancel, &|_, _| {}).map_err(friendly)?;
-                Ok(json!({ "downloaded": remote, "to": l }))
+                let bytes = std::fs::metadata(&l).map(|m| m.len()).unwrap_or(0);
+                Ok(json!({ "downloaded": remote, "to": l, "files": 1, "bytes": bytes }))
             }
         }
         "upload" => {
@@ -545,7 +642,8 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
                         failures.push(format!("{}: {}", rel, e));
                     }
                 }
-                Ok(json!({ "uploaded": local, "to": remote, "entries": entries.len(), "skipped": skipped, "failures": failures }))
+                let (files, dirs, bytes) = tally(&local, &entries);
+                Ok(json!({ "uploaded": local, "to": remote, "files": files, "dirs": dirs, "bytes": bytes, "skipped": skipped, "failures": failures }))
             } else if meta.is_file() {
                 if exists.is_some_and(|(d, _)| d) {
                     return Err(format!("Remote target '{}' is a directory", remote));
@@ -559,7 +657,7 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
                 }
                 let l = local.to_string_lossy().into_owned();
                 sftp_service::upload_file(&profile, &l, &remote, &no_cancel, &|_, _| {}).map_err(friendly)?;
-                Ok(json!({ "uploaded": l, "to": remote }))
+                Ok(json!({ "uploaded": l, "to": remote, "files": 1, "bytes": meta.len() }))
             } else {
                 Err(format!("'{}' is not a regular file or folder", local.display()))
             }
@@ -652,7 +750,9 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
             if !tok.caps.ssh_direct {
                 confirm(ctx, &profile, "exec", format!("Run command as {}@{} (NOT limited to the remote root)", profile.username, profile.host), command.to_string())?;
             }
-            let opts = sftp_service::ExecOptions { pty: true, timeout: Some(EXEC_TIMEOUT) };
+            // No pty: stdout and stderr stay separate.
+            // lc-debt: without a pty a timed-out command may keep running on the server; upgrade path: wrap in `timeout` when the server has it.
+            let opts = sftp_service::ExecOptions { pty: false, timeout: Some(EXEC_TIMEOUT) };
             let (code, out, err) = sftp_service::exec_command(&profile, command, opts, &no_cancel).map_err(friendly)?;
             // The pty turns \n into \r\n; hand the AI plain lines.
             let (out, cut_o) = cap_text(out.replace("\r\n", "\n"));
@@ -665,6 +765,18 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
         }
         other => Err(format!("Unknown tool '{}'", other)),
     }
+}
+
+/// Files, folders and total file bytes of a transferred tree (sizes read locally).
+fn tally(local: &std::path::Path, entries: &[(String, bool)]) -> (usize, usize, u64) {
+    let dirs = entries.iter().filter(|(_, d)| *d).count();
+    let bytes = entries
+        .iter()
+        .filter(|(_, d)| !*d)
+        .filter_map(|(rel, _)| std::fs::metadata(local.join(rel)).ok())
+        .map(|m| m.len())
+        .sum();
+    (entries.len() - dirs, dirs, bytes)
 }
 
 fn cap_text(s: String) -> (String, bool) {

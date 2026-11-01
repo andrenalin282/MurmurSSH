@@ -1,7 +1,7 @@
 //! Tauri commands for the AI access GUI. Only the GUI can create tokens or change
 //! permissions — none of this is reachable through the AI socket.
 
-use crate::models::ai::{AiCreatedToken, AiStatus, AiTokenInput, AiTokenView};
+use crate::models::ai::{AiCreatedToken, AiGrantChoice, AiStatus, AiTokenInput, AiTokenView};
 use crate::services::{ai_server, ai_token_service, launch_service, remote_copy};
 
 #[tauri::command]
@@ -46,6 +46,11 @@ pub fn ai_bridge_command() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub fn ai_confirm_response(request_id: String, approved: bool) {
-    ai_server::confirm_response(&request_id, approved);
+pub fn ai_confirm_response(request_id: String, approved: bool, grant: Option<AiGrantChoice>) -> Result<(), String> {
+    ai_server::confirm_response(&request_id, approved, grant)
+}
+
+#[tauri::command]
+pub fn ai_revoke_grant(token_id: String, grant_id: String) -> Result<(), String> {
+    ai_token_service::revoke_grant(&token_id, &grant_id)
 }

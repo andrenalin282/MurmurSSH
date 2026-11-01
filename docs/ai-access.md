@@ -72,9 +72,12 @@ Token options:
   also ones created later — no need to edit the token.
 - **Allow everything**: button in the token form that ticks all permissions; “SSH on its
   own” still asks for its extra warning. “Confirm uploads and writes” stays as it is.
-- **Local folder**: if the token has none, the profile's local folder is used. Without
-  either, upload/download fail with a hint where to set one. `/` and your home folder
-  (or above) are refused, also when the folder comes from a profile.
+- **Local folders**: relative local paths go to the token's local folder, or — if the
+  token has none — to the token's own **staging folder**
+  `~/.local/share/murmurssh/ai-staging/<token-id>` (0700, deleted when the token is
+  revoked). Absolute paths may also point into the staging folder and, without a token
+  folder, into the profile's local folder (the folder last used in the local browser
+  panel). `/` and your home folder (or above) are always refused.
 - Remote paths may be absolute, `~`, `~/…` or relative (resolved against the login
   directory on the server); the remote-root check applies after resolution.
 
@@ -87,13 +90,26 @@ Rules that always apply:
 - Folder transfers do not follow symlinks; skipped entries are reported.
 - Folders are only uploaded/downloaded to a new target path (no merging).
 - Commands are **not** limited to the remote folder — the dialog says so.
-- A confirmation request waits 120 s. The AI gets distinct answers: **denied by the
-  user** (final, do not retry) vs. **timed out** (nobody clicked; may be retried). A
-  desktop notification (`notify-send`) announces each waiting request.
+- A confirmation request waits **90 s** (below Claude Code's 120 s tool timeout). The AI
+  gets distinct answers: **denied by the user** (final, do not retry) vs. **timed out**
+  (nobody clicked; may be retried). Each waiting request restores a minimised MurmurSSH
+  window, flashes it, marks its title (“⚠ AI confirmation waiting”) and sends a desktop
+  notification (`notify-send`); the dialog shows the seconds left.
+- With several MurmurSSH windows open, only the **first** one serves AI access — its
+  window shows the dialogs.
+- **Always allow**: the confirmation dialog can turn an approval into a standing
+  approval for this token + profile — for this action type or for everything except
+  delete (delete only via its own tick), valid 1 hour, until MurmurSSH restarts, or
+  permanently. Standing approvals are listed under the token in Settings → AI access and
+  can be revoked there; `murmur_list_profiles` shows them as `always_allowed`.
 - With ssh_direct, file-tool actions (delete; writes when “confirm writes” is on) still ask —
   as a guard against mistakes, not as a security boundary, since the AI can do the same
   through its own SSH session.
-- Command output is returned with `\n` line endings (the pty's `\r\n` is normalised).
+- Commands run without a pty: `stdout` and `stderr` are separate, line endings are `\n`.
+  A command that hits the 60 s limit may keep running on the server.
+- `murmur_list_profiles` is compact (id, name, `user@host`, port if not 22, remote path,
+  local folder, standing approvals; no key paths) and takes an optional `query` filter.
+  Transfer answers report `files`, `dirs` and `bytes`.
 - The Approve button is
   enabled after 1.5 s and only reacts to a mouse click (not Enter/Space), so typing
   in another window cannot approve anything. MurmurSSH does not steal focus.

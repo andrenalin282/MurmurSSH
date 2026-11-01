@@ -8,7 +8,7 @@ use std::sync::Mutex;
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
 use sha2::{Digest, Sha256};
 
-use crate::models::ai::{AiCreatedToken, AiStore, AiToken, AiTokenInput, AiTokenView};
+use crate::models::ai::{AiCreatedToken, AiGrant, AiGrantChoice, AiStore, AiToken, AiTokenInput, AiTokenView};
 use crate::services::{ai_guard, fs_secure};
 
 pub const SECRET_PREFIX: &str = "mssh_";
@@ -62,7 +62,12 @@ fn load() -> Result<AiStore, String> {
     if let Some(s) = c.as_ref() {
         return Ok(s.clone());
     }
-    let s = load_file()?;
+    let mut s = load_file()?;
+    // A new process = a new app session: drop "until restart" and expired grants.
+    let t = now();
+    for tok in s.tokens.iter_mut() {
+        tok.grants.retain(|g| !g.session_only && g.expires_at.is_none_or(|e| t < e));
+    }
     *c = Some(s.clone());
     Ok(s)
 }
@@ -174,6 +179,7 @@ pub fn create(input: AiTokenInput) -> Result<AiCreatedToken, String> {
         created_at,
         expires_at: input.expires_in_days.map(|d| created_at + d as u64 * 86_400),
         last_used_at: None,
+        grants: Vec::new(),
     };
     let view = AiTokenView::from(&token);
     store.tokens.push(token);
@@ -206,7 +212,89 @@ pub fn revoke(id: &str) -> Result<(), String> {
     if store.tokens.len() == before {
         return Err("Token not found".to_string());
     }
+    save(&store)?;
+    // The token's scratch folder goes with it.
+    let _ = std::fs::remove_dir_all(staging_dir(id));
+    Ok(())
+}
+
+/// Per-token scratch folder for transfers: ~/.local/share/murmurssh/ai-staging/<id>.
+pub fn staging_dir(token_id: &str) -> std::path::PathBuf {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/".to_string());
+    std::path::Path::new(&home).join(".local/share/murmurssh/ai-staging").join(token_id)
+}
+
+/// Create (0700) and return the token's scratch folder.
+pub fn ensure_staging_dir(token_id: &str) -> Result<std::path::PathBuf, String> {
+    let d = staging_dir(token_id);
+    fs_secure::private_dir_all(&d).map_err(|e| format!("Staging folder: {}", e))?;
+    Ok(d)
+}
+
+pub const GRANT_ACTIONS: &[&str] = &["upload", "download", "write", "exec", "delete"];
+
+/// Add a standing approval (from a confirmation dialog). `all` never covers delete.
+pub fn add_grant(token_id: &str, profile: &str, action: &str, choice: &AiGrantChoice) -> Result<(), String> {
+    let action = match choice.scope.as_str() {
+        "all" => "all",
+        "action" if GRANT_ACTIONS.contains(&action) => action,
+        _ => return Err("Invalid grant scope".to_string()),
+    };
+    let t = now();
+    let (expires_at, session_only) = match choice.duration.as_str() {
+        "hour" => (Some(t + 3600), false),
+        "session" => (None, true),
+        "forever" => (None, false),
+        _ => return Err("Invalid grant duration".to_string()),
+    };
+    let _g = lock();
+    let mut store = load()?;
+    let tok = store.tokens.iter_mut().find(|x| x.id == token_id).ok_or("Token not found")?;
+    tok.grants.retain(|g| !(g.profile == profile && g.action == action));
+    tok.grants.push(AiGrant {
+        id: random_hex(6)?,
+        profile: profile.to_string(),
+        action: action.to_string(),
+        created_at: t,
+        expires_at,
+        session_only,
+    });
     save(&store)
+}
+
+pub fn revoke_grant(token_id: &str, grant_id: &str) -> Result<(), String> {
+    let _g = lock();
+    let mut store = load()?;
+    let tok = store.tokens.iter_mut().find(|x| x.id == token_id).ok_or("Token not found")?;
+    let n = tok.grants.len();
+    tok.grants.retain(|g| g.id != grant_id);
+    if tok.grants.len() == n {
+        return Err("Approval not found".to_string());
+    }
+    save(&store)
+}
+
+/// Active standing approvals of a token for one profile (fresh from the store).
+pub fn active_grants(token_id: &str, profile: &str) -> Vec<AiGrant> {
+    let _g = lock();
+    let t = now();
+    load()
+        .ok()
+        .and_then(|s| s.tokens.into_iter().find(|x| x.id == token_id))
+        .map(|tok| {
+            tok.grants
+                .into_iter()
+                .filter(|g| g.profile == profile && g.expires_at.is_none_or(|e| t < e))
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Is `action` on `profile` pre-approved? Delete only by its own grant.
+pub fn is_granted(token_id: &str, profile: &str, action: &str) -> bool {
+    active_grants(token_id, profile)
+        .iter()
+        .any(|g| g.action == action || (g.action == "all" && action != "delete"))
 }
 
 /// Drop a deleted profile from every token so a later profile with the same id
@@ -216,9 +304,10 @@ pub fn forget_profile(profile_id: &str) {
     if let Ok(mut store) = load() {
         let mut changed = false;
         for t in store.tokens.iter_mut() {
-            let n = t.profiles.len();
+            let n = t.profiles.len() + t.grants.len();
             t.profiles.retain(|p| p != profile_id);
-            changed |= t.profiles.len() != n;
+            t.grants.retain(|g| g.profile != profile_id);
+            changed |= t.profiles.len() + t.grants.len() != n;
         }
         if changed {
             let _ = save(&store);

@@ -9,6 +9,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Added
+- **AI access – standing approvals & polish**: “always allow” in the confirmation dialog
+  (per token + profile, per action or everything except delete; 1 h / until restart /
+  permanent; revocable in Settings); 90 s confirmation timeout with countdown, window
+  restore + title marker; per-token staging folder; compact `list_profiles` with filter;
+  exec stderr separate; transfer results with files/dirs/bytes.
 - **AI access – usability**: token option “All profiles (incl. future ones)”, “Allow everything”
   button, aligned checkboxes; profile local folder as fallback; `~`/relative remote paths;
   distinct “denied” vs “timed out” answers; desktop notification for waiting confirmations;
