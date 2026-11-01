@@ -37,6 +37,7 @@ Built with [Tauri](https://tauri.app) and Rust. Free to use, free to modify, fre
 - **Duplicate** (remote) — right-click a file → **Duplicate** creates a server-side copy with `_copy` appended to the name (`_copy2`, `_copy3`, … if taken).
 - **Type-ahead navigation** — start typing a name in the remote list and the browser jumps to and selects the first match.
 - **Connection name in the window title** — while connected, the title shows `user@host`, so the right window is easy to find in Alt/Shift-Tab.
+- **AI access via MCP (optional, off by default)** — let an AI assistant such as Claude Code browse, transfer and run commands on your servers through MurmurSSH, with per-token permissions, allowed profiles, folder limits and a confirmation click in the app for risky actions. See [AI access](#ai-access-mcp) below.
 - **Multiple auth methods** — SSH key, SSH agent, or password authentication.
 - **Optional password saving** — choose whether to save a password locally (machine-only) or inside the profile file (portable), or not at all. SSH key passphrases are never saved.
 - **Host key verification** — unknown host keys are shown with their fingerprint before you accept them. Trusted keys are stored locally.
@@ -239,6 +240,27 @@ Open **Settings** from the sidebar to configure:
 | Default editor / Editors by extension | Global default program used for **Edit**, plus per-extension overrides (e.g. `conf` → `nano`). A profile's Editor Command still overrides both. Leave the default blank to use `xdg-open`. |
 | Terminal | **Automatic** (auto-detects an installed terminal emulator), a specific **detected terminal**, or **Custom command** — a custom command is split on spaces, so it cannot contain quoted arguments |
 | Check for updates | Toggle the startup check against GitHub Releases (on by default), plus a **Check now** button for an immediate check |
+
+### AI access (MCP)
+
+MurmurSSH can act as an [MCP](https://modelcontextprotocol.io) server, so an AI assistant (e.g. Claude Code) can work on your servers **through** MurmurSSH — using your profiles, host keys and credentials, without ever seeing passwords. It is off by default and only works while MurmurSSH is running.
+
+**Set up**
+
+1. **Settings → AI access** → switch AI access on.
+2. **New token**: pick the allowed profiles (or *All profiles*, which includes future ones), the permissions, an optional remote folder the AI must stay inside, an optional local folder and an expiry.
+3. Copy the shown command (the secret is displayed only once) and register it with your AI client, for example:
+   ```bash
+   claude mcp add -s user murmurssh -e MURMURSSH_TOKEN=mssh_… -- /usr/bin/murmurssh --mcp
+   ```
+
+**Permissions per token**: read, download, upload, write (mkdir/rename), delete, exec, and the separately warned **SSH on its own** (`ssh_direct`), which lets the AI start its own host-key-pinned `ssh` sessions and run commands without a click. Passwords and passphrases are never handed out.
+
+**Confirmations**: deleting always asks; running commands asks unless `ssh_direct` is on; uploads, downloads and writes ask when *Confirm writes* is enabled. A waiting request shows a dialog with a 90-second countdown, restores the window, adds a dock badge and sends a desktop notification. In the dialog you can tick **always allow** for this profile — per action or everything except delete — for 1 hour, until restart or permanently (delete only for 1 hour or until restart). Standing approvals are listed under the token and can be revoked at any time.
+
+**Safety rails**: if a remote folder is set, remote paths are jailed to it (symlinks resolved on the server); local paths are limited to the token's local folder, a per-token staging folder and the profile's local folder, never `/` or your home itself, and never `.git`, `.ssh` or `.gnupg`. Every call is written to `~/.config/murmurssh/ai_audit.jsonl` without secrets. Only the first running MurmurSSH window serves AI requests.
+
+Full reference: [docs/ai-access.md](docs/ai-access.md).
 
 ### Keyboard shortcuts
 

@@ -8,31 +8,38 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Added
-- **AI access – standing approvals & polish**: “always allow” in the confirmation dialog
-  (per token + profile, per action or everything except delete; 1 h / until restart /
-  permanent; revocable in Settings); 90 s confirmation timeout with countdown, window
-  restore + title marker; per-token staging folder; compact `list_profiles` with filter;
-  exec stderr separate; transfer results with files/dirs/bytes. Delete approvals only for
-  1 h / until restart; `always_allowed` always listed (also `[]`); dock badge while
-  confirmations wait, "expired" notification, and timeout answers say whether the dialog
-  was displayed; older endless delete approvals are ignored; `list_profiles` gains
-  `matched` and `token_covers_all_profiles`. Settings → AI access: wider dialog, profile picker with filter and
-  two-column scroll list (checkboxes no longer push the profile names out of view).
-- **AI access – usability**: token option “All profiles (incl. future ones)”, “Allow everything”
-  button, aligned checkboxes; profile local folder as fallback; `~`/relative remote paths;
-  distinct “denied” vs “timed out” answers; desktop notification for waiting confirmations;
-  exec output without `\r\n`.
-- **AI access – “SSH on its own” (ssh_direct)**: optional, warned token switch; the AI can read
-  connection details, get a host-key-pinned `ssh` command (`murmur_ssh_command`) and run
-  `murmur_exec` without a click. Passwords are never handed out.
-- **AI access (test version)**: AI clients can use MurmurSSH via MCP (`murmurssh --mcp`).
-  Works only with a token created in Settings → AI access; each token has its own
-  permissions (read, download, upload, write, delete, exec), allowed profiles, remote and
-  local folder and optional expiry. Deleting and running commands always need a click in
-  MurmurSSH. Audit log in `~/.config/murmurssh/ai_audit.jsonl`. See `docs/ai-access.md`.
-
 ---
+
+## [1.9.0] - 2026-11-01
+
+AI access release: MurmurSSH can now serve AI assistants via MCP — optional, token-gated
+and off by default.
+
+### Added
+- **AI access via MCP** (`murmurssh --mcp`): AI clients such as Claude Code use MurmurSSH
+  only with a token created in **Settings → AI access**. Each token has its own permissions
+  (read, download, upload, write, delete, exec), allowed profiles or *All profiles* (incl.
+  future ones), an optional remote folder jail, local folder and expiry. Secrets are stored
+  only as SHA-256; every call goes to `~/.config/murmurssh/ai_audit.jsonl` without secrets.
+  See `docs/ai-access.md`.
+- **Confirmation in the app**: delete always asks, exec asks unless `ssh_direct`, transfers
+  and writes ask with *Confirm writes*. 90 s countdown dialog, window restore, title marker,
+  dock badge, desktop notification while waiting and an "expired" notification afterwards.
+  The AI gets distinct answers for "denied" (final) and "timed out" (may retry, and whether
+  the dialog was displayed).
+- **Standing approvals** ("always allow" in the dialog): per token + profile, per action or
+  everything except delete; 1 h, until restart or permanent — delete only 1 h or until
+  restart. Listed and revocable under the token; shown to the AI as `always_allowed`.
+- **"SSH on its own" (`ssh_direct`)**: optional, warned token switch; the AI gets a
+  host-key-pinned `BatchMode` `ssh` command (`murmur_ssh_command`, password profiles via a
+  MurmurSSH ControlMaster) and runs `murmur_exec` without a click. Passwords are never
+  handed out.
+- **Paths & folders**: remote paths accept `~`, `~/…` and relative paths; per-token staging
+  folder (`~/.local/share/murmurssh/ai-staging/<token>`) plus the profile's local folder as
+  local roots; compact `murmur_list_profiles` with `query` filter and `matched` count;
+  transfers report files/dirs/bytes; exec keeps stdout and stderr separate.
+- **Settings → AI access**: token list with standing approvals, "Allow everything" button,
+  wide dialog with a filterable two-column profile picker.
 
 ## [1.8.1] - 2026-10-07
 
