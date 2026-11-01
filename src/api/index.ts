@@ -511,6 +511,10 @@ export async function aiConfirmResponse(
   return invoke("ai_confirm_response", { requestId, approved, grant });
 }
 
+export async function aiConfirmShown(requestId: string): Promise<void> {
+  return invoke("ai_confirm_shown", { requestId });
+}
+
 export async function aiRevokeGrant(tokenId: string, grantId: string): Promise<void> {
   return invoke("ai_revoke_grant", { tokenId, grantId });
 }

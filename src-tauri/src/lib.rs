@@ -38,6 +38,7 @@ pub fn run() {
             commands::ai::ai_bridge_command,
             commands::ai::ai_confirm_response,
             commands::ai::ai_revoke_grant,
+            commands::ai::ai_confirm_shown,
             commands::connection::connect_sftp,
             commands::connection::accept_host_key,
             commands::connection::accept_host_key_once,

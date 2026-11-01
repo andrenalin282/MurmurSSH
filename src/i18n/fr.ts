@@ -524,6 +524,7 @@ const fr = {
     capConfirmWrites: "Confirmer envois et écritures dans l'application",
     allProfiles: "Tous les profils (y compris futurs)",
     allProfilesHint: "S'applique automatiquement à chaque profil, y compris les nouveaux – sans modifier le jeton.",
+    profileFilter: "Filtrer les profils …",
     allowAll: "Tout autoriser",
     alwaysAction: "Toujours autoriser « {action} » pour ce profil",
     alwaysAll: "Tout autoriser pour ce profil (sauf suppression)",

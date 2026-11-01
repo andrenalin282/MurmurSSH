@@ -13,7 +13,11 @@ Versioning follows [Semantic Versioning](https://semver.org/).
   (per token + profile, per action or everything except delete; 1 h / until restart /
   permanent; revocable in Settings); 90 s confirmation timeout with countdown, window
   restore + title marker; per-token staging folder; compact `list_profiles` with filter;
-  exec stderr separate; transfer results with files/dirs/bytes.
+  exec stderr separate; transfer results with files/dirs/bytes. Delete approvals only for
+  1 h / until restart; `always_allowed` always listed (also `[]`); dock badge while
+  confirmations wait, "expired" notification, and timeout answers say whether the dialog
+  was displayed. Settings → AI access: wider dialog, profile picker with filter and
+  two-column scroll list (checkboxes no longer push the profile names out of view).
 - **AI access – usability**: token option “All profiles (incl. future ones)”, “Allow everything”
   button, aligned checkboxes; profile local folder as fallback; `~`/relative remote paths;
   distinct “denied” vs “timed out” answers; desktop notification for waiting confirmations;

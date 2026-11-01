@@ -244,6 +244,8 @@ pub fn add_grant(token_id: &str, profile: &str, action: &str, choice: &AiGrantCh
     let (expires_at, session_only) = match choice.duration.as_str() {
         "hour" => (Some(t + 3600), false),
         "session" => (None, true),
+        // Delete is never granted without an end (max. 1 h or until restart).
+        "forever" if action == "delete" => return Err("Delete can only be allowed for 1 hour or until restart".to_string()),
         "forever" => (None, false),
         _ => return Err("Invalid grant duration".to_string()),
     };
@@ -366,6 +368,14 @@ mod tests {
         assert!(ct_eq(&a, &hash_secret("mssh_x")));
         assert!(!ct_eq(&a, &hash_secret("mssh_y")));
         assert!(!ct_eq("ab", "abc"));
+    }
+
+    #[test]
+    fn delete_grant_needs_an_end() {
+        let forever = AiGrantChoice { scope: "action".into(), duration: "forever".into() };
+        // Refused before the store is touched (token id does not need to exist).
+        let err = add_grant("no-such-token", "p", "delete", &forever).unwrap_err();
+        assert!(err.contains("Delete"), "{err}");
     }
 
     #[test]

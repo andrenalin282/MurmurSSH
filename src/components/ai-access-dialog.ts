@@ -54,7 +54,7 @@ export async function showAiAccessDialog(): Promise<void> {
   installModalKeyHandler();
 
   const overlay = el("div", "modal-overlay");
-  const modal = el("div", "modal modal--form");
+  const modal = el("div", "modal modal--form modal--wide");
   modal.setAttribute("role", "dialog");
   modal.setAttribute("aria-modal", "true");
   overlay.appendChild(modal);
@@ -260,17 +260,34 @@ export async function showAiAccessDialog(): Promise<void> {
     if (profiles.length === 0) {
       profField.appendChild(el("div", "form-field__hint", t("ai.noProfilesAvail")));
     }
-    for (const p of profiles) {
+    // Many profiles (50+): filter field + scrollable grid instead of one long column.
+    const filter = el("input");
+    filter.type = "search";
+    filter.placeholder = t("ai.profileFilter");
+    const list = el("div", "ai-profile-list");
+    const rows: Array<[HTMLLabelElement, string]> = [];
+    for (const p of [...profiles].sort((a, b) => a.name.localeCompare(b.name))) {
       const l = el("label", "ai-check");
       const cb = el("input");
       cb.type = "checkbox";
       cb.checked = existing?.profiles.includes(p.id) ?? false;
       l.append(cb, document.createTextNode(p.name));
-      profField.appendChild(l);
+      l.title = `${p.username}@${p.host}`;
+      list.appendChild(l);
       profBoxes.push([p.id, cb]);
+      rows.push([l, `${p.id} ${p.name} ${p.host}`.toLowerCase()]);
+    }
+    filter.addEventListener("input", () => {
+      const q = filter.value.trim().toLowerCase();
+      for (const [l, hay] of rows) l.style.display = !q || hay.includes(q) ? "" : "none";
+    });
+    if (profiles.length > 0) {
+      if (profiles.length > 8) profField.appendChild(filter);
+      profField.appendChild(list);
     }
     const syncAll = () => {
       for (const [, cb] of profBoxes) cb.disabled = allCb.checked;
+      list.style.opacity = allCb.checked ? "0.5" : "";
     };
     allCb.addEventListener("change", syncAll);
     syncAll();

@@ -511,6 +511,7 @@ const en = {
         capConfirmWrites: "Confirm uploads and writes in the app",
         allProfiles: "All profiles (including future ones)",
         allProfilesHint: "Applies to every profile automatically, including new ones – no need to edit the token.",
+        profileFilter: "Filter profiles …",
         allowAll: "Allow everything",
         alwaysAction: "Always allow “{action}” for this profile",
         alwaysAll: "Allow everything for this profile (except delete)",

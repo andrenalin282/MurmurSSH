@@ -94,13 +94,17 @@ Rules that always apply:
   gets distinct answers: **denied by the user** (final, do not retry) vs. **timed out**
   (nobody clicked; may be retried). Each waiting request restores a minimised MurmurSSH
   window, flashes it, marks its title (“⚠ AI confirmation waiting”) and sends a desktop
-  notification (`notify-send`); the dialog shows the seconds left.
+  notification (`notify-send`, critical); the dialog shows the seconds left and the dock
+  icon carries a badge with the number of waiting requests (Ubuntu dock). The timeout
+  answer says whether the dialog was actually **painted** (the GUI reports it after the
+  first animation frame) — “not displayed” points at a minimised/hidden window or an app
+  that was still starting. An expired request leaves a normal desktop notification.
 - With several MurmurSSH windows open, only the **first** one serves AI access — its
   window shows the dialogs.
 - **Always allow**: the confirmation dialog can turn an approval into a standing
   approval for this token + profile — for this action type or for everything except
   delete (delete only via its own tick), valid 1 hour, until MurmurSSH restarts, or
-  permanently. Standing approvals are listed under the token in Settings → AI access and
+  permanently — delete never permanently (1 hour or until restart only). Standing approvals are listed under the token in Settings → AI access and
   can be revoked there; `murmur_list_profiles` shows them as `always_allowed`.
 - With ssh_direct, file-tool actions (delete; writes when “confirm writes” is on) still ask —
   as a guard against mistakes, not as a security boundary, since the AI can do the same
@@ -108,7 +112,8 @@ Rules that always apply:
 - Commands run without a pty: `stdout` and `stderr` are separate, line endings are `\n`.
   A command that hits the 60 s limit may keep running on the server.
 - `murmur_list_profiles` is compact (id, name, `user@host`, port if not 22, remote path,
-  local folder, standing approvals; no key paths) and takes an optional `query` filter.
+  local folder, `always_allowed` — always present, `[]` when none; no key paths) and
+  takes an optional `query` filter (id/name/host substring).
   Transfer answers report `files`, `dirs` and `bytes`.
 - The Approve button is
   enabled after 1.5 s and only reacts to a mouse click (not Enter/Space), so typing

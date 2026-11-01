@@ -246,6 +246,7 @@ x = Bridge(G); x.rpc("initialize", {"protocolVersion": "2025-06-18"})
 err, txt = x.call("murmur_list_profiles")
 aa = [g["action"] for pr in (json.loads(txt)["profiles"] if not err else []) for g in pr.get("always_allowed", [])]
 check("list_profiles shows only live standing approvals", aa == ["all"], txt)
+check("always_allowed present on every profile (also [])", not err and all(isinstance(pr.get("always_allowed"), list) for pr in json.loads(txt)["profiles"]), txt)
 t0 = time.time(); err, txt = x.call("murmur_mkdir", profile="e2e", path="/config/ai/granted")
 check("grant 'all': mkdir without click", not err and time.time() - t0 < 30 and dexec("test -d /config/ai/granted && echo y").stdout.strip() == "y", txt)
 t0 = time.time(); err, txt = x.call("murmur_exec", profile="e2e", command="echo granted")

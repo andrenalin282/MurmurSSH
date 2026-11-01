@@ -511,6 +511,7 @@ const pl = {
         capConfirmWrites: "Potwierdzaj wysyłanie i zapis w aplikacji",
         allProfiles: "Wszystkie profile (także przyszłe)",
         allProfilesHint: "Dotyczy automatycznie każdego profilu, także nowych – bez edycji tokenu.",
+        profileFilter: "Filtruj profile …",
         allowAll: "Zezwól na wszystko",
         alwaysAction: "Zawsze zezwalaj na „{action}” dla tego profilu",
         alwaysAll: "Zezwól na wszystko dla tego profilu (oprócz usuwania)",

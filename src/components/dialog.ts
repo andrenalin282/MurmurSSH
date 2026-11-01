@@ -339,7 +339,9 @@ export function showAiConfirm(req: AiConfirmRequest, deadline = Date.now() + 85_
     const durRow = document.createElement("label");
     durRow.className = "ai-check";
     const dur = document.createElement("select");
-    for (const d of ["hour", "session", "forever"] as const) {
+    // Delete is only ever allowed with an end (backend enforces the same).
+    const durations = req.action === "delete" ? (["hour", "session"] as const) : (["hour", "session", "forever"] as const);
+    for (const d of durations) {
       const o = document.createElement("option");
       o.value = d;
       o.textContent = t(`ai.dur_${d}`);

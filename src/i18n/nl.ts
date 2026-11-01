@@ -524,6 +524,7 @@ const nl = {
     capConfirmWrites: "Uploads en schrijfacties in de app bevestigen",
     allProfiles: "Alle profielen (ook toekomstige)",
     allProfilesHint: "Geldt automatisch voor elk profiel, ook nieuwe – zonder het token te bewerken.",
+    profileFilter: "Profielen filteren …",
     allowAll: "Alles toestaan",
     alwaysAction: "„{action}” voor dit profiel altijd toestaan",
     alwaysAll: "Alles toestaan voor dit profiel (behalve verwijderen)",

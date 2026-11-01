@@ -531,7 +531,14 @@ async function drainAiConfirms(): Promise<void> {
       if (deadline <= Date.now()) continue;
       let res;
       try {
-        res = await showAiConfirm(req, deadline);
+        const pending = showAiConfirm(req, deadline);
+        // Report "displayed" only once a frame was really painted: WebKit does not run
+        // animation frames for a hidden/minimised window, so the backend can tell the
+        // AI whether the dialog was visible at all when a request times out.
+        requestAnimationFrame(() => {
+          void api.aiConfirmShown(req.request_id).catch(() => {});
+        });
+        res = await pending;
       } catch {
         res = { approved: false, grant: null };
       }

@@ -511,6 +511,7 @@ const de = {
         capConfirmWrites: "Uploads und Schreibzugriffe in der App bestätigen",
         allProfiles: "Alle Profile (auch später angelegte)",
         allProfilesHint: "Gilt automatisch für jedes Profil, auch neue – ohne den Token zu bearbeiten.",
+        profileFilter: "Profile filtern …",
         allowAll: "Alles erlauben",
         alwaysAction: "„{action}“ für dieses Profil immer genehmigen",
         alwaysAll: "Alles für dieses Profil genehmigen (außer Löschen)",

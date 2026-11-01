@@ -49,6 +49,8 @@ struct Pending {
     token_id: String,
     profile_id: String,
     action: String,
+    /// Set by the GUI once the dialog has actually been painted (ai_confirm_shown).
+    shown: bool,
 }
 
 fn pending() -> &'static Mutex<HashMap<String, Pending>> {
@@ -357,13 +359,36 @@ fn notify_desktop(action: &str, profile: &str, summary: &str) {
         .spawn();
 }
 
-/// Window title while confirmations wait, so the serving window is easy to find
-/// (with several MurmurSSH windows only the first one answers the AI).
-fn mark_waiting(app: &AppHandle, waiting: bool) {
+/// Notification left behind when a request expired unanswered, so a user who was
+/// away sees afterwards that the AI asked (and may retry).
+fn notify_expired(action: &str, profile: &str) {
+    let esc = |s: &str| s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+    let _ = std::process::Command::new("notify-send")
+        .args(["-a", "MurmurSSH", "-u", "normal", "-i", "dialog-warning", "--"])
+        .arg(format!("MurmurSSH: AI request expired ({}, {})", esc(action), esc(profile)))
+        .arg("Nobody answered in time. The AI may ask again.")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn();
+}
+
+/// Window title + dock badge while confirmations wait, so the serving window is easy
+/// to find (with several MurmurSSH windows only the first one answers the AI).
+fn mark_waiting(app: &AppHandle) {
     static TITLE: OnceLock<String> = OnceLock::new();
+    let n = pending().lock().unwrap_or_else(|e| e.into_inner()).len();
     if let Some(w) = app.get_webview_window("main") {
         let base = TITLE.get_or_init(|| w.title().unwrap_or_else(|_| "MurmurSSH".to_string()));
-        let _ = w.set_title(&if waiting { format!("⚠ AI confirmation waiting — {}", base) } else { base.clone() });
+        let _ = w.set_title(&if n > 0 { format!("⚠ AI confirmation waiting — {}", base) } else { base.clone() });
+        // Unity LauncherEntry badge (Ubuntu dock); silently ignored elsewhere.
+        let _ = w.set_badge_count(if n > 0 { Some(n as i64) } else { None });
+    }
+}
+
+/// Called by the GUI once the confirmation dialog has been painted.
+pub fn confirm_shown(request_id: &str) {
+    if let Some(w) = pending().lock().unwrap_or_else(|e| e.into_inner()).get_mut(request_id) {
+        w.shown = true;
     }
 }
 
@@ -378,7 +403,7 @@ fn confirm(ctx: &mut Ctx, profile: &Profile, action: &str, summary: String, deta
     let (tx, rx) = mpsc::channel();
     pending().lock().unwrap_or_else(|e| e.into_inner()).insert(
         id.clone(),
-        Pending { tx, token_id: ctx.tok.id.clone(), profile_id: profile.id.clone(), action: action.to_string() },
+        Pending { tx, token_id: ctx.tok.id.clone(), profile_id: profile.id.clone(), action: action.to_string(), shown: false },
     );
     let payload = AiConfirmRequest {
         request_id: id.clone(),
@@ -398,17 +423,19 @@ fn confirm(ctx: &mut Ctx, profile: &Profile, action: &str, summary: String, deta
         let _ = w.show();
         let _ = w.request_user_attention(Some(tauri::UserAttentionType::Critical));
     }
-    mark_waiting(app, true);
+    mark_waiting(app);
+    let (n_action, n_profile) = (payload.action.clone(), payload.profile_name.clone());
     notify_desktop(&payload.action, &payload.profile_name, &payload.summary);
     let sent = app.emit("ai-confirm-request", payload);
     let answer = if sent.is_ok() { rx.recv_timeout(CONFIRM_TIMEOUT).ok() } else { None };
-    {
+    let shown = {
         let mut p = pending().lock().unwrap_or_else(|e| e.into_inner());
-        p.remove(&id);
-        if p.is_empty() {
-            mark_waiting(app, false);
-        }
-    }
+        let shown = p.remove(&id).map(|w| w.shown);
+        drop(p);
+        mark_waiting(app);
+        // Answered requests are removed by confirm_response; None here means answered.
+        shown.unwrap_or(true)
+    };
     match answer {
         Some(true) if !ai_token_service::still_valid(&ctx.tok.id) => {
             ctx.confirmed = Some(false);
@@ -424,9 +451,16 @@ fn confirm(ctx: &mut Ctx, profile: &Profile, action: &str, summary: String, deta
         }
         None => {
             ctx.confirmed = Some(false);
+            notify_expired(&n_action, &n_profile);
+            let why = if shown {
+                "the dialog was displayed in MurmurSSH, but nobody answered"
+            } else {
+                "the dialog was NOT displayed (MurmurSSH window not painted: minimised, on another workspace or still starting)"
+            };
             Err(format!(
-                "Timed out: nobody answered in MurmurSSH within {} s (not a denial). Tell the user a confirmation is waiting in MurmurSSH, then you may retry.",
-                CONFIRM_TIMEOUT.as_secs()
+                "Timed out after {} s: {} (not a denial). Tell the user a confirmation is waiting in MurmurSSH, then you may retry.",
+                CONFIRM_TIMEOUT.as_secs(),
+                why
             ))
         }
     }
@@ -445,7 +479,14 @@ pub fn confirm_response(request_id: &str, approved: bool, grant: Option<AiGrantC
         }
     }
     let _ = w.tx.send(approved);
+    mark_waiting_now();
     res
+}
+
+fn mark_waiting_now() {
+    if let Some(app) = APP.get() {
+        mark_waiting(app);
+    }
 }
 
 fn no_cancel() -> bool {
@@ -533,9 +574,8 @@ fn dispatch(ctx: &mut Ctx, tool: &str, args: &Value) -> Result<Value, String> {
                     .iter()
                     .map(|g| json!({ "action": g.action, "expires_at": g.expires_at, "until_restart": g.session_only }))
                     .collect();
-                if !grants.is_empty() {
-                    v["always_allowed"] = json!(grants);
-                }
+                // Always present (also []), so the AI knows the field exists.
+                v["always_allowed"] = json!(grants);
                 out.push(v);
             }
             let staging = ai_token_service::ensure_staging_dir(&tok.id)?.to_string_lossy().into_owned();

@@ -51,6 +51,11 @@ pub fn ai_confirm_response(request_id: String, approved: bool, grant: Option<AiG
 }
 
 #[tauri::command]
+pub fn ai_confirm_shown(request_id: String) {
+    ai_server::confirm_shown(&request_id)
+}
+
+#[tauri::command]
 pub fn ai_revoke_grant(token_id: String, grant_id: String) -> Result<(), String> {
     ai_token_service::revoke_grant(&token_id, &grant_id)
 }
