@@ -3,6 +3,7 @@ import * as api from "../api/index";
 import type { Settings } from "../types";
 import { t, getLocale, setLocale, getAvailableLocales } from "../i18n/index";
 import { showUpdateAvailableDialog } from "./update-dialog";
+import { showAiAccessDialog } from "./ai-access-dialog";
 
 function escHtml(s: string): string {
   return s
@@ -194,6 +195,12 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label>${t("ai.sectionTitle")}</label>
+          <div class="form-field__hint">${t("ai.sectionHint")}</div>
+          <button type="button" id="ai-access-btn" class="btn-secondary" style="margin-top:6px">${t("ai.open")}</button>
+        </div>
+
+        <div class="form-field">
           <label for="lang-select-settings">${t("settings.labelLanguage")}</label>
           <select id="lang-select-settings" style="width:100%">
             ${localeOptions}
@@ -281,6 +288,10 @@ export class SettingsDialog {
       } finally {
         updateCheckInFlight = false;
       }
+    });
+
+    overlay.querySelector("#ai-access-btn")?.addEventListener("click", () => {
+      void showAiAccessDialog();
     });
 
     overlay.querySelector("#settings-cancel")?.addEventListener("click", () => {

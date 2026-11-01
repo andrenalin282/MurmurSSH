@@ -1,3 +1,4 @@
+pub mod ai;
 pub mod profile;
 pub mod settings;
 pub mod sftp;

@@ -1,3 +1,8 @@
+pub mod ai_audit;
+pub mod ai_guard;
+pub mod ai_mcp_bridge;
+pub mod ai_server;
+pub mod ai_token_service;
 pub mod credentials_store;
 pub mod editor_service;
 pub mod fs_secure;

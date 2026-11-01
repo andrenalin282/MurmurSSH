@@ -1,0 +1,166 @@
+//! Data types for the token-gated AI access (MCP bridge → local socket → app).
+
+use serde::{Deserialize, Serialize};
+
+/// What a token may do. Everything is off unless switched on in the GUI.
+/// `delete` and `exec` always require a click in the app; `confirm_writes`
+/// extends that to upload / mkdir / rename / overwriting downloads.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct AiCaps {
+    pub read: bool,
+    pub download: bool,
+    pub upload: bool,
+    pub write: bool,
+    pub delete: bool,
+    pub exec: bool,
+    pub confirm_writes: bool,
+    /// Dangerous, explicit opt-in: the AI may read the connection details of its
+    /// profiles, get a ready-to-run `ssh` command for its own shell, and run
+    /// `exec` WITHOUT a click. Equivalent to giving it the key on this machine.
+    pub ssh_direct: bool,
+}
+
+impl Default for AiCaps {
+    fn default() -> Self {
+        Self {
+            read: false,
+            download: false,
+            upload: false,
+            write: false,
+            delete: false,
+            exec: false,
+            confirm_writes: true,
+            ssh_direct: false,
+        }
+    }
+}
+
+/// A standing approval, created only by ticking the box in a confirmation dialog.
+/// `action` is upload / download / write / exec / delete, or `all` (= everything
+/// except delete). `session_only` grants are dropped when the app starts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AiGrant {
+    pub id: String,
+    pub profile: String,
+    pub action: String,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+    #[serde(default)]
+    pub session_only: bool,
+}
+
+/// What the user ticked in the confirmation dialog (only honoured with an approval).
+#[derive(Debug, Clone, Deserialize)]
+pub struct AiGrantChoice {
+    /// "action" (this action type) or "all" (everything except delete).
+    pub scope: String,
+    /// "hour", "session" (until MurmurSSH restarts) or "forever".
+    pub duration: String,
+}
+
+/// Stored token. Only the SHA-256 of the secret is kept; the secret is shown once.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AiToken {
+    pub id: String,
+    pub name: String,
+    pub hash: String,
+    pub prefix: String,
+    pub profiles: Vec<String>,
+    /// All profiles, including ones created later.
+    #[serde(default)]
+    pub all_profiles: bool,
+    pub caps: AiCaps,
+    pub remote_root: Option<String>,
+    pub local_root: Option<String>,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+    pub last_used_at: Option<u64>,
+    #[serde(default)]
+    pub grants: Vec<AiGrant>,
+}
+
+/// Token as shown in the GUI (never contains the hash or the secret).
+#[derive(Debug, Clone, Serialize)]
+pub struct AiTokenView {
+    pub id: String,
+    pub name: String,
+    pub prefix: String,
+    pub profiles: Vec<String>,
+    pub all_profiles: bool,
+    pub caps: AiCaps,
+    pub remote_root: Option<String>,
+    pub local_root: Option<String>,
+    pub created_at: u64,
+    pub expires_at: Option<u64>,
+    pub last_used_at: Option<u64>,
+    pub grants: Vec<AiGrant>,
+}
+
+impl From<&AiToken> for AiTokenView {
+    fn from(t: &AiToken) -> Self {
+        Self {
+            id: t.id.clone(),
+            name: t.name.clone(),
+            prefix: t.prefix.clone(),
+            profiles: t.profiles.clone(),
+            all_profiles: t.all_profiles,
+            caps: t.caps.clone(),
+            remote_root: t.remote_root.clone(),
+            local_root: t.local_root.clone(),
+            created_at: t.created_at,
+            expires_at: t.expires_at,
+            last_used_at: t.last_used_at,
+            grants: t.grants.clone(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AiTokenInput {
+    pub name: String,
+    pub profiles: Vec<String>,
+    #[serde(default)]
+    pub all_profiles: bool,
+    pub caps: AiCaps,
+    pub remote_root: Option<String>,
+    pub local_root: Option<String>,
+    pub expires_in_days: Option<u32>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AiCreatedToken {
+    pub token: AiTokenView,
+    pub secret: String,
+}
+
+/// Persisted in `~/.config/murmurssh/ai_access.json` (0600). Kept apart from
+/// settings.json so the settings dialog's save can never flip the master switch.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AiStore {
+    pub enabled: bool,
+    pub tokens: Vec<AiToken>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct AiStatus {
+    pub enabled: bool,
+    pub listening: bool,
+    pub socket_path: String,
+    pub audit_path: String,
+}
+
+/// Payload of the `ai-confirm-request` event.
+#[derive(Debug, Clone, Serialize)]
+pub struct AiConfirmRequest {
+    pub request_id: String,
+    pub token_name: String,
+    pub profile_id: String,
+    pub profile_name: String,
+    /// Seconds the backend waits for an answer.
+    pub timeout_secs: u64,
+    pub action: String,
+    pub summary: String,
+    pub detail: String,
+}

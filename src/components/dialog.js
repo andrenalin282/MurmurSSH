@@ -222,3 +222,128 @@ export function showConfirm(message, title) {
         setTimeout(() => overlay.querySelector("#modal-confirm")?.focus(), 10);
     });
 }
+/** Resolves on a click; null when the deadline passes (the backend then reports a timeout, not a denial). */
+export function showAiConfirm(req, deadline = Date.now() + 85000) {
+    return new Promise((resolve) => {
+        const overlay = document.createElement("div");
+        overlay.className = "modal-overlay";
+        const modal = document.createElement("div");
+        modal.className = "modal";
+        modal.setAttribute("role", "dialog");
+        modal.setAttribute("aria-modal", "true");
+        const title = document.createElement("div");
+        title.className = "modal__title";
+        const titleKey = `ai.confirmTitle_${req.action}`;
+        title.textContent = t(titleKey);
+        const body = document.createElement("div");
+        body.className = "modal__body";
+        const mkLine = (label, value) => {
+            const d = document.createElement("div");
+            const b = document.createElement("strong");
+            b.textContent = label + ": ";
+            d.append(b, document.createTextNode(value));
+            body.appendChild(d);
+        };
+        mkLine(t("ai.confirmToken"), req.token_name);
+        mkLine(t("ai.confirmProfile"), req.profile_name);
+        const sum = document.createElement("div");
+        sum.style.margin = "8px 0";
+        sum.textContent = req.summary;
+        body.appendChild(sum);
+        if (req.detail) {
+            const pre = document.createElement("pre");
+            pre.style.maxHeight = "200px";
+            pre.style.overflow = "auto";
+            pre.style.whiteSpace = "pre-wrap";
+            pre.style.wordBreak = "break-all";
+            pre.textContent = req.detail;
+            body.appendChild(pre);
+        }
+        // "Always allow" for this token + profile (only applied together with Approve).
+        const always = document.createElement("div");
+        always.style.marginTop = "10px";
+        const mkCheck = (text) => {
+            const l = document.createElement("label");
+            l.className = "ai-check";
+            const cb = document.createElement("input");
+            cb.type = "checkbox";
+            l.append(cb, document.createTextNode(text));
+            always.appendChild(l);
+            return cb;
+        };
+        const cbAction = mkCheck(t("ai.alwaysAction", { action: t(`ai.act_${req.action}`) }));
+        const cbAll = req.action === "delete" ? null : mkCheck(t("ai.alwaysAll"));
+        const durRow = document.createElement("label");
+        durRow.className = "ai-check";
+        const dur = document.createElement("select");
+        // Delete is only ever allowed with an end (backend enforces the same).
+        const durations = req.action === "delete" ? ["hour", "session"] : ["hour", "session", "forever"];
+        for (const d of durations) {
+            const o = document.createElement("option");
+            o.value = d;
+            o.textContent = t(`ai.dur_${d}`);
+            dur.appendChild(o);
+        }
+        durRow.append(document.createTextNode(t("ai.alwaysFor")), dur);
+        always.appendChild(durRow);
+        const syncDur = () => {
+            dur.disabled = !(cbAction.checked || cbAll?.checked);
+        };
+        cbAction.addEventListener("change", () => {
+            if (cbAction.checked && cbAll)
+                cbAll.checked = false;
+            syncDur();
+        });
+        cbAll?.addEventListener("change", () => {
+            if (cbAll.checked)
+                cbAction.checked = false;
+            syncDur();
+        });
+        syncDur();
+        body.appendChild(always);
+        const left = document.createElement("div");
+        left.className = "form-field__hint";
+        const tick = () => {
+            left.textContent = t("ai.timeLeft", { s: String(Math.max(0, Math.round((deadline - Date.now()) / 1000))) });
+        };
+        tick();
+        const ticker = setInterval(tick, 1000);
+        body.appendChild(left);
+        const actions = document.createElement("div");
+        actions.className = "modal__actions";
+        const deny = document.createElement("button");
+        deny.type = "button";
+        deny.className = "btn-secondary";
+        deny.setAttribute("data-modal-cancel", "");
+        deny.textContent = t("ai.deny");
+        const approve = document.createElement("button");
+        approve.type = "button";
+        approve.textContent = t("ai.approve");
+        approve.tabIndex = -1;
+        approve.disabled = true;
+        setTimeout(() => { approve.disabled = false; }, 1500);
+        actions.append(deny, approve);
+        modal.append(title, body, actions);
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        // The backend times out after 90 s; close a bit earlier so a late click
+        // can never look like an approval that was actually discarded.
+        const expiry = setTimeout(() => done(null), Math.max(0, deadline - Date.now()));
+        const done = (result) => {
+            clearTimeout(expiry);
+            clearInterval(ticker);
+            overlay.remove();
+            resolve(result);
+        };
+        deny.addEventListener("click", () => done({ approved: false, grant: null }));
+        // detail === 0 means keyboard activation; only a pointer click approves.
+        approve.addEventListener("click", (e) => {
+            if (e.detail === 0 || approve.disabled)
+                return;
+            const scope = cbAll?.checked ? "all" : cbAction.checked ? "action" : null;
+            const duration = dur.value;
+            done({ approved: true, grant: scope ? { scope, duration } : null });
+        });
+        setTimeout(() => deny.focus(), 10);
+    });
+}

@@ -112,7 +112,7 @@ pub fn desktop_dir() -> String {
 /// Stable executable path to bake into a persistent `.desktop` launcher.
 /// For an AppImage `current_exe()` is an ephemeral mount under /tmp that vanishes
 /// on exit, so prefer `$APPIMAGE` (the real .AppImage file) when present.
-fn exec_target() -> Result<String, String> {
+pub(crate) fn exec_target() -> Result<String, String> {
     if let Ok(appimage) = std::env::var("APPIMAGE") {
         if !appimage.is_empty() {
             return Ok(appimage);

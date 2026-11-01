@@ -11,7 +11,7 @@ import { ProfileSelector } from "./components/profile-selector";
 import { SettingsDialog } from "./components/settings-dialog";
 import { showUpdateAvailableDialog } from "./components/update-dialog";
 import { StatusBar } from "./components/status-bar";
-import { showConfirm } from "./components/dialog";
+import { showConfirm, showAiConfirm } from "./components/dialog";
 import { showOverwriteDialog } from "./components/dialog";
 import { showHostKeyDialog, showPasswordPrompt, showPassphrasePrompt, } from "./components/credential-dialog";
 import { t, getAvailableLocales, setLocale, getLocale } from "./i18n/index";
@@ -459,6 +459,57 @@ async function verifyConnection(profileId, password, passphrase) {
         return false;
     }
 }
+// AI (MCP) confirmation requests: shown strictly one at a time, each answered exactly once.
+// Each entry keeps the time it arrived: the backend waits 120 s from emit, so a
+// request queued behind another dialog must not get a fresh full timeout.
+const aiConfirmQueue = [];
+let aiConfirmBusy = false;
+async function drainAiConfirms() {
+    if (aiConfirmBusy)
+        return;
+    aiConfirmBusy = true;
+    try {
+        let item;
+        while ((item = aiConfirmQueue.shift())) {
+            const { req, deadline } = item;
+            // Expired (or dialog closed by its own deadline): send nothing, so the backend
+            // reports "timed out" (retry allowed) instead of a final "denied by the user".
+            if (deadline <= Date.now())
+                continue;
+            let res;
+            try {
+                const pending = showAiConfirm(req, deadline);
+                // Report "displayed" only once a frame was really painted: WebKit does not run
+                // animation frames for a hidden/minimised window, so the backend can tell the
+                // AI whether the dialog was visible at all when a request times out.
+                requestAnimationFrame(() => {
+                    void api.aiConfirmShown(req.request_id).catch(() => { });
+                });
+                res = await pending;
+            }
+            catch {
+                res = { approved: false, grant: null };
+            }
+            if (res === null)
+                continue;
+            try {
+                await api.aiConfirmResponse(req.request_id, res.approved, res.grant);
+            }
+            catch (err) {
+                console.error("ai_confirm_response failed", err);
+            }
+        }
+    }
+    finally {
+        aiConfirmBusy = false;
+    }
+}
+listen("ai-confirm-request", (event) => {
+    // Close the dialog 5 s before the backend gives up, so a late click never counts.
+    const secs = Math.max(10, (event.payload.timeout_secs || 90) - 5);
+    aiConfirmQueue.push({ req: event.payload, deadline: Date.now() + secs * 1000 });
+    void drainAiConfirms();
+});
 // Handle confirm-mode upload: backend detected a save, ask the user.
 // Coalesce repeated saves: while a confirm/upload for a remote path is still
 // being resolved, ignore further upload-ready events for that same path so

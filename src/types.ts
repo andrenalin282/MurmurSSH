@@ -119,3 +119,75 @@ export interface UploadReadyPayload {
   local_path: string;
   remote_path: string;
 }
+
+// ── AI access (MCP) ──────────────────────────────────────────────────────────
+
+export interface AiCaps {
+  read: boolean;
+  download: boolean;
+  upload: boolean;
+  write: boolean;
+  delete: boolean;
+  exec: boolean;
+  confirm_writes: boolean;
+  ssh_direct: boolean;
+}
+
+export interface AiStatus {
+  enabled: boolean;
+  listening: boolean;
+  socket_path: string;
+  audit_path: string;
+}
+
+export interface AiTokenInput {
+  name: string;
+  profiles: string[];
+  all_profiles: boolean;
+  caps: AiCaps;
+  remote_root: string | null;
+  local_root: string | null;
+  expires_in_days: number | null;
+}
+
+/** Times are unix seconds. */
+export interface AiTokenView {
+  id: string;
+  name: string;
+  prefix: string;
+  profiles: string[];
+  all_profiles: boolean;
+  caps: AiCaps;
+  remote_root: string | null;
+  local_root: string | null;
+  created_at: number;
+  expires_at: number | null;
+  last_used_at: number | null;
+  grants: AiGrant[];
+}
+
+/** Emitted by the backend as `ai-confirm-request`. */
+export interface AiGrant {
+  id: string;
+  profile: string;
+  action: "upload" | "download" | "write" | "exec" | "delete" | "all";
+  created_at: number;
+  expires_at: number | null;
+  session_only: boolean;
+}
+
+export interface AiGrantChoice {
+  scope: "action" | "all";
+  duration: "hour" | "session" | "forever";
+}
+
+export interface AiConfirmRequest {
+  request_id: string;
+  token_name: string;
+  profile_id: string;
+  profile_name: string;
+  timeout_secs: number;
+  action: "delete" | "exec" | "upload" | "write" | "download";
+  summary: string;
+  detail: string;
+}
