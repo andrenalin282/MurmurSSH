@@ -59,7 +59,7 @@ pub fn is_safe_delete_path(path: &str) -> bool {
 
 /// Keep only the last `max_chars` characters, char-boundary safe (never splits a
 /// multi-byte codepoint). Used to bound cp stdout/stderr folded into job errors.
-fn truncate_tail(s: &str, max_chars: usize) -> String {
+pub(crate) fn truncate_tail(s: &str, max_chars: usize) -> String {
     let total = s.chars().count();
     if total <= max_chars {
         return s.to_string();

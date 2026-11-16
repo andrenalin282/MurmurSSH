@@ -971,19 +971,58 @@ fn upload_directory_recursive(
 ///
 /// Uses a single SFTP session for the entire operation. Walks the tree depth-first,
 /// deleting files and empty subdirectories in order, then removes the root directory.
+/// Generous upper bound for the `rm -rf` fast path so a dropped connection errors
+/// instead of hanging the (synchronous) command forever.
+const FAST_DELETE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(600);
+
+/// True when SFTP `perm` bits denote a symbolic link.
+fn is_symlink_perm(perm: Option<u32>) -> bool {
+    perm.map(|p| (p & 0o170000) == 0o120000).unwrap_or(false)
+}
+
 pub fn delete_directory(profile: &Profile, path: &str) -> Result<(), String> {
     if !crate::services::remote_copy::is_safe_delete_path(path) {
         return Err(format!("Refusing to delete unsafe path '{}'", path));
     }
+    // A trailing slash on a symlink would make `rm -rf` empty the TARGET directory.
+    let path = path.trim_end_matches('/');
 
-    // Fast path: a single `rm -rf` over an exec channel, when the server allows it.
+    // One SFTP session drives the pre-check, the post-delete verification, and the
+    // recursive fallback — all in the SFTP namespace the user actually sees.
+    let session = connect(profile)?;
+    let sftp = session
+        .sftp()
+        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
+
+    // The root must exist in the SFTP namespace; a missing/renamed/non-UTF-8 path
+    // fails loudly here instead of a shell `rm` silently "succeeding" on nothing.
+    let root = sftp
+        .lstat(Path::new(path))
+        .map_err(|e| format!("Failed to stat '{}': {}", path, e))?;
+
+    // A symlink (even to a directory) is removed as a link only — never followed.
+    if is_symlink_perm(root.perm) {
+        return sftp
+            .unlink(Path::new(path))
+            .map_err(|e| format!("Failed to delete '{}': {}", path, e));
+    }
+
+    // Fast path: a single `rm -rf` over an exec channel for a real, absolute directory.
     // Avoids one SFTP round-trip per file/dir, a big win on large trees.
     let cancel = || false;
-    if crate::services::remote_copy::exec_available(profile, &cancel) {
+    if path.starts_with('/') && crate::services::remote_copy::exec_available(profile, &cancel) {
         let cmd = crate::services::remote_copy::rm_rf_command(path);
-        let opts = ExecOptions { pty: true, timeout: None };
+        let opts = ExecOptions { pty: true, timeout: Some(FAST_DELETE_TIMEOUT) };
         match exec_command(profile, &cmd, opts, &cancel) {
-            Ok((0, _, _)) => return Ok(()),
+            Ok((0, _, _)) => {
+                // Verify in the SFTP namespace: a shell running in a different namespace
+                // (chroot / path mapping) or an rm killed by a signal can report exit 0
+                // while the directory still exists. If it is really gone, we are done;
+                // otherwise fall through to the authoritative SFTP recursion.
+                if sftp.lstat(Path::new(path)).is_err() {
+                    return Ok(());
+                }
+            }
             Ok((status, out, err)) => {
                 // PTY merges stderr into stdout; fold in err too just in case.
                 let mut text = out.trim().to_string();
@@ -994,19 +1033,18 @@ pub fn delete_directory(profile: &Profile, path: &str) -> Result<(), String> {
                     }
                     text.push_str(err_trimmed);
                 }
+                let text = crate::services::remote_copy::truncate_tail(&text, 2000);
                 return Err(format!("rm -rf failed ({}): {}", status, text));
+            }
+            Err(ref e) if e == EXEC_TIMEOUT_ERROR => {
+                return Err(format!("rm -rf timed out after {}s", FAST_DELETE_TIMEOUT.as_secs()));
             }
             // Exec channel failed to open/run: fall back to the SFTP recursion below.
             Err(_) => {}
         }
     }
 
-    // Fallback: recursive SFTP delete (servers without exec, or exec channel failure).
-    let session = connect(profile)?;
-    let sftp = session
-        .sftp()
-        .map_err(|e| format!("Failed to open SFTP channel: {}", e))?;
-
+    // Fallback: recursive SFTP delete (no exec, exec failure, or rm left it in place).
     delete_directory_recursive(&sftp, path)
 }
 
@@ -1231,4 +1269,17 @@ pub fn exec_command(
     let _ = channel.wait_close();
     let status = channel.exit_status().unwrap_or(-1);
     Ok((status, String::from_utf8_lossy(&out).into_owned(), String::from_utf8_lossy(&err).into_owned()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn is_symlink_perm_detects_links() {
+        assert!(is_symlink_perm(Some(0o120777)));
+        assert!(!is_symlink_perm(Some(0o040755))); // directory
+        assert!(!is_symlink_perm(Some(0o100644))); // regular file
+        assert!(!is_symlink_perm(None));
+    }
 }
