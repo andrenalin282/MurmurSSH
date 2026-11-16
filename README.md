@@ -336,6 +336,16 @@ SSH key passphrases are **never saved**. They are prompted at connection time an
 
 To clear a saved password: open the profile in **Edit** → **Clear Saved Credential**.
 
+### Encryption (optional)
+
+Saved passwords can be encrypted with a key so a leaked profile is useless without it. Under **Settings → Encryption**:
+
+- **Create key** — generates a key, encrypts all currently saved passwords, and shows the key value once. Save that value somewhere safe.
+- **Show key value** / **Import a key value** — move the key to another machine to reuse the same (encrypted) profiles there.
+- **Remove key** — decrypts all saved passwords back to plaintext.
+
+Encrypted passwords are stored as `enc:v1:…` (AES-256-GCM) in both the profile JSON and the local secrets file. The key lives in its own `0600` file (default `~/.config/murmurssh/master.key`), never inside the profile or `settings.json`, so a backup or sync of the profiles alone cannot decrypt them. Lose the key and the encrypted passwords cannot be recovered — but you can always re-enter them. SSH key passphrases remain never-saved.
+
 ### SSH key compatibility
 
 If your SSH private key is stored on a mounted or network filesystem, the system `ssh` client may reject it with "UNPROTECTED PRIVATE KEY FILE" because the filesystem does not honour UNIX file permissions as expected by OpenSSH.

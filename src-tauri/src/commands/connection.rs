@@ -1,8 +1,9 @@
 use crate::models::{AuthType, CredentialStorageMode, Protocol};
 use crate::services::{
-    credentials_store, ftp_service, known_hosts_service, profile_service, secrets_service,
-    session_trust_store, sftp_service,
+    credentials_store, crypto_service, ftp_service, known_hosts_service, profile_service,
+    secrets_service, session_trust_store, sftp_service,
 };
+
 
 /// Verify a connection to the given profile, optionally providing runtime credentials.
 ///
@@ -43,13 +44,13 @@ pub fn connect_sftp(
             .credential_storage_mode
             .clone()
             .unwrap_or(CredentialStorageMode::Never);
-        let portable = profile.stored_secret_portable.clone();
-        let pid_for_loader = profile_id.clone();
-        credentials_store::get_or_load(&profile_id, move || match mode {
-            CredentialStorageMode::LocalMachine => secrets_service::get(&pid_for_loader),
-            CredentialStorageMode::PortableProfile => portable,
-            CredentialStorageMode::Never => None,
-        });
+        // Resolve (and decrypt) the stored secret only when the session has none.
+        // A stored ciphertext with no key available surfaces NEED_ENCRYPTION_KEY here.
+        if credentials_store::get(&profile_id).password.is_none() {
+            let resolved =
+                crypto_service::resolve_stored_secret(&mode, profile.stored_secret_portable.clone(), &profile_id)?;
+            credentials_store::get_or_load(&profile_id, move || resolved);
+        }
         return ftp_service::test_connection(&profile);
     }
 
@@ -66,13 +67,13 @@ pub fn connect_sftp(
             .credential_storage_mode
             .clone()
             .unwrap_or(CredentialStorageMode::Never);
-        let portable = profile.stored_secret_portable.clone();
-        let pid_for_loader = profile_id.clone();
-        credentials_store::get_or_load(&profile_id, move || match mode {
-            CredentialStorageMode::LocalMachine => secrets_service::get(&pid_for_loader),
-            CredentialStorageMode::PortableProfile => portable,
-            CredentialStorageMode::Never => None,
-        });
+        // Resolve (and decrypt) the stored secret only when the session has none.
+        // A stored ciphertext with no key available surfaces NEED_ENCRYPTION_KEY here.
+        if credentials_store::get(&profile_id).password.is_none() {
+            let resolved =
+                crypto_service::resolve_stored_secret(&mode, profile.stored_secret_portable.clone(), &profile_id)?;
+            credentials_store::get_or_load(&profile_id, move || resolved);
+        }
     }
 
     sftp_service::test_connection(&profile)
@@ -109,14 +110,14 @@ pub fn save_credential(profile_id: String, secret: String, mode: String) -> Resu
 
     match mode.as_str() {
         "local_machine" => {
-            secrets_service::set(&profile_id, &secret)?;
+            secrets_service::set(&profile_id, &crypto_service::encrypt_for_storage(&secret)?)?;
             // Remove any portable copy that may have existed previously
             profile.stored_secret_portable = None;
             profile.credential_storage_mode = Some(CredentialStorageMode::LocalMachine);
             profile_service::save_profile(&profile)?;
         }
         "portable_profile" => {
-            profile.stored_secret_portable = Some(secret);
+            profile.stored_secret_portable = Some(crypto_service::encrypt_for_storage(&secret)?);
             profile.credential_storage_mode = Some(CredentialStorageMode::PortableProfile);
             // Remove the local machine file if it existed
             secrets_service::delete(&profile_id);

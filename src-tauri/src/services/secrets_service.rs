@@ -41,6 +41,22 @@ pub fn set(profile_id: &str, secret: &str) -> Result<(), String> {
     crate::services::fs_secure::write_private(&dir.join(profile_id), secret.as_bytes())
 }
 
+/// List profile ids that currently have a stored secret file.
+pub fn list_ids() -> Vec<String> {
+    let dir = secrets_dir();
+    let mut ids = Vec::new();
+    if let Ok(entries) = std::fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            if let Some(name) = entry.file_name().to_str() {
+                if crate::services::fs_secure::valid_id(name) {
+                    ids.push(name.to_string());
+                }
+            }
+        }
+    }
+    ids
+}
+
 /// Delete the stored secret for a profile. Silently succeeds if no file exists.
 pub fn delete(profile_id: &str) {
     if crate::services::fs_secure::check_id(profile_id).is_err() {

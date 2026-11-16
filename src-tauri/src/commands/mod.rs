@@ -1,5 +1,6 @@
 pub mod ai;
 pub mod connection;
+pub mod encryption;
 pub mod launch;
 pub mod local;
 pub mod profile;

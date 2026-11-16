@@ -8,6 +8,9 @@ Versioning follows [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+- **Profile password encryption**: saved passwords can be encrypted with a portable key (**Settings → Encryption**). Create a key to encrypt existing saved passwords, export the key value and import it on another machine to reuse the same profiles; a leaked profile is useless without the key. AES-256-GCM, key stored in its own `0600` file (never in the profile JSON or `settings.json`). Removing the key decrypts passwords back to plaintext. SSH key passphrases remain never-saved.
+
 ---
 
 ## [1.9.0] - 2026-11-01

@@ -3,6 +3,7 @@ import type {
   AiStatus,
   AiTokenInput,
   AiTokenView, AiGrantChoice,
+  EncryptionStatus,
   FileEntry,
   Profile,
   Settings,
@@ -49,6 +50,30 @@ export async function parseSshConfig(): Promise<SshConfigEntry[]> {
 
 export async function saveSettings(settings: Settings): Promise<void> {
   return invoke("save_settings", { settings });
+}
+
+export async function encryptionStatus(): Promise<EncryptionStatus> {
+  return invoke("encryption_status");
+}
+
+export async function createEncryptionKey(): Promise<string> {
+  return invoke("create_encryption_key");
+}
+
+export async function encryptExistingNow(): Promise<number> {
+  return invoke("encrypt_existing_now");
+}
+
+export async function exportEncryptionKey(): Promise<string> {
+  return invoke("export_encryption_key");
+}
+
+export async function importEncryptionKey(value: string): Promise<void> {
+  return invoke("import_encryption_key", { value });
+}
+
+export async function removeEncryptionKey(): Promise<void> {
+  return invoke("remove_encryption_key");
 }
 
 /**

@@ -454,6 +454,10 @@ async function verifyConnection(profileId, password, passphrase) {
             // Passphrases are never saved — pass to connect and discard after use
             return verifyConnection(profileId, password, pp);
         }
+        if (err === "NEED_ENCRYPTION_KEY") {
+            statusBar.set("error", t("encryption.needKeyError"));
+            return false;
+        }
         // All other errors — display and stop
         statusBar.set("error", err);
         return false;

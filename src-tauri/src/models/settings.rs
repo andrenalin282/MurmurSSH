@@ -53,5 +53,9 @@ pub struct Settings {
     /// The `bash -c … ssh …` invocation is appended after these tokens.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub terminal_custom_command: Option<String>,
+    /// Path to the master encryption key file. When None, defaults to
+    /// `~/.config/murmurssh/master.key`. Only the PATH lives here, never the key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption_key_path: Option<String>,
 }
 
