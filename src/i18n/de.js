@@ -591,6 +591,9 @@ const de = {
         created: "Schlüssel erstellt; bestehende Passwörter verschlüsselt.",
         imported: "Schlüssel importiert.",
         removed: "Schlüssel entfernt; Passwörter wieder im Klartext.",
+        copied: "Kopiert",
+        encryptExisting: "Bestehende jetzt verschlüsseln",
+        encrypted: "Bestehende Passwörter verschlüsselt.",
         needKeyError: "Das Passwort dieses Profils ist verschlüsselt, aber kein Schlüssel gesetzt. Importiere den Schlüssel unter Einstellungen → Verschlüsselung.",
     },
 };

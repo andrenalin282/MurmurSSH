@@ -57,6 +57,7 @@ pub fn run() {
             commands::settings::save_settings,
             commands::encryption::encryption_status,
             commands::encryption::create_encryption_key,
+            commands::encryption::encrypt_existing_now,
             commands::encryption::export_encryption_key,
             commands::encryption::import_encryption_key,
             commands::encryption::remove_encryption_key,

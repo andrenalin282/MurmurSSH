@@ -87,6 +87,8 @@ export interface EncryptionStatus {
   enabled: boolean;
   /** Resolved key file path (shown in the UI). */
   key_path: string;
+  /** Whether a key file exists at that path, even if its content is invalid. */
+  file_present: boolean;
 }
 
 export interface UpdateCheckResult {

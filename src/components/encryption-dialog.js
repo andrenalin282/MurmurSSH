@@ -19,10 +19,11 @@ export async function showEncryptionDialog() {
     overlay.className = "modal-overlay";
     document.body.appendChild(overlay);
     let revealed = null;
+    let revealedFromCreate = false;
     let message = "";
     let error = "";
     async function render() {
-        const status = await api.encryptionStatus().catch(() => ({ enabled: false, key_path: "" }));
+        const status = await api.encryptionStatus().catch(() => ({ enabled: false, key_path: "", file_present: false }));
         overlay.innerHTML = `
       <div class="modal modal--form" role="dialog" aria-modal="true">
         <div class="modal__title">${t("encryption.title")}</div>
@@ -44,20 +45,30 @@ export async function showEncryptionDialog() {
                    <input id="enc-key-value" type="text" readonly value="${esc(revealed)}" spellcheck="false">
                    <button type="button" id="enc-copy" class="btn-secondary">${t("encryption.copy")}</button>
                  </div>
-                 <div class="form-field__hint">${t("encryption.createWarning")}</div>
+                 ${revealedFromCreate ? `<div class="form-field__hint">${t("encryption.createWarning")}</div>` : ""}
                </div>`
             : ""}
 
-        ${status.enabled
-            ? `<div class="form-field form-field__row" style="gap:8px">
-                 <button type="button" id="enc-export" class="btn-secondary">${t("encryption.export")}</button>
-                 <button type="button" id="enc-remove" class="btn-secondary">${t("encryption.remove")}</button>
-               </div>`
+        ${status.file_present
+            ? ""
             : `<div class="form-field">
                  <button type="button" id="enc-create">${t("encryption.create")}</button>
                </div>`}
 
         ${status.enabled
+            ? `<div class="form-field form-field__row" style="gap:8px">
+                 <button type="button" id="enc-export" class="btn-secondary">${t("encryption.export")}</button>
+                 <button type="button" id="enc-encrypt-existing" class="btn-secondary">${t("encryption.encryptExisting")}</button>
+               </div>`
+            : ""}
+
+        ${status.file_present
+            ? `<div class="form-field">
+                 <button type="button" id="enc-remove" class="btn-secondary">${t("encryption.remove")}</button>
+               </div>`
+            : ""}
+
+        ${status.file_present
             ? ""
             : `<div class="form-field">
                  <label for="enc-import-input">${t("encryption.import")}</label>
@@ -80,18 +91,23 @@ export async function showEncryptionDialog() {
             if (!input)
                 return;
             input.select();
-            try {
-                void navigator.clipboard.writeText(input.value);
-            }
-            catch {
-                /* clipboard unavailable — user can copy manually from the selected field */
-            }
+            const btn = overlay.querySelector("#enc-copy");
+            void Promise.resolve()
+                .then(() => navigator.clipboard?.writeText(input.value))
+                .then(() => {
+                if (btn)
+                    btn.textContent = t("encryption.copied");
+            })
+                .catch(() => {
+                /* clipboard unavailable — the field is selected for manual copy */
+            });
         });
         overlay.querySelector("#enc-create")?.addEventListener("click", async () => {
             error = "";
             message = "";
             try {
                 revealed = await api.createEncryptionKey();
+                revealedFromCreate = true;
                 message = t("encryption.created");
             }
             catch (e) {
@@ -104,6 +120,19 @@ export async function showEncryptionDialog() {
             message = "";
             try {
                 revealed = await api.exportEncryptionKey();
+                revealedFromCreate = false;
+            }
+            catch (e) {
+                error = String(e);
+            }
+            await render();
+        });
+        overlay.querySelector("#enc-encrypt-existing")?.addEventListener("click", async () => {
+            error = "";
+            message = "";
+            try {
+                await api.encryptExistingNow();
+                message = t("encryption.encrypted");
             }
             catch (e) {
                 error = String(e);

@@ -31,6 +31,9 @@ export async function encryptionStatus() {
 export async function createEncryptionKey() {
     return invoke("create_encryption_key");
 }
+export async function encryptExistingNow() {
+    return invoke("encrypt_existing_now");
+}
 export async function exportEncryptionKey() {
     return invoke("export_encryption_key");
 }

@@ -604,6 +604,9 @@ const pl = {
     created: "Klucz utworzony; istniejące hasła zaszyfrowane.",
     imported: "Klucz zaimportowany.",
     removed: "Klucz usunięty; hasła ponownie jawne.",
+    copied: "Skopiowano",
+    encryptExisting: "Zaszyfruj istniejące teraz",
+    encrypted: "Istniejące hasła zaszyfrowane.",
     needKeyError: "Hasło tego profilu jest zaszyfrowane, ale nie ustawiono klucza. Zaimportuj klucz w Ustawienia → Szyfrowanie.",
   },
 } as const;

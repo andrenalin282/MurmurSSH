@@ -591,6 +591,9 @@ const nl = {
         created: "Sleutel aangemaakt; bestaande wachtwoorden versleuteld.",
         imported: "Sleutel geïmporteerd.",
         removed: "Sleutel verwijderd; wachtwoorden weer in platte tekst.",
+        copied: "Gekopieerd",
+        encryptExisting: "Bestaande nu versleutelen",
+        encrypted: "Bestaande wachtwoorden versleuteld.",
         needKeyError: "Het wachtwoord van dit profiel is versleuteld maar er is geen sleutel ingesteld. Importeer de sleutel in Instellingen → Versleuteling.",
     },
 };

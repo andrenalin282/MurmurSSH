@@ -60,6 +60,10 @@ export async function createEncryptionKey(): Promise<string> {
   return invoke("create_encryption_key");
 }
 
+export async function encryptExistingNow(): Promise<number> {
+  return invoke("encrypt_existing_now");
+}
+
 export async function exportEncryptionKey(): Promise<string> {
   return invoke("export_encryption_key");
 }

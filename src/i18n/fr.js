@@ -591,6 +591,9 @@ const fr = {
         created: "Clé créée ; mots de passe existants chiffrés.",
         imported: "Clé importée.",
         removed: "Clé supprimée ; mots de passe de nouveau en clair.",
+        copied: "Copié",
+        encryptExisting: "Chiffrer l'existant maintenant",
+        encrypted: "Mots de passe existants chiffrés.",
         needKeyError: "Le mot de passe de ce profil est chiffré mais aucune clé n'est définie. Importez la clé dans Paramètres → Chiffrement.",
     },
 };

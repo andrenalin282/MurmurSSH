@@ -15,6 +15,8 @@ use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::{engine::general_purpose::STANDARD, Engine};
+use std::io::Write as _;
+use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use crate::models::CredentialStorageMode;
 
@@ -58,11 +60,11 @@ pub fn is_ciphertext(s: &str) -> bool {
 pub fn decode_key(value: &str) -> Result<[u8; 32], String> {
     let bytes = STANDARD
         .decode(value.trim())
-        .map_err(|_| "Ungültiger Schlüsselwert (kein Base64)".to_string())?;
+        .map_err(|_| "Invalid key value (not base64)".to_string())?;
     bytes
         .as_slice()
         .try_into()
-        .map_err(|_| "Schlüssel muss genau 32 Byte (256 Bit) sein".to_string())
+        .map_err(|_| "Key must be exactly 32 bytes (256 bit)".to_string())
 }
 
 /// Encrypt plaintext with a 32-byte key: `enc:v1:` + base64(nonce ‖ ciphertext+tag).
@@ -71,7 +73,7 @@ pub fn encrypt_with_key(key: &[u8; 32], plaintext: &str) -> Result<String, Strin
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ct = cipher
         .encrypt(&nonce, plaintext.as_bytes())
-        .map_err(|_| "Verschlüsselung fehlgeschlagen".to_string())?;
+        .map_err(|_| "Encryption failed".to_string())?;
     let mut blob = nonce.to_vec();
     blob.extend_from_slice(&ct);
     Ok(format!("{}{}", PREFIX, STANDARD.encode(blob)))
@@ -85,16 +87,16 @@ pub fn decrypt_with_key(key: &[u8; 32], stored: &str) -> Result<String, String> 
     };
     let blob = STANDARD
         .decode(body)
-        .map_err(|_| "Ungültige Ciphertext-Daten".to_string())?;
+        .map_err(|_| "Invalid ciphertext data".to_string())?;
     if blob.len() <= NONCE_LEN {
-        return Err("Ciphertext zu kurz".to_string());
+        return Err("Ciphertext too short".to_string());
     }
     let (nonce_bytes, ct) = blob.split_at(NONCE_LEN);
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(key));
     let pt = cipher
         .decrypt(Nonce::from_slice(nonce_bytes), ct)
-        .map_err(|_| "Entschlüsselung fehlgeschlagen (falscher Schlüssel oder beschädigte Daten)".to_string())?;
-    String::from_utf8(pt).map_err(|_| "Entschlüsselter Wert ist kein gültiges UTF-8".to_string())
+        .map_err(|_| "Decryption failed (wrong key or corrupted data)".to_string())?;
+    String::from_utf8(pt).map_err(|_| "Decrypted value is not valid UTF-8".to_string())
 }
 
 // --- file layer ---
@@ -105,14 +107,20 @@ pub fn load_key() -> Option<[u8; 32]> {
     decode_key(&raw).ok()
 }
 
-/// True if a usable key file is present.
+/// True if a usable (valid) key is present.
 pub fn is_enabled() -> bool {
     load_key().is_some()
 }
 
+/// True if a key FILE exists at the resolved path, even if its content is invalid.
+/// Used so a corrupt key file can still be removed via the UI.
+pub fn key_file_present() -> bool {
+    key_path().exists()
+}
+
 /// Encrypt with the stored key. Err if no key is set.
 pub fn encrypt(plaintext: &str) -> Result<String, String> {
-    let key = load_key().ok_or_else(|| "Kein Verschlüsselungsschlüssel gesetzt".to_string())?;
+    let key = load_key().ok_or_else(|| "No encryption key set".to_string())?;
     encrypt_with_key(&key, plaintext)
 }
 
@@ -130,12 +138,28 @@ pub fn decrypt(stored: &str) -> Result<String, String> {
 pub fn create_key() -> Result<String, String> {
     let path = key_path();
     if path.exists() {
-        return Err("Es ist bereits ein Schlüssel vorhanden".to_string());
+        return Err("An encryption key already exists".to_string());
     }
     let mut key = [0u8; 32];
     OsRng.fill_bytes(&mut key);
     let value = STANDARD.encode(key);
-    write_key_file(&path, &value)?;
+    if let Some(dir) = path.parent() {
+        let _ = crate::services::fs_secure::private_dir_all(dir);
+    }
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)
+        .map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AlreadyExists {
+                "An encryption key already exists".to_string()
+            } else {
+                format!("Could not create key file: {}", e)
+            }
+        })?;
+    file.write_all(value.as_bytes())
+        .map_err(|e| format!("Could not write key file: {}", e))?;
     Ok(value)
 }
 
@@ -143,13 +167,13 @@ pub fn create_key() -> Result<String, String> {
 pub fn export_key() -> Result<String, String> {
     std::fs::read_to_string(key_path())
         .map(|s| s.trim().to_string())
-        .map_err(|_| "Kein Schlüssel vorhanden".to_string())
+        .map_err(|_| "No key present".to_string())
 }
 
 /// Install a key from its base64 value (validated to 32 bytes).
 pub fn import_key(value: &str) -> Result<(), String> {
     if key_path().exists() {
-        return Err("Es ist bereits ein Schlüssel vorhanden; zuerst entfernen".to_string());
+        return Err("An encryption key already exists; remove it first".to_string());
     }
     decode_key(value)?;
     write_key_file(&key_path(), value.trim())
@@ -160,7 +184,7 @@ pub fn remove_key_file() -> Result<(), String> {
     let path = key_path();
     if path.exists() {
         std::fs::remove_file(&path)
-            .map_err(|e| format!("Schlüssel konnte nicht entfernt werden: {}", e))?;
+            .map_err(|e| format!("Could not remove key: {}", e))?;
     }
     Ok(())
 }
@@ -196,16 +220,22 @@ pub fn decrypt_all_existing() -> Result<usize, String> {
 
 fn run_migration(encrypting: bool) -> Result<usize, String> {
     if !is_enabled() {
-        return Err("Kein Verschl\u{00fc}sselungsschl\u{00fc}ssel gesetzt".to_string());
+        return Err("No encryption key set".to_string());
     }
     let mut changed = 0usize;
     for mut profile in crate::services::profile_service::list_profiles()? {
         if let Some(secret) = profile.stored_secret_portable.clone() {
-            if let Some(new_value) = migrate_value(&secret, encrypting)? {
+            // On decrypt (key removal) a value we cannot decrypt (foreign key / corrupt)
+            // is skipped, not fatal — it was never usable with this key anyway.
+            let step = match migrate_value(&secret, encrypting) {
+                Ok(v) => v,
+                Err(e) if encrypting => return Err(e),
+                Err(_) => None,
+            };
+            if let Some(new_value) = step {
                 profile.stored_secret_portable = Some(new_value);
                 crate::services::profile_service::save_profile(&profile)?;
                 if encrypting {
-                    // The backup save_profile just wrote still holds the plaintext; purge it.
                     crate::services::profile_service::delete_backup(&profile.id);
                 }
                 changed += 1;
@@ -214,7 +244,12 @@ fn run_migration(encrypting: bool) -> Result<usize, String> {
     }
     for id in crate::services::secrets_service::list_ids() {
         if let Some(secret) = crate::services::secrets_service::get(&id) {
-            if let Some(new_value) = migrate_value(&secret, encrypting)? {
+            let step = match migrate_value(&secret, encrypting) {
+                Ok(v) => v,
+                Err(e) if encrypting => return Err(e),
+                Err(_) => None,
+            };
+            if let Some(new_value) = step {
                 crate::services::secrets_service::set(&id, &new_value)?;
                 changed += 1;
             }

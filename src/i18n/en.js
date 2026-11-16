@@ -591,6 +591,9 @@ const en = {
         created: "Key created; existing passwords encrypted.",
         imported: "Key imported.",
         removed: "Key removed; passwords are plaintext again.",
+        copied: "Copied",
+        encryptExisting: "Encrypt existing now",
+        encrypted: "Existing passwords encrypted.",
         needKeyError: "This profile's password is encrypted but no key is set. Import the key in Settings → Encryption.",
     },
 };
