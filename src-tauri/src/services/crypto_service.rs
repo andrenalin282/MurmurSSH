@@ -175,6 +175,53 @@ fn write_key_file(path: &Path, value: &str) -> Result<(), String> {
     crate::services::fs_secure::write_private(path, value.as_bytes())
 }
 
+/// For migration: given a stored value and direction, return `Some(new_value)` to
+/// write, or `None` to leave it unchanged. Idempotent by construction.
+fn migrate_value(stored: &str, encrypting: bool) -> Result<Option<String>, String> {
+    match (encrypting, is_ciphertext(stored)) {
+        (true, false) => Ok(Some(encrypt(stored)?)),
+        (false, true) => Ok(Some(decrypt(stored)?)),
+        _ => Ok(None),
+    }
+}
+
+/// Encrypt every still-plaintext stored secret (portable profile fields and local
+/// secret files). Idempotent. Returns how many values were changed.
+pub fn encrypt_all_existing() -> Result<usize, String> {
+    run_migration(true)
+}
+
+/// Decrypt every encrypted stored secret back to plaintext (used when removing the
+/// key). Idempotent. Returns how many values were changed.
+pub fn decrypt_all_existing() -> Result<usize, String> {
+    run_migration(false)
+}
+
+fn run_migration(encrypting: bool) -> Result<usize, String> {
+    if !is_enabled() {
+        return Err("Kein Verschl\u{00fc}sselungsschl\u{00fc}ssel gesetzt".to_string());
+    }
+    let mut changed = 0usize;
+    for mut profile in crate::services::profile_service::list_profiles()? {
+        if let Some(secret) = profile.stored_secret_portable.clone() {
+            if let Some(new_value) = migrate_value(&secret, encrypting)? {
+                profile.stored_secret_portable = Some(new_value);
+                crate::services::profile_service::save_profile(&profile)?;
+                changed += 1;
+            }
+        }
+    }
+    for id in crate::services::secrets_service::list_ids() {
+        if let Some(secret) = crate::services::secrets_service::get(&id) {
+            if let Some(new_value) = migrate_value(&secret, encrypting)? {
+                crate::services::secrets_service::set(&id, &new_value)?;
+                changed += 1;
+            }
+        }
+    }
+    Ok(changed)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -268,4 +315,49 @@ mod tests {
         let _ = std::fs::remove_file(&tmp);
         std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
     }
+
+    #[test]
+    fn migrate_encrypt_plaintext_then_decryptable() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-mig1-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        create_key().unwrap();
+        let out = migrate_value("plainpw", true).unwrap().expect("should change");
+        assert!(is_ciphertext(&out));
+        assert_eq!(decrypt(&out).unwrap(), "plainpw");
+        remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn migrate_encrypt_is_idempotent() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-mig2-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        create_key().unwrap();
+        let ct = encrypt("pw").unwrap();
+        assert_eq!(migrate_value(&ct, true).unwrap(), None);
+        remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn migrate_decrypt_ciphertext_restores_plaintext() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-mig3-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        create_key().unwrap();
+        let ct = encrypt("pw").unwrap();
+        assert_eq!(migrate_value(&ct, false).unwrap(), Some("pw".to_string()));
+        assert_eq!(migrate_value("plainpw", false).unwrap(), None);
+        remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
 }
