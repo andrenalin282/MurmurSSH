@@ -8,8 +8,6 @@
 //! (`key_path()`), standardmäßig `~/.config/murmurssh/master.key`. In `settings.json`
 //! steht höchstens der PFAD (`encryption_key_path`), nie der Schlüssel selbst.
 
-#![allow(dead_code)] // TODO Task 4: entfernen, sobald alle Funktionen verdrahtet sind
-
 #[cfg(test)]
 pub(crate) static TEST_KEY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 

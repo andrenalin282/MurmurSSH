@@ -111,16 +111,20 @@ mod tests {
         default: Option<&str>,
         map: Vec<(&str, &str)>,
     ) -> Settings {
-        let mut s = Settings::default();
-        s.default_editor = default.map(|d| d.to_string());
-        if !map.is_empty() {
-            s.editor_by_extension = Some(
+        let editor_by_extension = if map.is_empty() {
+            None
+        } else {
+            Some(
                 map.into_iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect::<HashMap<_, _>>(),
-            );
+            )
+        };
+        Settings {
+            default_editor: default.map(|d| d.to_string()),
+            editor_by_extension,
+            ..Default::default()
         }
-        s
     }
 
     #[test]
