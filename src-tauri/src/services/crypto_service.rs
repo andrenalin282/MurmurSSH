@@ -19,6 +19,7 @@ use std::io::Write as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use crate::models::CredentialStorageMode;
+use zeroize::Zeroizing;
 
 const PREFIX: &str = "enc:v1:";
 const NONCE_LEN: usize = 12;
@@ -57,14 +58,17 @@ pub fn is_ciphertext(s: &str) -> bool {
 // --- pure core (no I/O) ---
 
 /// Decode a base64 key value into exactly 32 bytes.
-pub fn decode_key(value: &str) -> Result<[u8; 32], String> {
-    let bytes = STANDARD
-        .decode(value.trim())
-        .map_err(|_| "Invalid key value (not base64)".to_string())?;
-    bytes
+pub fn decode_key(value: &str) -> Result<Zeroizing<[u8; 32]>, String> {
+    let bytes = Zeroizing::new(
+        STANDARD
+            .decode(value.trim())
+            .map_err(|_| "Invalid key value (not base64)".to_string())?,
+    );
+    let arr: [u8; 32] = bytes
         .as_slice()
         .try_into()
-        .map_err(|_| "Key must be exactly 32 bytes (256 bit)".to_string())
+        .map_err(|_| "Key must be exactly 32 bytes (256 bit)".to_string())?;
+    Ok(Zeroizing::new(arr))
 }
 
 /// Encrypt plaintext with a 32-byte key: `enc:v1:` + base64(nonce ‖ ciphertext+tag).
@@ -102,8 +106,8 @@ pub fn decrypt_with_key(key: &[u8; 32], stored: &str) -> Result<String, String> 
 // --- file layer ---
 
 /// Load the master key from disk, if present and valid.
-pub fn load_key() -> Option<[u8; 32]> {
-    let raw = std::fs::read_to_string(key_path()).ok()?;
+pub fn load_key() -> Option<Zeroizing<[u8; 32]>> {
+    let raw = Zeroizing::new(std::fs::read_to_string(key_path()).ok()?);
     decode_key(&raw).ok()
 }
 
@@ -140,9 +144,9 @@ pub fn create_key() -> Result<String, String> {
     if path.exists() {
         return Err("An encryption key already exists".to_string());
     }
-    let mut key = [0u8; 32];
-    OsRng.fill_bytes(&mut key);
-    let value = STANDARD.encode(key);
+    let mut key = Zeroizing::new([0u8; 32]);
+    OsRng.fill_bytes(&mut *key);
+    let value = STANDARD.encode(key.as_slice());
     if let Some(dir) = path.parent() {
         let _ = crate::services::fs_secure::private_dir_all(dir);
     }
@@ -333,7 +337,7 @@ mod tests {
     #[test]
     fn decode_key_valid_and_invalid() {
         let v = STANDARD.encode(KEY);
-        assert_eq!(decode_key(&v).unwrap(), KEY);
+        assert_eq!(*decode_key(&v).unwrap(), KEY);
         assert!(decode_key("not-32-bytes").is_err());
     }
 

@@ -5,10 +5,11 @@
 //!
 //! File permissions are set to 0600 (owner read/write only).
 //!
-//! SECURITY NOTE: This is NOT encrypted. It is machine-local only because the file
-//! does not travel with the profile JSON. Anyone with filesystem read access to the
-//! user's home directory can read the stored secret. This is intentionally labeled
-//! as a lower-security option compared to never storing the secret at all.
+//! SECURITY NOTE: The stored value is machine-local (the file does not travel with the
+//! profile JSON). When an encryption key is configured it is AES-256-GCM ciphertext
+//! (`enc:v1:…`, see `crypto_service`); without a key it is plaintext. `get`/`set` store the
+//! value verbatim — encryption/decryption happens at the call sites (save_credential /
+//! connect flow). Plaintext here is readable by anyone with filesystem access to it.
 
 use std::path::PathBuf;
 
