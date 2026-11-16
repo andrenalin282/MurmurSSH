@@ -972,6 +972,36 @@ fn upload_directory_recursive(
 /// Uses a single SFTP session for the entire operation. Walks the tree depth-first,
 /// deleting files and empty subdirectories in order, then removes the root directory.
 pub fn delete_directory(profile: &Profile, path: &str) -> Result<(), String> {
+    if !crate::services::remote_copy::is_safe_delete_path(path) {
+        return Err(format!("Refusing to delete unsafe path '{}'", path));
+    }
+
+    // Fast path: a single `rm -rf` over an exec channel, when the server allows it.
+    // Avoids one SFTP round-trip per file/dir, a big win on large trees.
+    let cancel = || false;
+    if crate::services::remote_copy::exec_available(profile, &cancel) {
+        let cmd = crate::services::remote_copy::rm_rf_command(path);
+        let opts = ExecOptions { pty: true, timeout: None };
+        match exec_command(profile, &cmd, opts, &cancel) {
+            Ok((0, _, _)) => return Ok(()),
+            Ok((status, out, err)) => {
+                // PTY merges stderr into stdout; fold in err too just in case.
+                let mut text = out.trim().to_string();
+                let err_trimmed = err.trim();
+                if !err_trimmed.is_empty() {
+                    if !text.is_empty() {
+                        text.push('\n');
+                    }
+                    text.push_str(err_trimmed);
+                }
+                return Err(format!("rm -rf failed ({}): {}", status, text));
+            }
+            // Exec channel failed to open/run: fall back to the SFTP recursion below.
+            Err(_) => {}
+        }
+    }
+
+    // Fallback: recursive SFTP delete (servers without exec, or exec channel failure).
     let session = connect(profile)?;
     let sftp = session
         .sftp()
