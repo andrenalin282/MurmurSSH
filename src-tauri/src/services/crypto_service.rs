@@ -19,6 +19,7 @@ use std::io::Write as _;
 use std::os::unix::fs::OpenOptionsExt as _;
 use std::path::{Path, PathBuf};
 use crate::models::CredentialStorageMode;
+use zeroize::Zeroizing;
 
 const PREFIX: &str = "enc:v1:";
 const NONCE_LEN: usize = 12;
@@ -57,14 +58,17 @@ pub fn is_ciphertext(s: &str) -> bool {
 // --- pure core (no I/O) ---
 
 /// Decode a base64 key value into exactly 32 bytes.
-pub fn decode_key(value: &str) -> Result<[u8; 32], String> {
-    let bytes = STANDARD
-        .decode(value.trim())
-        .map_err(|_| "Invalid key value (not base64)".to_string())?;
-    bytes
+pub fn decode_key(value: &str) -> Result<Zeroizing<[u8; 32]>, String> {
+    let bytes = Zeroizing::new(
+        STANDARD
+            .decode(value.trim())
+            .map_err(|_| "Invalid key value (not base64)".to_string())?,
+    );
+    let arr: [u8; 32] = bytes
         .as_slice()
         .try_into()
-        .map_err(|_| "Key must be exactly 32 bytes (256 bit)".to_string())
+        .map_err(|_| "Key must be exactly 32 bytes (256 bit)".to_string())?;
+    Ok(Zeroizing::new(arr))
 }
 
 /// Encrypt plaintext with a 32-byte key: `enc:v1:` + base64(nonce ‖ ciphertext+tag).
@@ -102,8 +106,8 @@ pub fn decrypt_with_key(key: &[u8; 32], stored: &str) -> Result<String, String> 
 // --- file layer ---
 
 /// Load the master key from disk, if present and valid.
-pub fn load_key() -> Option<[u8; 32]> {
-    let raw = std::fs::read_to_string(key_path()).ok()?;
+pub fn load_key() -> Option<Zeroizing<[u8; 32]>> {
+    let raw = Zeroizing::new(std::fs::read_to_string(key_path()).ok()?);
     decode_key(&raw).ok()
 }
 
@@ -140,9 +144,9 @@ pub fn create_key() -> Result<String, String> {
     if path.exists() {
         return Err("An encryption key already exists".to_string());
     }
-    let mut key = [0u8; 32];
-    OsRng.fill_bytes(&mut key);
-    let value = STANDARD.encode(key);
+    let mut key = Zeroizing::new([0u8; 32]);
+    OsRng.fill_bytes(&mut *key);
+    let value = STANDARD.encode(key.as_slice());
     if let Some(dir) = path.parent() {
         let _ = crate::services::fs_secure::private_dir_all(dir);
     }
@@ -198,10 +202,10 @@ fn write_key_file(path: &Path, value: &str) -> Result<(), String> {
 
 /// For migration: given a stored value and direction, return `Some(new_value)` to
 /// write, or `None` to leave it unchanged. Idempotent by construction.
-fn migrate_value(stored: &str, encrypting: bool) -> Result<Option<String>, String> {
+fn migrate_value(key: &[u8; 32], stored: &str, encrypting: bool) -> Result<Option<String>, String> {
     match (encrypting, is_ciphertext(stored)) {
-        (true, false) => Ok(Some(encrypt(stored)?)),
-        (false, true) => Ok(Some(decrypt(stored)?)),
+        (true, false) => Ok(Some(encrypt_with_key(key, stored)?)),
+        (false, true) => Ok(Some(decrypt_with_key(key, stored)?)),
         _ => Ok(None),
     }
 }
@@ -219,15 +223,14 @@ pub fn decrypt_all_existing() -> Result<usize, String> {
 }
 
 fn run_migration(encrypting: bool) -> Result<usize, String> {
-    if !is_enabled() {
-        return Err("No encryption key set".to_string());
-    }
+    // Load the key once (not per value) — faster migration.
+    let key = load_key().ok_or_else(|| "No encryption key set".to_string())?;
     let mut changed = 0usize;
     for mut profile in crate::services::profile_service::list_profiles()? {
         if let Some(secret) = profile.stored_secret_portable.clone() {
             // On decrypt (key removal) a value we cannot decrypt (foreign key / corrupt)
             // is skipped, not fatal — it was never usable with this key anyway.
-            let step = match migrate_value(&secret, encrypting) {
+            let step = match migrate_value(&key, &secret, encrypting) {
                 Ok(v) => v,
                 Err(e) if encrypting => return Err(e),
                 Err(_) => None,
@@ -244,7 +247,7 @@ fn run_migration(encrypting: bool) -> Result<usize, String> {
     }
     for id in crate::services::secrets_service::list_ids() {
         if let Some(secret) = crate::services::secrets_service::get(&id) {
-            let step = match migrate_value(&secret, encrypting) {
+            let step = match migrate_value(&key, &secret, encrypting) {
                 Ok(v) => v,
                 Err(e) if encrypting => return Err(e),
                 Err(_) => None,
@@ -334,7 +337,7 @@ mod tests {
     #[test]
     fn decode_key_valid_and_invalid() {
         let v = STANDARD.encode(KEY);
-        assert_eq!(decode_key(&v).unwrap(), KEY);
+        assert_eq!(*decode_key(&v).unwrap(), KEY);
         assert!(decode_key("not-32-bytes").is_err());
     }
 
@@ -387,46 +390,33 @@ mod tests {
 
     #[test]
     fn migrate_encrypt_plaintext_then_decryptable() {
-        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let p = std::env::temp_dir().join(format!("murmur-mig1-{}.key", std::process::id()));
-        let _ = std::fs::remove_file(&p);
-        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
-        create_key().unwrap();
-        let out = migrate_value("plainpw", true).unwrap().expect("should change");
+        const K: [u8; 32] = [5u8; 32];
+        let out = migrate_value(&K, "plainpw", true).unwrap().expect("should change");
         assert!(is_ciphertext(&out));
-        assert_eq!(decrypt(&out).unwrap(), "plainpw");
-        remove_key_file().unwrap();
-        let _ = std::fs::remove_file(&p);
-        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+        assert_eq!(decrypt_with_key(&K, &out).unwrap(), "plainpw");
     }
 
     #[test]
     fn migrate_encrypt_is_idempotent() {
-        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let p = std::env::temp_dir().join(format!("murmur-mig2-{}.key", std::process::id()));
-        let _ = std::fs::remove_file(&p);
-        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
-        create_key().unwrap();
-        let ct = encrypt("pw").unwrap();
-        assert_eq!(migrate_value(&ct, true).unwrap(), None);
-        remove_key_file().unwrap();
-        let _ = std::fs::remove_file(&p);
-        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+        const K: [u8; 32] = [5u8; 32];
+        let ct = encrypt_with_key(&K, "pw").unwrap();
+        assert_eq!(migrate_value(&K, &ct, true).unwrap(), None);
     }
 
     #[test]
     fn migrate_decrypt_ciphertext_restores_plaintext() {
-        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let p = std::env::temp_dir().join(format!("murmur-mig3-{}.key", std::process::id()));
-        let _ = std::fs::remove_file(&p);
-        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
-        create_key().unwrap();
-        let ct = encrypt("pw").unwrap();
-        assert_eq!(migrate_value(&ct, false).unwrap(), Some("pw".to_string()));
-        assert_eq!(migrate_value("plainpw", false).unwrap(), None);
-        remove_key_file().unwrap();
-        let _ = std::fs::remove_file(&p);
-        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+        const K: [u8; 32] = [5u8; 32];
+        let ct = encrypt_with_key(&K, "pw").unwrap();
+        assert_eq!(migrate_value(&K, &ct, false).unwrap(), Some("pw".to_string()));
+        assert_eq!(migrate_value(&K, "plainpw", false).unwrap(), None);
+    }
+
+    #[test]
+    fn migrate_decrypt_wrong_key_errs() {
+        const K: [u8; 32] = [5u8; 32];
+        const OTHER: [u8; 32] = [9u8; 32];
+        let ct = encrypt_with_key(&K, "pw").unwrap();
+        assert!(migrate_value(&OTHER, &ct, false).is_err());
     }
 
 

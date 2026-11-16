@@ -92,10 +92,12 @@ pub fn accept_host_key(profile_id: String, fingerprint: String) -> Result<(), St
 /// an SSH key auth profile is a no-op — passphrases must never be stored.
 ///
 /// Modes:
-/// - "local_machine":    plaintext file at ~/.config/murmurssh/secrets/<id>, 0600 perms.
+/// The secret is encrypted via `crypto_service::encrypt_for_storage` before being
+/// written — AES-256-GCM (`enc:v1:…`) when an encryption key is set, otherwise plaintext.
+/// - "local_machine":    file at ~/.config/murmurssh/secrets/<id>, 0600 perms.
 ///                       Does not travel with the profile JSON. Machine-local only.
-/// - "portable_profile": plaintext inside the profile JSON as `stored_secret_portable`.
-///                       SECURITY WARNING: anyone with profile file access can read it.
+/// - "portable_profile": stored in the profile JSON as `stored_secret_portable`.
+///                       Without an encryption key this is readable by anyone with file access.
 /// - Any other value:    no-op ("never" — nothing is stored).
 #[tauri::command]
 pub fn save_credential(profile_id: String, secret: String, mode: String) -> Result<(), String> {

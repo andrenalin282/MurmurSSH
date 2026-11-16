@@ -34,9 +34,32 @@ pub fn cp_command(src: &str, dst: &str, is_dir: bool) -> String {
     }
 }
 
+/// Build a safe recursive-delete command: `rm -rf -- '<quoted path>'`.
+pub fn rm_rf_command(path: &str) -> String {
+    format!("rm -rf -- {}", shell_quote(path))
+}
+
+/// Reject paths too dangerous for a recursive delete: empty/whitespace, root,
+/// bare `~`/`.`/`..`, or a path made only of slashes.
+pub fn is_safe_delete_path(path: &str) -> bool {
+    let t = path.trim().trim_end_matches('/');
+    if t.is_empty() {
+        return false; // empty, root, or only slashes
+    }
+    let segments: Vec<&str> = t.split('/').map(str::trim).collect();
+    // Never allow parent traversal in a delete target (the browser never produces it).
+    if segments.contains(&"..") {
+        return false;
+    }
+    // Require at least one real path segment (not empty, ".", or "~").
+    segments
+        .iter()
+        .any(|seg| !seg.is_empty() && *seg != "." && *seg != "~")
+}
+
 /// Keep only the last `max_chars` characters, char-boundary safe (never splits a
 /// multi-byte codepoint). Used to bound cp stdout/stderr folded into job errors.
-fn truncate_tail(s: &str, max_chars: usize) -> String {
+pub(crate) fn truncate_tail(s: &str, max_chars: usize) -> String {
     let total = s.chars().count();
     if total <= max_chars {
         return s.to_string();
@@ -68,7 +91,7 @@ fn cache_verdict(profile_id: &str, ok: bool) {
 /// to a conclusion (matched, didn't match, or timed out). A failure to even
 /// connect or open a channel is treated as transient and is never cached, so a
 /// blip doesn't permanently fall back to download+upload for the session.
-fn exec_available(profile: &Profile, cancel: &dyn Fn() -> bool) -> bool {
+pub(crate) fn exec_available(profile: &Profile, cancel: &dyn Fn() -> bool) -> bool {
     if let Some(v) = exec_cache().lock().ok().and_then(|c| c.get(&profile.id).copied()) {
         return v;
     }
@@ -248,6 +271,26 @@ mod tests {
         assert_eq!(shell_quote("a b"), "'a b'");
         assert_eq!(shell_quote("it's"), "'it'\\''s'");
         assert_eq!(shell_quote("$(rm -rf /)"), "'$(rm -rf /)'");
+    }
+
+    #[test]
+    fn rm_rf_command_quotes_path() {
+        assert_eq!(rm_rf_command("/a/b/dir"), "rm -rf -- '/a/b/dir'");
+        assert_eq!(rm_rf_command("/a/b dir"), "rm -rf -- '/a/b dir'");
+        assert_eq!(rm_rf_command("/a/'x"), "rm -rf -- '/a/'\\''x'");
+    }
+
+    #[test]
+    fn is_safe_delete_path_accepts_real_folders() {
+        assert!(is_safe_delete_path("/home/user/foo"));
+        assert!(is_safe_delete_path("/a/b/dir/"));
+    }
+
+    #[test]
+    fn is_safe_delete_path_rejects_dangerous() {
+        for p in ["", "   ", "/", "//", "/.", "/..", "/home/..", "~", ".", "..", "   /  "] {
+            assert!(!is_safe_delete_path(p), "must reject {:?}", p);
+        }
     }
 
     #[test]
