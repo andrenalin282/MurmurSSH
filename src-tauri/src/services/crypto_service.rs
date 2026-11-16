@@ -10,6 +10,9 @@
 
 #![allow(dead_code)] // TODO Task 4: entfernen, sobald alle Funktionen verdrahtet sind
 
+#[cfg(test)]
+pub(crate) static TEST_KEY_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 use aes_gcm::aead::rand_core::RngCore;
 use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
@@ -176,10 +179,7 @@ fn write_key_file(path: &Path, value: &str) -> Result<(), String> {
 mod tests {
     use super::*;
     use base64::{engine::general_purpose::STANDARD, Engine};
-    use std::sync::Mutex;
 
-    // File-layer tests share the env override + key path: serialize them.
-    static LOCK: Mutex<()> = Mutex::new(());
     const KEY: [u8; 32] = [7u8; 32];
 
     #[test]
@@ -228,7 +228,7 @@ mod tests {
 
     #[test]
     fn decrypt_ciphertext_without_key_errs() {
-        let _g = LOCK.lock().unwrap();
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = std::env::temp_dir().join(format!("murmur-nokey-{}.key", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         std::env::set_var("MURMURSSH_TEST_KEY_PATH", &tmp);
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn create_import_export_load_round_trip() {
-        let _g = LOCK.lock().unwrap();
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = std::env::temp_dir().join(format!("murmur-key-{}.key", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         std::env::set_var("MURMURSSH_TEST_KEY_PATH", &tmp);
@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn create_key_fails_if_exists() {
-        let _g = LOCK.lock().unwrap();
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let tmp = std::env::temp_dir().join(format!("murmur-key2-{}.key", std::process::id()));
         let _ = std::fs::remove_file(&tmp);
         std::env::set_var("MURMURSSH_TEST_KEY_PATH", &tmp);
