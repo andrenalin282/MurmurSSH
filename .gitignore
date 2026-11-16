@@ -11,3 +11,7 @@ src-tauri/target/
 # Lokale KI-Werkzeuge (nie ins Repo)
 /.lemoncrow/
 /.agents/
+
+# Python-Artefakte (scripts/*.py)
+__pycache__/
+*.pyc
