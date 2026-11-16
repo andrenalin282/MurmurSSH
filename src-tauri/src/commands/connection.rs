@@ -4,24 +4,6 @@ use crate::services::{
     secrets_service, session_trust_store, sftp_service,
 };
 
-/// Resolve a profile's stored credential to plaintext, decrypting if needed.
-/// Returns `Err("NEED_ENCRYPTION_KEY")` when the stored value is encrypted but
-/// no key is available for this profile.
-fn resolve_stored_secret(
-    mode: &CredentialStorageMode,
-    portable: Option<String>,
-    profile_id: &str,
-) -> Result<Option<String>, String> {
-    let raw = match mode {
-        CredentialStorageMode::LocalMachine => secrets_service::get(profile_id),
-        CredentialStorageMode::PortableProfile => portable,
-        CredentialStorageMode::Never => None,
-    };
-    match raw {
-        None => Ok(None),
-        Some(value) => crypto_service::decrypt(&value).map(Some),
-    }
-}
 
 /// Verify a connection to the given profile, optionally providing runtime credentials.
 ///
@@ -66,7 +48,7 @@ pub fn connect_sftp(
         // A stored ciphertext with no key available surfaces NEED_ENCRYPTION_KEY here.
         if credentials_store::get(&profile_id).password.is_none() {
             let resolved =
-                resolve_stored_secret(&mode, profile.stored_secret_portable.clone(), &profile_id)?;
+                crypto_service::resolve_stored_secret(&mode, profile.stored_secret_portable.clone(), &profile_id)?;
             credentials_store::get_or_load(&profile_id, move || resolved);
         }
         return ftp_service::test_connection(&profile);
@@ -89,7 +71,7 @@ pub fn connect_sftp(
         // A stored ciphertext with no key available surfaces NEED_ENCRYPTION_KEY here.
         if credentials_store::get(&profile_id).password.is_none() {
             let resolved =
-                resolve_stored_secret(&mode, profile.stored_secret_portable.clone(), &profile_id)?;
+                crypto_service::resolve_stored_secret(&mode, profile.stored_secret_portable.clone(), &profile_id)?;
             credentials_store::get_or_load(&profile_id, move || resolved);
         }
     }
@@ -128,14 +110,14 @@ pub fn save_credential(profile_id: String, secret: String, mode: String) -> Resu
 
     match mode.as_str() {
         "local_machine" => {
-            secrets_service::set(&profile_id, &crypto_service::encrypt_if_enabled(&secret))?;
+            secrets_service::set(&profile_id, &crypto_service::encrypt_for_storage(&secret)?)?;
             // Remove any portable copy that may have existed previously
             profile.stored_secret_portable = None;
             profile.credential_storage_mode = Some(CredentialStorageMode::LocalMachine);
             profile_service::save_profile(&profile)?;
         }
         "portable_profile" => {
-            profile.stored_secret_portable = Some(crypto_service::encrypt_if_enabled(&secret));
+            profile.stored_secret_portable = Some(crypto_service::encrypt_for_storage(&secret)?);
             profile.credential_storage_mode = Some(CredentialStorageMode::PortableProfile);
             // Remove the local machine file if it existed
             secrets_service::delete(&profile_id);
@@ -194,74 +176,4 @@ pub fn accept_host_key_once(profile_id: String, fingerprint: String) -> Result<(
 pub fn clear_session_credentials(profile_id: String) -> Result<(), String> {
     credentials_store::clear(&profile_id);
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::services::crypto_service;
-
-    fn tmp_key(tag: &str) -> std::path::PathBuf {
-        std::env::temp_dir().join(format!("murmur-conn-{}-{}.key", tag, std::process::id()))
-    }
-
-    #[test]
-    fn resolve_returns_none_for_never() {
-        assert_eq!(
-            resolve_stored_secret(&CredentialStorageMode::Never, Some("x".into()), "pid").unwrap(),
-            None
-        );
-    }
-
-    #[test]
-    fn resolve_passes_through_plaintext_portable() {
-        let _g = crypto_service::TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let p = tmp_key("plain");
-        let _ = std::fs::remove_file(&p);
-        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
-        assert_eq!(
-            resolve_stored_secret(
-                &CredentialStorageMode::PortableProfile,
-                Some("plainpw".into()),
-                "pid"
-            )
-            .unwrap(),
-            Some("plainpw".to_string())
-        );
-        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
-    }
-
-    #[test]
-    fn resolve_decrypts_when_key_set() {
-        let _g = crypto_service::TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let p = tmp_key("set");
-        let _ = std::fs::remove_file(&p);
-        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
-        crypto_service::create_key().unwrap();
-        let ct = crypto_service::encrypt("pw").unwrap();
-        assert_eq!(
-            resolve_stored_secret(&CredentialStorageMode::PortableProfile, Some(ct), "pid").unwrap(),
-            Some("pw".to_string())
-        );
-        crypto_service::remove_key_file().unwrap();
-        let _ = std::fs::remove_file(&p);
-        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
-    }
-
-    #[test]
-    fn resolve_errs_need_key_for_ciphertext_without_key() {
-        let _g = crypto_service::TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let p = tmp_key("nokey");
-        let _ = std::fs::remove_file(&p);
-        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
-        crypto_service::create_key().unwrap();
-        let ct = crypto_service::encrypt("pw").unwrap();
-        crypto_service::remove_key_file().unwrap();
-        assert_eq!(
-            resolve_stored_secret(&CredentialStorageMode::PortableProfile, Some(ct), "pid")
-                .unwrap_err(),
-            "NEED_ENCRYPTION_KEY"
-        );
-        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
-    }
 }

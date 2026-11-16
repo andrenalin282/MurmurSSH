@@ -57,13 +57,15 @@ export async function showEncryptionDialog() {
                  <button type="button" id="enc-create">${t("encryption.create")}</button>
                </div>`}
 
-        <div class="form-field">
-          <label for="enc-import-input">${t("encryption.import")}</label>
-          <div class="form-field__row">
-            <input id="enc-import-input" type="text" placeholder="${t("encryption.importPlaceholder")}" spellcheck="false">
-            <button type="button" id="enc-import" class="btn-secondary">${t("encryption.importBtn")}</button>
-          </div>
-        </div>
+        ${status.enabled
+            ? ""
+            : `<div class="form-field">
+                 <label for="enc-import-input">${t("encryption.import")}</label>
+                 <div class="form-field__row">
+                   <input id="enc-import-input" type="text" placeholder="${t("encryption.importPlaceholder")}" spellcheck="false">
+                   <button type="button" id="enc-import" class="btn-secondary">${t("encryption.importBtn")}</button>
+                 </div>
+               </div>`}
 
         <div class="modal__actions">
           <button type="button" class="btn-secondary" id="enc-close" data-modal-cancel>${t("common.close")}</button>

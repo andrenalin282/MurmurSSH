@@ -25,7 +25,7 @@ use crate::models::ai::{AiConfirmRequest, AiGrantChoice, AiStatus, AiToken};
 use crate::models::{AuthType, CredentialStorageMode, Profile, Protocol};
 use crate::services::ai_guard::{self, Cap};
 use crate::services::{
-    ai_audit, ai_token_service, credentials_store, fs_secure, profile_service, secrets_service,
+    ai_audit, ai_token_service, credentials_store, crypto_service, fs_secure, profile_service,
     sftp_service,
 };
 
@@ -221,13 +221,17 @@ fn profile_for(tok: &AiToken, id: &str) -> Result<Profile, String> {
     }
     if profile.auth_type == AuthType::Password {
         let mode = profile.credential_storage_mode.clone().unwrap_or(CredentialStorageMode::Never);
-        let portable = profile.stored_secret_portable.clone();
-        let pid = profile.id.clone();
-        credentials_store::get_or_load(&profile.id, move || match mode {
-            CredentialStorageMode::LocalMachine => secrets_service::get(&pid),
-            CredentialStorageMode::PortableProfile => portable,
-            CredentialStorageMode::Never => None,
-        });
+        if credentials_store::get(&profile.id).password.is_none() {
+            // Decrypt a stored secret here too (shared with the connect flow); a
+            // ciphertext without a key must not be sent as a password.
+            let resolved = crypto_service::resolve_stored_secret(
+                &mode,
+                profile.stored_secret_portable.clone(),
+                &profile.id,
+            )
+            .map_err(friendly)?;
+            credentials_store::get_or_load(&profile.id, move || resolved);
+        }
     }
     Ok(profile)
 }
@@ -236,6 +240,8 @@ fn profile_for(tok: &AiToken, id: &str) -> Result<Profile, String> {
 fn friendly(e: String) -> String {
     if e == "NEED_PASSWORD" || e == "NEED_PASSPHRASE" {
         "Profile needs a password/passphrase: connect it once in MurmurSSH, then retry".to_string()
+    } else if e == "NEED_ENCRYPTION_KEY" {
+        "This profile's saved password is encrypted but MurmurSSH has no key: import the key in Settings → Encryption, then retry".to_string()
     } else if e.starts_with("UNKNOWN_HOST:") {
         "Host key not trusted yet: connect the profile once in MurmurSSH and accept the key".to_string()
     } else {

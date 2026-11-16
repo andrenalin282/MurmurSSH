@@ -21,6 +21,10 @@ fn config_base() -> PathBuf {
 }
 
 fn profiles_dir() -> PathBuf {
+    #[cfg(test)]
+    if let Ok(p) = std::env::var("MURMURSSH_TEST_PROFILES_DIR") {
+        return PathBuf::from(p);
+    }
     // Use custom profiles directory from settings if configured.
     if let Ok(settings) = settings_service::get_settings() {
         if let Some(custom) = settings.profiles_path {
@@ -153,12 +157,20 @@ pub fn delete_profile(id: &str) -> Result<(), String> {
     fs::remove_file(&path).map_err(|e| format!("Failed to delete profile: {}", e))?;
 
     // Also remove the backup file created by save_profile, if it exists.
-    let bkp = profiles_dir().join(format!("{}.json.bkp", id));
-    if bkp.exists() {
-        let _ = fs::remove_file(&bkp); // Non-fatal — best-effort cleanup
-    }
+    delete_backup(id);
 
     Ok(())
+}
+
+/// Remove the `.json.bkp` backup for a profile, if present. Best-effort.
+pub fn delete_backup(id: &str) {
+    if crate::services::fs_secure::check_id(id).is_err() {
+        return;
+    }
+    let bkp = profiles_dir().join(format!("{}.json.bkp", id));
+    if bkp.exists() {
+        let _ = fs::remove_file(&bkp);
+    }
 }
 
 #[cfg(test)]
@@ -168,5 +180,21 @@ mod tests {
     #[test]
     fn now_epoch_secs_is_after_2020() {
         assert!(now_epoch_secs() > 1_600_000_000);
+    }
+
+    #[test]
+    fn delete_backup_removes_bkp() {
+        use crate::services::crypto_service::TEST_KEY_LOCK;
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("murmur-pbkp-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        std::env::set_var("MURMURSSH_TEST_PROFILES_DIR", &dir);
+        let bkp = dir.join("x.json.bkp");
+        std::fs::write(&bkp, b"{\"stored_secret_portable\":\"plainpw\"}").unwrap();
+        assert!(bkp.exists());
+        delete_backup("x");
+        assert!(!bkp.exists(), "plaintext backup must be removed after migration");
+        std::env::remove_var("MURMURSSH_TEST_PROFILES_DIR");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

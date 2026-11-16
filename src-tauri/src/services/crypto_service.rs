@@ -16,6 +16,7 @@ use aes_gcm::aead::{Aead, AeadCore, KeyInit, OsRng};
 use aes_gcm::{Aes256Gcm, Key, Nonce};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::path::{Path, PathBuf};
+use crate::models::CredentialStorageMode;
 
 const PREFIX: &str = "enc:v1:";
 const NONCE_LEN: usize = 12;
@@ -115,11 +116,6 @@ pub fn encrypt(plaintext: &str) -> Result<String, String> {
     encrypt_with_key(&key, plaintext)
 }
 
-/// Encrypt if a key is set, otherwise return the plaintext unchanged.
-pub fn encrypt_if_enabled(plaintext: &str) -> String {
-    encrypt(plaintext).unwrap_or_else(|_| plaintext.to_string())
-}
-
 /// Decrypt a stored value. Plaintext passes through; ciphertext without a key
 /// yields `NEED_ENCRYPTION_KEY`.
 pub fn decrypt(stored: &str) -> Result<String, String> {
@@ -152,6 +148,9 @@ pub fn export_key() -> Result<String, String> {
 
 /// Install a key from its base64 value (validated to 32 bytes).
 pub fn import_key(value: &str) -> Result<(), String> {
+    if key_path().exists() {
+        return Err("Es ist bereits ein Schlüssel vorhanden; zuerst entfernen".to_string());
+    }
     decode_key(value)?;
     write_key_file(&key_path(), value.trim())
 }
@@ -205,6 +204,10 @@ fn run_migration(encrypting: bool) -> Result<usize, String> {
             if let Some(new_value) = migrate_value(&secret, encrypting)? {
                 profile.stored_secret_portable = Some(new_value);
                 crate::services::profile_service::save_profile(&profile)?;
+                if encrypting {
+                    // The backup save_profile just wrote still holds the plaintext; purge it.
+                    crate::services::profile_service::delete_backup(&profile.id);
+                }
                 changed += 1;
             }
         }
@@ -218,6 +221,35 @@ fn run_migration(encrypting: bool) -> Result<usize, String> {
         }
     }
     Ok(changed)
+}
+
+/// Resolve a profile's stored credential to plaintext, decrypting if needed.
+/// `Err("NEED_ENCRYPTION_KEY")` when the value is encrypted but no key is available.
+/// Shared by the connect flow and the AI server.
+pub fn resolve_stored_secret(
+    mode: &CredentialStorageMode,
+    portable: Option<String>,
+    profile_id: &str,
+) -> Result<Option<String>, String> {
+    let raw = match mode {
+        CredentialStorageMode::LocalMachine => crate::services::secrets_service::get(profile_id),
+        CredentialStorageMode::PortableProfile => portable,
+        CredentialStorageMode::Never => None,
+    };
+    match raw {
+        None => Ok(None),
+        Some(value) => decrypt(&value).map(Some),
+    }
+}
+
+/// Encrypt a secret for storage. Plaintext only when NO key file exists; if a key
+/// file is present it MUST be usable, otherwise an error (never a silent plaintext fallback).
+pub fn encrypt_for_storage(plaintext: &str) -> Result<String, String> {
+    if !key_path().exists() {
+        return Ok(plaintext.to_string());
+    }
+    // A key file is present: it MUST be usable. Never silently store plaintext.
+    encrypt(plaintext)
 }
 
 #[cfg(test)]
@@ -294,7 +326,11 @@ mod tests {
         assert_eq!(export_key().unwrap(), val);
         let ct = encrypt("pw").unwrap();
         assert_eq!(decrypt(&ct).unwrap(), "pw");
+        remove_key_file().unwrap();
+        assert!(!is_enabled());
+        // import installs the key when none is present
         import_key(&val).unwrap();
+        assert!(is_enabled());
         assert_eq!(export_key().unwrap(), val);
         remove_key_file().unwrap();
         assert!(!is_enabled());
@@ -354,6 +390,112 @@ mod tests {
         assert_eq!(migrate_value(&ct, false).unwrap(), Some("pw".to_string()));
         assert_eq!(migrate_value("plainpw", false).unwrap(), None);
         remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+
+    #[test]
+    fn resolve_returns_none_for_never() {
+        assert_eq!(
+            resolve_stored_secret(&CredentialStorageMode::Never, Some("x".into()), "pid").unwrap(),
+            None
+        );
+    }
+
+    #[test]
+    fn resolve_passes_through_plaintext_portable() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-rs-plain-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        assert_eq!(
+            resolve_stored_secret(&CredentialStorageMode::PortableProfile, Some("plainpw".into()), "pid").unwrap(),
+            Some("plainpw".to_string())
+        );
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn resolve_decrypts_when_key_set() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-rs-set-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        create_key().unwrap();
+        let ct = encrypt("pw").unwrap();
+        assert_eq!(
+            resolve_stored_secret(&CredentialStorageMode::PortableProfile, Some(ct), "pid").unwrap(),
+            Some("pw".to_string())
+        );
+        remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn resolve_errs_need_key_for_ciphertext_without_key() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-rs-nokey-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        create_key().unwrap();
+        let ct = encrypt("pw").unwrap();
+        remove_key_file().unwrap();
+        assert_eq!(
+            resolve_stored_secret(&CredentialStorageMode::PortableProfile, Some(ct), "pid").unwrap_err(),
+            "NEED_ENCRYPTION_KEY"
+        );
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn import_rejects_when_key_exists() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-imp-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        let a = create_key().unwrap();
+        // importing a different value must NOT silently overwrite the active key
+        let other = STANDARD.encode([3u8; 32]);
+        assert!(import_key(&other).is_err());
+        assert_eq!(export_key().unwrap(), a, "active key must be unchanged");
+        remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn encrypt_for_storage_plaintext_without_key() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-efs-none-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        assert_eq!(encrypt_for_storage("pw").unwrap(), "pw");
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn encrypt_for_storage_encrypts_with_key() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-efs-key-{}.key", std::process::id()));
+        let _ = std::fs::remove_file(&p);
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        create_key().unwrap();
+        let out = encrypt_for_storage("pw").unwrap();
+        assert!(is_ciphertext(&out));
+        remove_key_file().unwrap();
+        let _ = std::fs::remove_file(&p);
+        std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
+    }
+
+    #[test]
+    fn encrypt_for_storage_errs_when_key_file_unreadable() {
+        let _g = TEST_KEY_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let p = std::env::temp_dir().join(format!("murmur-efs-bad-{}.key", std::process::id()));
+        std::fs::write(&p, b"not-valid-base64-key").unwrap();
+        std::env::set_var("MURMURSSH_TEST_KEY_PATH", &p);
+        assert!(encrypt_for_storage("pw").is_err(), "must not silently store plaintext");
         let _ = std::fs::remove_file(&p);
         std::env::remove_var("MURMURSSH_TEST_KEY_PATH");
     }
