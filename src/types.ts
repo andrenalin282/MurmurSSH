@@ -78,6 +78,15 @@ export interface Settings {
   terminal?: string | null;
   /** Program + prefix args for terminal === "custom". */
   terminal_custom_command?: string | null;
+  /** Path to the master encryption key file. Null/absent = default path. */
+  encryption_key_path?: string | null;
+}
+
+export interface EncryptionStatus {
+  /** Whether a usable key is present. */
+  enabled: boolean;
+  /** Resolved key file path (shown in the UI). */
+  key_path: string;
 }
 
 export interface UpdateCheckResult {

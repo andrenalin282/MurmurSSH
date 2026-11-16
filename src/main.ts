@@ -508,6 +508,11 @@ async function verifyConnection(
       return verifyConnection(profileId, password, pp);
     }
 
+    if (err === "NEED_ENCRYPTION_KEY") {
+      statusBar.set("error", t("encryption.needKeyError"));
+      return false;
+    }
+
     // All other errors — display and stop
     statusBar.set("error", err);
     return false;

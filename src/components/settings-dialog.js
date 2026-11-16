@@ -3,6 +3,7 @@ import * as api from "../api/index";
 import { t, getLocale, setLocale, getAvailableLocales } from "../i18n/index";
 import { showUpdateAvailableDialog } from "./update-dialog";
 import { showAiAccessDialog } from "./ai-access-dialog";
+import { showEncryptionDialog } from "./encryption-dialog";
 function escHtml(s) {
     return s
         .replace(/&/g, "&amp;")
@@ -188,6 +189,12 @@ export class SettingsDialog {
         </div>
 
         <div class="form-field">
+          <label>${t("encryption.title")}</label>
+          <div class="form-field__hint">${t("encryption.sectionHint")}</div>
+          <button type="button" id="encryption-btn" class="btn-secondary" style="margin-top:6px">${t("encryption.open")}</button>
+        </div>
+
+        <div class="form-field">
           <label>${t("ai.sectionTitle")}</label>
           <div class="form-field__hint">${t("ai.sectionHint")}</div>
           <button type="button" id="ai-access-btn" class="btn-secondary" style="margin-top:6px">${t("ai.open")}</button>
@@ -277,6 +284,9 @@ export class SettingsDialog {
             finally {
                 updateCheckInFlight = false;
             }
+        });
+        overlay.querySelector("#encryption-btn")?.addEventListener("click", () => {
+            void showEncryptionDialog();
         });
         overlay.querySelector("#ai-access-btn")?.addEventListener("click", () => {
             void showAiAccessDialog();

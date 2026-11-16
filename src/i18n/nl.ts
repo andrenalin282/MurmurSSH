@@ -584,6 +584,28 @@ const nl = {
     confirmTitle_write: "AI wil SCHRIJVEN",
     confirmTitle_download: "AI wil DOWNLOADEN",
   },
+  encryption: {
+    title: "Versleuteling",
+    sectionHint: "Versleutel opgeslagen profielwachtwoorden met een sleutel. Een gelekt profiel is zonder sleutel waardeloos; importeer de sleutel op een ander apparaat om profielen te gebruiken.",
+    open: "Versleuteling beheren",
+    statusEnabled: "Actief — opgeslagen wachtwoorden zijn versleuteld",
+    statusDisabled: "Inactief — opgeslagen wachtwoorden staan in platte tekst",
+    keyPathLabel: "Sleutelbestand:",
+    create: "Sleutel aanmaken",
+    createWarning: "Bewaar deze waarde veilig. Hij wordt alleen nu getoond. Zonder deze waarde zijn versleutelde wachtwoorden niet te herstellen (je kunt ze opnieuw invoeren).",
+    keyValueLabel: "Sleutelwaarde (kopieer en bewaar deze nu)",
+    copy: "Kopiëren",
+    export: "Sleutelwaarde tonen",
+    import: "Sleutelwaarde importeren",
+    importPlaceholder: "Plak de sleutelwaarde",
+    importBtn: "Importeren",
+    remove: "Sleutel verwijderen",
+    removeConfirm: "Het verwijderen van de sleutel ontsleutelt alle opgeslagen wachtwoorden terug naar platte tekst. Doorgaan?",
+    created: "Sleutel aangemaakt; bestaande wachtwoorden versleuteld.",
+    imported: "Sleutel geïmporteerd.",
+    removed: "Sleutel verwijderd; wachtwoorden weer in platte tekst.",
+    needKeyError: "Het wachtwoord van dit profiel is versleuteld maar er is geen sleutel ingesteld. Importeer de sleutel in Instellingen → Versleuteling.",
+  },
 } as const;
 
 export default nl;

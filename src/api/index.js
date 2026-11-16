@@ -25,6 +25,21 @@ export async function parseSshConfig() {
 export async function saveSettings(settings) {
     return invoke("save_settings", { settings });
 }
+export async function encryptionStatus() {
+    return invoke("encryption_status");
+}
+export async function createEncryptionKey() {
+    return invoke("create_encryption_key");
+}
+export async function exportEncryptionKey() {
+    return invoke("export_encryption_key");
+}
+export async function importEncryptionKey(value) {
+    return invoke("import_encryption_key", { value });
+}
+export async function removeEncryptionKey() {
+    return invoke("remove_encryption_key");
+}
 /**
  * Launch an SSH terminal session for the profile.
  *
